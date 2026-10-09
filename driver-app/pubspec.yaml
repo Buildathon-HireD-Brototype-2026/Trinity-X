@@ -1,0 +1,47 @@
+name: driver_app
+description: "HireD Driver Mobile Application"
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.13.5
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # State Management & Routing
+  flutter_riverpod: ^2.6.1
+  go_router: ^14.8.1
+
+  # Network & Environment
+  dio: ^5.8.0+1
+  flutter_dotenv: ^5.2.1
+  connectivity_plus: ^6.1.4
+
+  # Storage & Caching
+  flutter_secure_storage: ^9.2.4
+  shared_preferences: ^2.5.3
+
+  # UI, Icons & Assets
+  flutter_svg: ^2.0.17
+  table_calendar: ^3.1.3
+  intl: ^0.20.2
+
+  # Media & Hardware Permissions
+  image_picker: ^1.1.2
+  file_picker: ^8.1.7
+  permission_handler: ^11.4.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+  mocktail: ^1.0.4
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/images/
