@@ -1,46 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
-import '../../../core/routing/route_names.dart';
-import '../../../core/storage/secure_storage_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/app_loading_indicator.dart';
-import 'controllers/driver_profile_controller.dart';
 
-class SplashScreen extends ConsumerStatefulWidget {
+/// Cold-start splash screen displayed while AuthController reads stored session asynchronously.
+class SplashScreen extends ConsumerWidget {
   const SplashScreen({super.key});
 
   @override
-  ConsumerState<SplashScreen> createState() => _SplashScreenState();
-}
-
-class _SplashScreenState extends ConsumerState<SplashScreen> {
-  @override
-  void initState() {
-    super.initState();
-    _checkSession();
-  }
-
-  Future<void> _checkSession() async {
-    // Artificial small delay for splash display
-    await Future.delayed(const Duration(milliseconds: 1200));
-    if (!mounted) return;
-
-    final storage = ref.read(secureStorageServiceProvider);
-    final hasSession = await storage.hasValidSession();
-
-    if (!mounted) return;
-    if (hasSession) {
-      await ref.read(driverProfileProvider.notifier).initProfile();
-      if (!mounted) return;
-      context.go(RouteNames.home);
-    } else {
-      context.go(RouteNames.login);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return Scaffold(
       backgroundColor: Colors.white,
       body: SafeArea(

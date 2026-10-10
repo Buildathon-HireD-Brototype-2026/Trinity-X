@@ -15,6 +15,7 @@ abstract class AuthRepository {
   Future<DriverModel> fetchRemoteDriver(int driverId);
   Stream<DriverModel> watchDriver(int driverId);
   Future<DriverModel> toggleDuty(int driverId, bool isOnline);
+  Future<AuthTokens> refreshSession(String refreshToken);
   Future<void> logout();
 }
 
@@ -94,12 +95,8 @@ class MockAuthRepository implements AuthRepository {
     final cleanPhone = phone.replaceAll(RegExp(r'\D'), '');
     final entry = _mockDb[cleanPhone];
 
-    if (entry == null) {
-      throw const AuthException('Driver account not found. Please contact fleet manager.');
-    }
-
-    if (entry.password != password) {
-      throw const AuthException('Invalid password.');
+    if (entry == null || entry.password != password) {
+      throw const AuthException('Invalid phone number or password.');
     }
 
     final driver = entry.driver;
@@ -181,6 +178,35 @@ class MockAuthRepository implements AuthRepository {
       }
     }
     throw const AuthException('Driver not found');
+  }
+
+  @override
+  Future<AuthTokens> refreshSession(String refreshToken) async {
+    if (refreshToken.isEmpty ||
+        refreshToken.contains('expired') ||
+        refreshToken.contains('invalid')) {
+      throw const AuthException('Refresh token expired or revoked.');
+    }
+
+    final driverId = await secureStorage.getDriverId();
+    final driverName = await secureStorage.getDriverName() ?? 'Driver';
+    if (driverId == null) {
+      throw const AuthException('Invalid session credentials.');
+    }
+
+    final newTokens = AuthTokens(
+      accessToken: 'refreshed_access_${driverId}_${DateTime.now().millisecondsSinceEpoch}',
+      refreshToken: 'rotated_refresh_${driverId}_${DateTime.now().millisecondsSinceEpoch}',
+    );
+
+    await secureStorage.saveSession(
+      accessToken: newTokens.accessToken,
+      refreshToken: newTokens.refreshToken,
+      driverId: driverId,
+      driverName: driverName,
+    );
+
+    return newTokens;
   }
 
   @override

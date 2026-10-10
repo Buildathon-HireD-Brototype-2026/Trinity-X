@@ -3,9 +3,11 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/routing/route_names.dart';
+import '../../../core/storage/secure_storage_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
 import '../../../core/widgets/app_loading_indicator.dart';
+import 'controllers/auth_controller.dart';
 import 'controllers/login_controller.dart';
 import 'controllers/driver_profile_controller.dart';
 
@@ -53,6 +55,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         );
 
     if (success && mounted) {
+      final session = await ref.read(secureStorageServiceProvider).getStoredSession();
+      final driver = ref.read(loginControllerProvider).driver;
+      if (session != null && driver != null) {
+        ref.read(authControllerProvider.notifier).setAuthenticated(
+              driver: driver,
+              accessToken: session.accessToken,
+            );
+      }
       // Re-initialize driver profile provider with new session
       await ref.read(driverProfileProvider.notifier).initProfile();
       if (!mounted) return;
@@ -62,8 +72,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final authState = ref.watch(authControllerProvider);
     final loginState = ref.watch(loginControllerProvider);
-    final isLockedOut = loginState.isLockedOut;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -118,10 +128,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     ),
                     const SizedBox(height: 32),
 
-                    // Lockout Warning Banner
-                    if (isLockedOut) ...[
+                    // Session Expired Banner (Server 401 Rejection)
+                    if (authState.sessionExpiredMessage != null) ...[
                       Container(
-                        key: const Key('lockout_banner'),
+                        key: const Key('session_expired_banner'),
                         padding: const EdgeInsets.all(14),
                         decoration: BoxDecoration(
                           color: AppColors.errorBg,
@@ -130,29 +140,16 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         ),
                         child: Row(
                           children: [
-                            const Icon(Icons.lock_clock, color: AppColors.error, size: 26),
+                            const Icon(Icons.warning_amber_rounded, color: AppColors.error, size: 24),
                             const SizedBox(width: 12),
                             Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const Text(
-                                    'Account Temporarily Locked',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      color: AppColors.error,
-                                      fontSize: 14,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    'Try again in ${loginState.remainingLockoutSeconds}s',
-                                    style: const TextStyle(
-                                      color: AppColors.error,
-                                      fontSize: 13,
-                                    ),
-                                  ),
-                                ],
+                              child: Text(
+                                authState.sessionExpiredMessage!,
+                                style: const TextStyle(
+                                  color: AppColors.error,
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 13,
+                                ),
                               ),
                             ),
                           ],
@@ -192,7 +189,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     ],
 
                     // General Error Banner
-                    if (loginState.errorMessage != null && !isLockedOut) ...[
+                    if (loginState.errorMessage != null) ...[
                       Container(
                         key: const Key('error_banner'),
                         padding: const EdgeInsets.all(14),
@@ -255,7 +252,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             controller: _phoneController,
                             keyboardType: TextInputType.phone,
                             textInputAction: TextInputAction.next,
-                            enabled: !loginState.isLoading && !isLockedOut,
+                            enabled: !loginState.isLoading,
                             inputFormatters: [
                               FilteringTextInputFormatter.digitsOnly,
                               LengthLimitingTextInputFormatter(10),
@@ -297,7 +294,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             controller: _passwordController,
                             obscureText: _obscurePassword,
                             textInputAction: TextInputAction.done,
-                            enabled: !loginState.isLoading && !isLockedOut,
+                            enabled: !loginState.isLoading,
                             onFieldSubmitted: (_) => _onLoginPressed(),
                             decoration: InputDecoration(
                               hintText: '••••••••',
@@ -328,7 +325,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       height: 52,
                       child: ElevatedButton(
                         key: const Key('login_submit_button'),
-                        onPressed: (loginState.isLoading || isLockedOut) ? null : _onLoginPressed,
+                        onPressed: loginState.isLoading ? null : _onLoginPressed,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppColors.primary,
                           disabledBackgroundColor: AppColors.primary.withValues(alpha: 0.5),

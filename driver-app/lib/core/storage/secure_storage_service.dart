@@ -2,7 +2,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 final secureStorageServiceProvider = Provider<SecureStorageService>((ref) {
-  return SecureStorageService(const FlutterSecureStorage());
+  return SecureStorageService(
+    const FlutterSecureStorage(
+      webOptions: WebOptions(
+        dbName: 'hired_driver_auth',
+        publicKey: 'hired_driver_auth_key',
+      ),
+    ),
+  );
 });
 
 /// Manages secure token and credential persistence on device.
@@ -22,35 +29,89 @@ class SecureStorageService {
     required int driverId,
     required String driverName,
   }) async {
-    await Future.wait([
-      _storage.write(key: _keyAccessToken, value: accessToken),
-      _storage.write(key: _keyRefreshToken, value: refreshToken),
-      _storage.write(key: _keyDriverId, value: driverId.toString()),
-      _storage.write(key: _keyDriverName, value: driverName),
-    ]);
+    try {
+      await Future.wait([
+        _storage.write(key: _keyAccessToken, value: accessToken),
+        _storage.write(key: _keyRefreshToken, value: refreshToken),
+        _storage.write(key: _keyDriverId, value: driverId.toString()),
+        _storage.write(key: _keyDriverName, value: driverName),
+      ]);
+    } catch (_) {}
   }
 
-  Future<String?> getAccessToken() => _storage.read(key: _keyAccessToken);
-  Future<String?> getRefreshToken() => _storage.read(key: _keyRefreshToken);
+  Future<String?> getAccessToken() async {
+    try {
+      return await _storage.read(key: _keyAccessToken);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<String?> getRefreshToken() async {
+    try {
+      return await _storage.read(key: _keyRefreshToken);
+    } catch (_) {
+      return null;
+    }
+  }
 
   Future<int?> getDriverId() async {
-    final val = await _storage.read(key: _keyDriverId);
-    return val != null ? int.tryParse(val) : null;
+    try {
+      final val = await _storage.read(key: _keyDriverId);
+      return val != null ? int.tryParse(val) : null;
+    } catch (_) {
+      return null;
+    }
   }
 
-  Future<String?> getDriverName() => _storage.read(key: _keyDriverName);
+  Future<String?> getDriverName() async {
+    try {
+      return await _storage.read(key: _keyDriverName);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Reads and strictly validates all 4 session tokens and driver credentials.
+  /// Returns null if any field is missing or corrupted (e.g. invalid integer driver_id).
+  Future<({String accessToken, String refreshToken, int driverId, String driverName})?> getStoredSession() async {
+    try {
+      final accessToken = await getAccessToken();
+      final refreshToken = await getRefreshToken();
+      final driverId = await getDriverId();
+      final driverName = await getDriverName();
+
+      if (accessToken == null || accessToken.trim().isEmpty ||
+          refreshToken == null || refreshToken.trim().isEmpty ||
+          driverId == null ||
+          driverName == null || driverName.trim().isEmpty) {
+        return null;
+      }
+
+      return (
+        accessToken: accessToken,
+        refreshToken: refreshToken,
+        driverId: driverId,
+        driverName: driverName,
+      );
+    } catch (_) {
+      return null;
+    }
+  }
 
   Future<bool> hasValidSession() async {
-    final token = await getAccessToken();
-    return token != null && token.isNotEmpty;
+    final session = await getStoredSession();
+    return session != null;
   }
 
   Future<void> clearSession() async {
-    await Future.wait([
-      _storage.delete(key: _keyAccessToken),
-      _storage.delete(key: _keyRefreshToken),
-      _storage.delete(key: _keyDriverId),
-      _storage.delete(key: _keyDriverName),
-    ]);
+    try {
+      await Future.wait([
+        _storage.delete(key: _keyAccessToken),
+        _storage.delete(key: _keyRefreshToken),
+        _storage.delete(key: _keyDriverId),
+        _storage.delete(key: _keyDriverName),
+      ]);
+    } catch (_) {}
   }
 }

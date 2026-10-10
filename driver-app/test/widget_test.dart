@@ -10,11 +10,14 @@ class FakeSecureStorageService extends SecureStorageService {
   final Map<String, String> _data;
 
   FakeSecureStorageService([Map<String, String>? initialData])
-      : _data = initialData ?? {},
+      : _data = initialData != null ? Map.from(initialData) : {},
         super(const FlutterSecureStorage());
 
   @override
   Future<String?> getAccessToken() async => _data['auth_access_token'];
+
+  @override
+  Future<String?> getRefreshToken() async => _data['auth_refresh_token'];
 
   @override
   Future<int?> getDriverId() async {
@@ -26,7 +29,22 @@ class FakeSecureStorageService extends SecureStorageService {
   Future<String?> getDriverName() async => _data['auth_driver_name'];
 
   @override
-  Future<bool> hasValidSession() async => _data['auth_access_token'] != null;
+  Future<void> saveSession({
+    required String accessToken,
+    required String refreshToken,
+    required int driverId,
+    required String driverName,
+  }) async {
+    _data['auth_access_token'] = accessToken;
+    _data['auth_refresh_token'] = refreshToken;
+    _data['auth_driver_id'] = driverId.toString();
+    _data['auth_driver_name'] = driverName;
+  }
+
+  @override
+  Future<void> clearSession() async {
+    _data.clear();
+  }
 }
 
 void main() {
@@ -47,9 +65,10 @@ void main() {
     // Initial frame displays DriverApp
     expect(find.byType(DriverApp), findsOneWidget);
 
-    // Advance past splash delay
-    await tester.pump(const Duration(milliseconds: 1300));
+    // Advance past bootstrap
     await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+    await tester.pumpAndSettle();
 
     // Verify navigation to login screen
     expect(find.text('Driver Partner Login'), findsOneWidget);
@@ -64,7 +83,12 @@ void main() {
         overrides: [
           sharedPreferencesProvider.overrideWithValue(prefs),
           secureStorageServiceProvider.overrideWithValue(
-            FakeSecureStorageService({'auth_access_token': 'mock_jwt_token', 'auth_driver_id': '101'}),
+            FakeSecureStorageService({
+              'auth_access_token': 'mock_jwt_token',
+              'auth_refresh_token': 'mock_refresh_token',
+              'auth_driver_id': '101',
+              'auth_driver_name': 'Rajesh Kumar',
+            }),
           ),
         ],
         child: const DriverApp(),
@@ -74,10 +98,10 @@ void main() {
     // Initial frame displays DriverApp
     expect(find.byType(DriverApp), findsOneWidget);
 
-    // Advance past splash delay and session hydration
-    await tester.pump(const Duration(milliseconds: 1300));
-    await tester.pump(const Duration(milliseconds: 600));
+    // Advance past bootstrap and session hydration
     await tester.pump();
+    await tester.pump(const Duration(milliseconds: 600));
+    await tester.pumpAndSettle();
 
     // Verify auto-navigation to home screen
     expect(find.text('HireD Partner'), findsOneWidget);

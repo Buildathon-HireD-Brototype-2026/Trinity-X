@@ -5,6 +5,7 @@ import '../../../core/routing/route_names.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
 import '../../../core/widgets/app_loading_indicator.dart';
+import '../../auth/presentation/controllers/auth_controller.dart';
 import '../../auth/presentation/controllers/driver_profile_controller.dart';
 
 /// Driver Dashboard displaying live cached driver details and duty status toggle (Zomato-style).
@@ -29,10 +30,7 @@ class HomeDashboardScreen extends ConsumerWidget {
             tooltip: 'Logout',
             icon: const Icon(Icons.logout),
             onPressed: () async {
-              await ref.read(driverProfileProvider.notifier).logout();
-              if (context.mounted) {
-                context.go(RouteNames.login);
-              }
+              await ref.read(authControllerProvider.notifier).logout();
             },
           ),
         ],

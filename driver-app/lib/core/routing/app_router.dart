@@ -1,13 +1,60 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../features/auth/presentation/controllers/auth_controller.dart';
 import '../../features/auth/presentation/login_screen.dart';
 import '../../features/auth/presentation/splash_screen.dart';
 import '../../features/home/presentation/home_dashboard_screen.dart';
 import 'route_names.dart';
 
+/// Bridges Riverpod AuthState updates to GoRouter's refreshListenable.
+class AuthRouterListenable extends ChangeNotifier {
+  final Ref _ref;
+
+  AuthRouterListenable(this._ref) {
+    _ref.listen<AuthState>(authControllerProvider, (_, __) {
+      notifyListeners();
+    });
+  }
+}
+
+final authRouterListenableProvider = Provider<AuthRouterListenable>((ref) {
+  return AuthRouterListenable(ref);
+});
+
 final appRouterProvider = Provider<GoRouter>((ref) {
+  final refreshListenable = ref.watch(authRouterListenableProvider);
+
   return GoRouter(
     initialLocation: RouteNames.splash,
+    refreshListenable: refreshListenable,
+    redirect: (BuildContext context, GoRouterState state) {
+      final authState = ref.read(authControllerProvider);
+      final currentLoc = state.uri.path;
+      final isSplash = currentLoc == RouteNames.splash;
+      final isLogin = currentLoc == RouteNames.login;
+      final isAuthRoute = isSplash || isLogin;
+
+      switch (authState.status) {
+        case AuthStatus.unknown:
+          // Stay on splash while checking session asynchronously (no flicker)
+          return isSplash ? null : RouteNames.splash;
+
+        case AuthStatus.authenticated:
+          // Authenticated: any auth route (splash, login) redirects to /home
+          if (isAuthRoute) {
+            return RouteNames.home;
+          }
+          return null;
+
+        case AuthStatus.unauthenticated:
+          // Unauthenticated: any protected route redirects to /login
+          if (!isLogin) {
+            return RouteNames.login;
+          }
+          return null;
+      }
+    },
     routes: [
       GoRoute(
         path: RouteNames.splash,

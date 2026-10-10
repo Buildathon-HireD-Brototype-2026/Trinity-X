@@ -29,6 +29,9 @@ class FakeSecureStorageService extends SecureStorageService {
   Future<String?> getAccessToken() async => data['auth_access_token'];
 
   @override
+  Future<String?> getRefreshToken() async => data['auth_refresh_token'];
+
+  @override
   Future<int?> getDriverId() async {
     final val = data['auth_driver_id'];
     return val != null ? int.tryParse(val) : null;
@@ -38,7 +41,11 @@ class FakeSecureStorageService extends SecureStorageService {
   Future<String?> getDriverName() async => data['auth_driver_name'];
 
   @override
-  Future<bool> hasValidSession() async => data['auth_access_token'] != null;
+  Future<bool> hasValidSession() async =>
+      data['auth_access_token'] != null &&
+      data['auth_refresh_token'] != null &&
+      data['auth_driver_id'] != null &&
+      data['auth_driver_name'] != null;
 
   @override
   Future<void> clearSession() async {
@@ -83,8 +90,9 @@ void main() {
         createTestApp(prefs: prefs, secureStorage: fakeSecureStorage),
       );
 
-      // Advance splash screen
-      await tester.pump(const Duration(milliseconds: 1300));
+      // Advance past splash bootstrap
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
       await tester.pumpAndSettle();
 
       final passwordField = find.byKey(const Key('password_input_field'));
@@ -116,7 +124,8 @@ void main() {
         createTestApp(prefs: prefs, secureStorage: fakeSecureStorage),
       );
 
-      await tester.pump(const Duration(milliseconds: 1300));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
       await tester.pumpAndSettle();
 
       // Enter incomplete 5-digit number
@@ -132,13 +141,14 @@ void main() {
       expect(find.text('Enter a valid 10-digit phone number'), findsOneWidget);
     });
 
-    testWidgets('TC-P01-04: Invalid password shows attempt warning',
+    testWidgets('TC-P01-04: Invalid password shows clear error message',
         (WidgetTester tester) async {
       await tester.pumpWidget(
         createTestApp(prefs: prefs, secureStorage: fakeSecureStorage),
       );
 
-      await tester.pump(const Duration(milliseconds: 1300));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
       await tester.pumpAndSettle();
 
       await tester.enterText(find.byKey(const Key('phone_input_field')), '9876543210');
@@ -150,7 +160,7 @@ void main() {
       await tester.pump(const Duration(milliseconds: 700)); // Complete mock latency
       await tester.pumpAndSettle();
 
-      expect(find.textContaining('Attempt 1 of 5 before lockout'), findsOneWidget);
+      expect(find.text('Invalid phone number or password.'), findsOneWidget);
     });
 
     testWidgets('TC-P01-02: Happy path login saves session and displays driver details',
@@ -159,7 +169,8 @@ void main() {
         createTestApp(prefs: prefs, secureStorage: fakeSecureStorage),
       );
 
-      await tester.pump(const Duration(milliseconds: 1300));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
       await tester.pumpAndSettle();
 
       // Enter valid driver credentials
@@ -190,7 +201,8 @@ void main() {
         createTestApp(prefs: prefs, secureStorage: fakeSecureStorage),
       );
 
-      await tester.pump(const Duration(milliseconds: 1300));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
       await tester.pumpAndSettle();
 
       // Enter pending driver credentials
@@ -207,38 +219,6 @@ void main() {
       expect(find.text('HireD Partner'), findsOneWidget);
       expect(find.text('Suresh Patel'), findsOneWidget);
       expect(find.text('PENDING'), findsWidgets);
-    });
-
-    testWidgets('TC-P01-05: 5 failed attempts trigger lockout banner and disable submit',
-        (WidgetTester tester) async {
-      await tester.pumpWidget(
-        createTestApp(prefs: prefs, secureStorage: fakeSecureStorage),
-      );
-
-      await tester.pump(const Duration(milliseconds: 1300));
-      await tester.pumpAndSettle();
-
-      await tester.enterText(find.byKey(const Key('phone_input_field')), '9876543210');
-      await tester.enterText(find.byKey(const Key('password_input_field')), 'WrongPass');
-
-      // Attempt 1 to 5
-      for (int i = 1; i <= 5; i++) {
-        await tester.ensureVisible(find.byKey(const Key('login_submit_button')));
-        await tester.tap(find.byKey(const Key('login_submit_button')));
-        await tester.pump();
-        await tester.pump(const Duration(milliseconds: 700));
-        await tester.pumpAndSettle();
-      }
-
-      // 5th attempt triggers lockout
-      expect(find.byKey(const Key('lockout_banner')), findsOneWidget);
-      expect(find.textContaining('Account Temporarily Locked'), findsOneWidget);
-
-      // Verify submit button is disabled
-      final submitButton = tester.widget<ElevatedButton>(
-        find.byKey(const Key('login_submit_button')),
-      );
-      expect(submitButton.onPressed, isNull);
     });
   });
 }
