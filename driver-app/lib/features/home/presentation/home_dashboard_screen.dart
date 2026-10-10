@@ -8,13 +8,14 @@ import '../../auth/presentation/controllers/auth_controller.dart';
 import '../../auth/presentation/controllers/driver_profile_controller.dart';
 
 /// Driver Dashboard screen styled identically to the reference design (ui.jpeg),
-/// refined with the official HireD Brand Primary Color: #6A379F.
+/// enhanced with an Assigned Trip section (Trip Assigned vs Empty State).
 /// Features:
-/// - Driver header with avatar, dynamic greeting, brand badge & quick action controls
+/// - Driver header with avatar, greeting, brand badge & quick action controls
 /// - Duty toggle hero banner (Go Online / Go Offline) with live state binding
 /// - High demand heatmap radar map preview with interactive "View Map" overlay
 /// - 3-column quick action cards: Trip History, Wallet, Performance
-/// - Today's Progress goal tracker with dynamic visual progress bar
+/// - Assigned Trip Container: shows active corporate trip route if assigned, or standby empty state
+/// - Today's Progress goal tracker from ui.jpeg
 /// - Nearby Fuel Stations utility banner
 /// - 4-tab docked bottom navigation bar (Home, Trips, Wallet, More)
 class HomeDashboardScreen extends ConsumerStatefulWidget {
@@ -26,6 +27,7 @@ class HomeDashboardScreen extends ConsumerStatefulWidget {
 
 class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
   int _selectedNavIndex = 0;
+  bool _hasAssignedTrip = true; // Toggleable state: true = active trip, false = empty standby
 
   @override
   Widget build(BuildContext context) {
@@ -101,6 +103,14 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
 
                     // 3-Column Quick Actions: Trip History, Wallet, Performance
                     _buildQuickActionGrid(context),
+                    const SizedBox(height: 16),
+
+                    // Assigned Trip Container (Trip Assigned or Empty State)
+                    _buildAssignedTripCard(context, isOnline),
+                    const SizedBox(height: 16),
+
+                    // Today's Progress Card (from reference design)
+                    _buildTodayProgressCard(context),
                     const SizedBox(height: 16),
 
                     // Nearby Fuel Stations Card
@@ -739,6 +749,518 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  /// Assigned Trip Container (Trip Assigned state or Empty standby state)
+  Widget _buildAssignedTripCard(BuildContext context, bool isOnline) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x08000000),
+            blurRadius: 14,
+            offset: Offset(0, 4),
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.all(18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Header Row
+          Row(
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: AppColors.primaryTint,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Icon(
+                  _hasAssignedTrip ? Icons.near_me_rounded : Icons.schedule_rounded,
+                  color: AppColors.primary,
+                  size: 22,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Assigned Trip',
+                      style: TextStyle(
+                        color: Color(0xFF16192C),
+                        fontWeight: FontWeight.w700,
+                        fontSize: 15,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      _hasAssignedTrip
+                          ? 'Corporate Dispatch • #TRP-8421'
+                          : (isOnline
+                              ? 'Standing by for new dispatches'
+                              : 'Offline - Go online to receive trips'),
+                      style: const TextStyle(
+                        color: Color(0xFF868C9F),
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              // Status Pill Badge & Demo Toggle
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: _hasAssignedTrip
+                          ? const Color(0xFFDCFCE7)
+                          : (isOnline ? const Color(0xFFE0F2FE) : const Color(0xFFF1F5F9)),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Text(
+                      _hasAssignedTrip
+                          ? 'ASSIGNED'
+                          : (isOnline ? 'STANDBY' : 'IDLE'),
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                        color: _hasAssignedTrip
+                            ? const Color(0xFF15803D)
+                            : (isOnline ? const Color(0xFF0369A1) : const Color(0xFF64748B)),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  // Discreet toggle to test both assigned trip and empty states
+                  IconButton(
+                    tooltip: 'Toggle Demo: Assigned vs Empty state',
+                    icon: const Icon(Icons.swap_horiz_rounded, size: 20, color: Color(0xFF9CA1B3)),
+                    onPressed: () {
+                      setState(() => _hasAssignedTrip = !_hasAssignedTrip);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          duration: const Duration(seconds: 1),
+                          content: Text(_hasAssignedTrip
+                              ? 'Switched to: Assigned Trip View'
+                              : 'Switched to: Empty Standby View'),
+                        ),
+                      );
+                    },
+                  ),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+
+          // Content: Switch between Assigned Trip View and Empty State View
+          if (_hasAssignedTrip) ...[
+            // 1. Corporate Client / Passenger Information
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF8FAFC),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: const Color(0xFFF1F3F8)),
+              ),
+              child: Row(
+                children: [
+                  CircleAvatar(
+                    radius: 20,
+                    backgroundColor: AppColors.primaryTint,
+                    child: const Text(
+                      'RS',
+                      style: TextStyle(
+                        color: AppColors.primary,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Rahul Sharma',
+                          style: TextStyle(
+                            color: Color(0xFF16192C),
+                            fontWeight: FontWeight.w700,
+                            fontSize: 14,
+                          ),
+                        ),
+                        SizedBox(height: 2),
+                        Text(
+                          'Infosys Corporate • 2 Passengers',
+                          style: TextStyle(
+                            color: Color(0xFF868C9F),
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  _buildSmallRoundButton(
+                    icon: Icons.phone_outlined,
+                    onTap: () {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Calling passenger...')),
+                      );
+                    },
+                  ),
+                  const SizedBox(width: 8),
+                  _buildSmallRoundButton(
+                    icon: Icons.chat_bubble_outline_rounded,
+                    onTap: () {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Opening chat with passenger...')),
+                      );
+                    },
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 14),
+
+            // 2. Route Timeline (Pickup -> Dropoff)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4.0),
+              child: Column(
+                children: [
+                  // Pickup Row
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        margin: const EdgeInsets.only(top: 4),
+                        width: 12,
+                        height: 12,
+                        decoration: const BoxDecoration(
+                          color: Color(0xFF22C55E),
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      const Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Tech Park Gate 2, Electronic City',
+                              style: TextStyle(
+                                color: Color(0xFF16192C),
+                                fontWeight: FontWeight.w600,
+                                fontSize: 13,
+                              ),
+                            ),
+                            Text(
+                              'Pickup Time: 10:30 AM',
+                              style: TextStyle(
+                                color: Color(0xFF868C9F),
+                                fontSize: 11,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  // Connecting line
+                  Container(
+                    margin: const EdgeInsets.only(left: 5, top: 4, bottom: 4),
+                    width: 2,
+                    height: 22,
+                    color: const Color(0xFFE2E8F0),
+                  ),
+                  // Dropoff Row
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        margin: const EdgeInsets.only(top: 4),
+                        width: 12,
+                        height: 12,
+                        decoration: const BoxDecoration(
+                          color: AppColors.primary,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      const Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Terminal 2, Kempegowda Airport',
+                              style: TextStyle(
+                                color: Color(0xFF16192C),
+                                fontWeight: FontWeight.w600,
+                                fontSize: 13,
+                              ),
+                            ),
+                            Text(
+                              'Estimated: 24.5 km • 42 mins',
+                              style: TextStyle(
+                                color: Color(0xFF868C9F),
+                                fontSize: 11,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            // 3. Action Button: Start Trip & Navigate
+            Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: () {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Starting Trip Navigation...')),
+                  );
+                },
+                borderRadius: BorderRadius.circular(14),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary,
+                    borderRadius: BorderRadius.circular(14),
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppColors.primary.withValues(alpha: 0.35),
+                        blurRadius: 12,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: const Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.navigation_rounded, color: Colors.white, size: 18),
+                      SizedBox(width: 8),
+                      Text(
+                        'Start Trip & Navigate',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ] else ...[
+            // EMPTY STATE VIEW (When No Trip is Assigned)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF8FAFC),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: const Color(0xFFF1F3F8)),
+              ),
+              child: Column(
+                children: [
+                  Container(
+                    width: 52,
+                    height: 52,
+                    decoration: const BoxDecoration(
+                      color: AppColors.primaryTint,
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.directions_car_filled_outlined,
+                      color: AppColors.primary,
+                      size: 26,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  const Text(
+                    'No Active Trip Assigned',
+                    style: TextStyle(
+                      color: Color(0xFF16192C),
+                      fontWeight: FontWeight.w700,
+                      fontSize: 15,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    isOnline
+                        ? 'You are online and eligible for corporate assignments. New trips will appear here automatically.'
+                        : 'You are currently offline. Switch your duty to Online to receive ride assignments.',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      color: Color(0xFF868C9F),
+                      fontSize: 12,
+                      height: 1.4,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Container(
+                        width: 8,
+                        height: 8,
+                        decoration: BoxDecoration(
+                          color: isOnline ? const Color(0xFF22C55E) : const Color(0xFF94A3B8),
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        isOnline ? 'Standby Radar Active' : 'Offline Mode',
+                        style: TextStyle(
+                          color: isOnline ? const Color(0xFF15803D) : const Color(0xFF64748B),
+                          fontWeight: FontWeight.w600,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSmallRoundButton({
+    required IconData icon,
+    required VoidCallback onTap,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(20),
+        child: Container(
+          width: 36,
+          height: 36,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            shape: BoxShape.circle,
+            border: Border.all(color: const Color(0xFFE2E8F0)),
+          ),
+          child: Icon(icon, size: 18, color: const Color(0xFF4B5162)),
+        ),
+      ),
+    );
+  }
+
+  /// Today's Progress Card (from ui.jpeg reference)
+  Widget _buildTodayProgressCard(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x08000000),
+            blurRadius: 14,
+            offset: Offset(0, 4),
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Header Row
+          Row(
+            children: [
+              const Text(
+                "Today's Progress",
+                style: TextStyle(
+                  color: Color(0xFF16192C),
+                  fontWeight: FontWeight.w700,
+                  fontSize: 15,
+                ),
+              ),
+              const Spacer(),
+              const Text(
+                '2/5 trips',
+                style: TextStyle(
+                  color: Color(0xFF868C9F),
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Container(
+                width: 36,
+                height: 36,
+                decoration: const BoxDecoration(
+                  color: AppColors.primaryTint,
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.track_changes_rounded,
+                  color: AppColors.primary,
+                  size: 20,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+
+          // Progress Bar (40% progress)
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: const SizedBox(
+              height: 9,
+              child: LinearProgressIndicator(
+                value: 0.4,
+                backgroundColor: AppColors.primaryTint,
+                valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+
+          // Target Earnings
+          RichText(
+            text: const TextSpan(
+              children: [
+                TextSpan(
+                  text: '₹ 1,248',
+                  style: TextStyle(
+                    color: Color(0xFF16192C),
+                    fontSize: 17,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                TextSpan(
+                  text: ' / ₹ 2,000',
+                  style: TextStyle(
+                    color: Color(0xFF868C9F),
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
