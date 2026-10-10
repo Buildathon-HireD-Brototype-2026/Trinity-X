@@ -34,8 +34,11 @@ b2b-portal/
 │   │   ├── layout/
 │   │   │   ├── Navbar.jsx       # Header with tenant status and partner profile
 │   │   │   ├── Sidebar.jsx      # Fixed desktop sidebar navigation
-│   │   └── orders/
-│   │       └── OrderDetailModal.jsx # Order details, ETA & trip-close OTP modal
+│   │   │   └── PortalLayout.jsx # Shell layout
+│   │   ├── orders/
+│   │   │   └── OrderDetailModal.jsx # Order details, ETA & trip-close OTP modal
+│   │   └── reports/
+│   │       └── TripReportViewModal.jsx # Official printable closed trip report modal
 │   ├── constants/
 │   │   └── status.js            # Official order, trip, and invoice status enums
 │   ├── context/
@@ -45,12 +48,14 @@ b2b-portal/
 │   │   ├── DashboardPage.jsx    # Overview dashboard with dynamic KPI cards
 │   │   ├── CreateOrderPage.jsx  # B-02 Transport order creation form
 │   │   ├── OrdersPage.jsx       # B-03 Tabbed & filterable orders & trips list
+│   │   ├── ReportsPage.jsx      # B-05 Closed trip reports & export
 │   │   ├── PlaceholderPage.jsx  # Planned feature placeholders
 │   │   └── NotFoundPage.jsx     # 404 handler
 │   ├── services/
 │   │   ├── apiClient.js         # Axios instance with auth & error interceptors
 │   │   ├── authService.js       # Partner auth & 15-minute lockout handling
 │   │   ├── orderService.js      # B-02 and B-03 order lifecycle service
+│   │   ├── reportService.js     # B-05 post-trip reporting service
 │   │   └── mockData.js          # Mock data layer adhering to team database design
 │   ├── styles/
 │   │   └── index.css            # HireD design tokens & component styles
@@ -121,6 +126,12 @@ npm run build
   * **ETA & Duration (`B-04`):** Displays estimated route duration.
   * **Trip-Close OTP (`D-09`):** Securely renders the system-generated 6-digit OTP for the partner to provide to the driver upon drop-off.
   * **Rejection Reason:** Displays administrative feedback if an order is rejected.
+
+### 4. Post-Trip Reports (`B-05`)
+* Generates completion reports for trips in `CLOSED` status.
+* Displays route details, driver info, start and close timestamps, base fare, and itemized out-of-pocket expenses.
+* **Security & Confidentiality Rule (`database_updated0.2.md Section 12.1`):** In accordance with the PRD, driver payout shares (`driver_share_pct`, `driver_share`) are not exposed in per-trip reports. Commission amounts appear exclusively on verified month-end statements.
+* Printable view (`window.print()`) and one-click CSV export.
 
 ---
 
