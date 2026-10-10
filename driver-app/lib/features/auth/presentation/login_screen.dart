@@ -18,7 +18,7 @@ import 'controllers/driver_profile_controller.dart';
 /// - Obscured password input with visibility toggle (TC-P01-07).
 /// - 5-attempt security lockout banner with live countdown timer (TC-P01-05).
 /// - Supportive guidance banner for PENDING / INACTIVE accounts (TC-P01-06).
-/// - Large 52dp touch target styled with HireD brand theme (#605DBA).
+/// - Large 52dp touch target styled with HireD brand theme (#6A379F).
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
 

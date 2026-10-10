@@ -7,7 +7,8 @@ import '../../../core/widgets/app_loading_indicator.dart';
 import '../../auth/presentation/controllers/auth_controller.dart';
 import '../../auth/presentation/controllers/driver_profile_controller.dart';
 
-/// Driver Dashboard screen styled identically to the reference design (ui.jpeg).
+/// Driver Dashboard screen styled identically to the reference design (ui.jpeg),
+/// refined with the official HireD Brand Primary Color: #6A379F.
 /// Features:
 /// - Driver header with avatar, dynamic greeting, brand badge & quick action controls
 /// - Duty toggle hero banner (Go Online / Go Offline) with live state binding
@@ -31,7 +32,7 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
     final driverAsync = ref.watch(driverProfileProvider);
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF7F8FD),
+      backgroundColor: const Color(0xFFF8FAFC),
       body: SafeArea(
         child: driverAsync.when(
           loading: () => const Center(child: AppLoadingIndicator()),
@@ -78,7 +79,7 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
             final driverName = driver.name.isNotEmpty ? driver.name : 'Amal';
 
             return RefreshIndicator(
-              color: const Color(0xFF5346E2),
+              color: AppColors.primary,
               onRefresh: () => ref.read(driverProfileProvider.notifier).refresh(),
               child: SingleChildScrollView(
                 physics: const AlwaysScrollableScrollPhysics(),
@@ -150,7 +151,7 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
               'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
               fit: BoxFit.cover,
               errorBuilder: (_, __, ___) => Container(
-                color: const Color(0xFF5346E2),
+                color: AppColors.primary,
                 child: Center(
                   child: Text(
                     driverName.isNotEmpty ? driverName[0].toUpperCase() : 'A',
@@ -188,7 +189,7 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFEEEDFC),
+                      color: AppColors.primaryTint,
                       borderRadius: BorderRadius.circular(6),
                     ),
                     child: const Text(
@@ -196,7 +197,7 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
                       style: TextStyle(
                         fontSize: 10,
                         fontWeight: FontWeight.w600,
-                        color: Color(0xFF5346E2),
+                        color: AppColors.primary,
                       ),
                     ),
                   ),
@@ -229,7 +230,7 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
         Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Notification Bell with Purple Badge
+            // Notification Bell with #6A379F Purple Badge
             _buildHeaderCircleButton(
               onTap: () {
                 ScaffoldMessenger.of(context).showSnackBar(
@@ -251,7 +252,7 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
                       width: 8,
                       height: 8,
                       decoration: const BoxDecoration(
-                        color: Color(0xFF5346E2),
+                        color: AppColors.primary,
                         shape: BoxShape.circle,
                       ),
                     ),
@@ -336,16 +337,16 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
     return Container(
       decoration: BoxDecoration(
         gradient: const LinearGradient(
-          colors: [Color(0xFFEDEBFD), Color(0xFFE4E1FC)],
+          colors: [Color(0xFFF5EEFA), Color(0xFFEBE0F5)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(24),
-        boxShadow: const [
+        boxShadow: [
           BoxShadow(
-            color: Color(0x0C5346E2),
+            color: AppColors.primary.withValues(alpha: 0.12),
             blurRadius: 16,
-            offset: Offset(0, 6),
+            offset: const Offset(0, 6),
           ),
         ],
       ),
@@ -360,7 +361,7 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
               width: 170,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: const Color(0xFFDED9FB).withValues(alpha: 0.65),
+                color: const Color(0xFFDFCEEE).withValues(alpha: 0.65),
               ),
             ),
           ),
@@ -439,7 +440,7 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
                   ),
                 ),
 
-                // Right: Vibrant Purple Pill Toggle Button
+                // Right: #6A379F Purple Pill Toggle Button
                 Material(
                   color: Colors.transparent,
                   child: InkWell(
@@ -451,13 +452,13 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF5346E2),
+                        color: AppColors.primary,
                         borderRadius: BorderRadius.circular(30),
-                        boxShadow: const [
+                        boxShadow: [
                           BoxShadow(
-                            color: Color(0x355346E2),
+                            color: AppColors.primary.withValues(alpha: 0.35),
                             blurRadius: 14,
-                            offset: Offset(0, 5),
+                            offset: const Offset(0, 5),
                           ),
                         ],
                       ),
@@ -516,12 +517,12 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
                 width: 44,
                 height: 44,
                 decoration: BoxDecoration(
-                  color: const Color(0xFFEEEDFC),
+                  color: AppColors.primaryTint,
                   borderRadius: BorderRadius.circular(14),
                 ),
                 child: const Icon(
                   Icons.trending_up_rounded,
-                  color: Color(0xFF5346E2),
+                  color: AppColors.primary,
                   size: 24,
                 ),
               ),
@@ -610,7 +611,7 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
                             children: [
                               Icon(
                                 Icons.map_outlined,
-                                color: Color(0xFF5346E2),
+                                color: AppColors.primary,
                                 size: 16,
                               ),
                               SizedBox(width: 6),
@@ -717,10 +718,10 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
                 width: 42,
                 height: 42,
                 decoration: BoxDecoration(
-                  color: const Color(0xFFEEEDFC),
+                  color: AppColors.primaryTint,
                   borderRadius: BorderRadius.circular(14),
                 ),
-                child: Icon(icon, color: const Color(0xFF5346E2), size: 22),
+                child: Icon(icon, color: AppColors.primary, size: 22),
               ),
               const SizedBox(height: 14),
               Text(
@@ -789,12 +790,12 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
                 width: 36,
                 height: 36,
                 decoration: const BoxDecoration(
-                  color: Color(0xFFEEEDFC),
+                  color: AppColors.primaryTint,
                   shape: BoxShape.circle,
                 ),
                 child: const Icon(
                   Icons.track_changes_rounded,
-                  color: Color(0xFF5346E2),
+                  color: AppColors.primary,
                   size: 20,
                 ),
               ),
@@ -809,8 +810,8 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
               height: 9,
               child: LinearProgressIndicator(
                 value: 0.4,
-                backgroundColor: Color(0xFFECEBFA),
-                valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF5346E2)),
+                backgroundColor: AppColors.primaryTint,
+                valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
               ),
             ),
           ),
@@ -874,12 +875,12 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
                 width: 44,
                 height: 44,
                 decoration: BoxDecoration(
-                  color: const Color(0xFFEEEDFC),
+                  color: AppColors.primaryTint,
                   borderRadius: BorderRadius.circular(14),
                 ),
                 child: const Icon(
                   Icons.local_gas_station_rounded,
-                  color: Color(0xFF5346E2),
+                  color: AppColors.primary,
                   size: 24,
                 ),
               ),
@@ -989,18 +990,18 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
       return Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         decoration: BoxDecoration(
-          color: const Color(0xFFEEEDFC),
+          color: AppColors.primaryTint,
           borderRadius: BorderRadius.circular(20),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, color: const Color(0xFF5346E2), size: 24),
+            Icon(icon, color: AppColors.primary, size: 24),
             const SizedBox(height: 2),
             Text(
               label,
               style: const TextStyle(
-                color: Color(0xFF5346E2),
+                color: AppColors.primary,
                 fontWeight: FontWeight.w700,
                 fontSize: 11,
               ),
@@ -1036,7 +1037,7 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
 }
 
 /// Custom Vector Map Painter rendering light stylized roads, river,
-/// and purple heat hotspot radar pulses matching ui.jpeg
+/// and #6A379F purple heat hotspot radar pulses matching ui.jpeg
 class _HeatmapRadarMapPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
@@ -1127,7 +1128,7 @@ class _HeatmapRadarMapPainter extends CustomPainter {
       streetPaint,
     );
 
-    // 5. High demand heat zones (soft glowing lavender/purple radial gradients)
+    // 5. High demand heat zones (soft glowing #6A379F purple radial gradients)
     _drawHeatZone(canvas, Offset(size.width * 0.17, size.height * 0.75), 32);
     _drawHeatZone(canvas, Offset(size.width * 0.35, size.height * 0.35), 24);
     _drawHeatZone(canvas, Offset(size.width * 0.78, size.height * 0.35), 30);
@@ -1137,30 +1138,30 @@ class _HeatmapRadarMapPainter extends CustomPainter {
 
     // Outer radar ring 3
     final radar3 = Paint()
-      ..color = const Color(0xFF5346E2).withValues(alpha: 0.12)
+      ..color = AppColors.primary.withValues(alpha: 0.12)
       ..style = PaintingStyle.fill;
     canvas.drawCircle(center, 54, radar3);
 
     // Radar ring 2
     final radar2 = Paint()
-      ..color = const Color(0xFF5346E2).withValues(alpha: 0.20)
+      ..color = AppColors.primary.withValues(alpha: 0.20)
       ..style = PaintingStyle.fill;
     canvas.drawCircle(center, 36, radar2);
 
     // Radar ring 1
     final radar1 = Paint()
-      ..color = const Color(0xFF5346E2).withValues(alpha: 0.32)
+      ..color = AppColors.primary.withValues(alpha: 0.32)
       ..style = PaintingStyle.fill;
     canvas.drawCircle(center, 20, radar1);
 
-    // Location Pin Marker: Purple outer ring, white middle, vibrant blue/purple dot
-    final pinOuter = Paint()..color = const Color(0xFF5346E2);
+    // Location Pin Marker: Purple outer ring, white middle, #6A379F center dot
+    final pinOuter = Paint()..color = AppColors.primary;
     canvas.drawCircle(center, 9, pinOuter);
 
     final pinInnerWhite = Paint()..color = Colors.white;
     canvas.drawCircle(center, 5.5, pinInnerWhite);
 
-    final pinCenterDot = Paint()..color = const Color(0xFF5346E2);
+    final pinCenterDot = Paint()..color = AppColors.primary;
     canvas.drawCircle(center, 3, pinCenterDot);
   }
 
@@ -1168,8 +1169,8 @@ class _HeatmapRadarMapPainter extends CustomPainter {
     final heatPaint = Paint()
       ..shader = RadialGradient(
         colors: [
-          const Color(0xFF5346E2).withValues(alpha: 0.30),
-          const Color(0xFF5346E2).withValues(alpha: 0.12),
+          AppColors.primary.withValues(alpha: 0.30),
+          AppColors.primary.withValues(alpha: 0.12),
           Colors.transparent,
         ],
         stops: const [0.0, 0.55, 1.0],
