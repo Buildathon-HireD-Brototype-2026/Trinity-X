@@ -5,6 +5,7 @@ import '../../../core/routing/route_names.dart';
 import '../../../core/storage/secure_storage_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/app_loading_indicator.dart';
+import 'controllers/driver_profile_controller.dart';
 
 class SplashScreen extends ConsumerStatefulWidget {
   const SplashScreen({super.key});
@@ -30,6 +31,8 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
 
     if (!mounted) return;
     if (hasSession) {
+      await ref.read(driverProfileProvider.notifier).initProfile();
+      if (!mounted) return;
       context.go(RouteNames.home);
     } else {
       context.go(RouteNames.login);

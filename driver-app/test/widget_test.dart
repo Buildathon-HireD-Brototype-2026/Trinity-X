@@ -17,6 +17,15 @@ class FakeSecureStorageService extends SecureStorageService {
   Future<String?> getAccessToken() async => _data['auth_access_token'];
 
   @override
+  Future<int?> getDriverId() async {
+    final val = _data['auth_driver_id'];
+    return val != null ? int.tryParse(val) : null;
+  }
+
+  @override
+  Future<String?> getDriverName() async => _data['auth_driver_name'];
+
+  @override
   Future<bool> hasValidSession() async => _data['auth_access_token'] != null;
 }
 
@@ -43,7 +52,7 @@ void main() {
     await tester.pump();
 
     // Verify navigation to login screen
-    expect(find.textContaining('Login Screen'), findsOneWidget);
+    expect(find.text('Driver Partner Login'), findsOneWidget);
   });
 
   testWidgets('App renders splash and navigates to home when valid session exists', (WidgetTester tester) async {
@@ -55,7 +64,7 @@ void main() {
         overrides: [
           sharedPreferencesProvider.overrideWithValue(prefs),
           secureStorageServiceProvider.overrideWithValue(
-            FakeSecureStorageService({'auth_access_token': 'mock_jwt_token'}),
+            FakeSecureStorageService({'auth_access_token': 'mock_jwt_token', 'auth_driver_id': '101'}),
           ),
         ],
         child: const DriverApp(),
@@ -65,11 +74,12 @@ void main() {
     // Initial frame displays DriverApp
     expect(find.byType(DriverApp), findsOneWidget);
 
-    // Advance past splash delay
+    // Advance past splash delay and session hydration
     await tester.pump(const Duration(milliseconds: 1300));
+    await tester.pump(const Duration(milliseconds: 600));
     await tester.pump();
 
     // Verify auto-navigation to home screen
-    expect(find.textContaining('Home Screen'), findsOneWidget);
+    expect(find.text('HireD Partner'), findsOneWidget);
   });
 }
