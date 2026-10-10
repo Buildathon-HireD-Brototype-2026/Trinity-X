@@ -1,6 +1,7 @@
 import React from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { Building2, Bell, ShieldCheck } from 'lucide-react';
+import NotificationDropdown from '../notifications/NotificationDropdown';
+import { Building2, ShieldCheck } from 'lucide-react';
 
 export function Navbar() {
   const { partner } = useAuth();
@@ -22,29 +23,8 @@ export function Navbar() {
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
-        <div
-          title="Notifications"
-          style={{
-            position: 'relative',
-            cursor: 'pointer',
-            padding: '0.5rem',
-            borderRadius: 'var(--radius-md)',
-            color: 'var(--text-secondary)',
-          }}
-        >
-          <Bell size={20} />
-          <span
-            style={{
-              position: 'absolute',
-              top: '4px',
-              right: '4px',
-              width: '8px',
-              height: '8px',
-              borderRadius: '50%',
-              backgroundColor: 'var(--primary)',
-            }}
-          />
-        </div>
+        {/* Interactive Notification Dropdown */}
+        <NotificationDropdown />
 
         <div style={{ textAlign: 'right' }}>
           <div style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-main)' }}>

@@ -1,8 +1,8 @@
 # HireD — B2B Partner Portal Frontend
 
-The **HireD B2B Partner Portal** is a web application designed for B2B corporate partners to place transport orders, monitor real-time trip fulfillment, view trip closure reports, and inspect verified month-end statements.
+The **HireD B2B Partner Portal** is a web application designed for B2B corporate partners to place transport orders, monitor real-time trip fulfillment, view trip closure reports, inspect verified month-end statements, and manage account notifications.
 
-Built in accordance with **HireD Phase 1 MVP PRD v0.2** and the **HireD Technical Guidelines**.
+Built in strict compliance with the **HireD Phase 1 MVP PRD v0.2** (dated 30 Sep 2026), the **HireD Technical Guidelines**, and team database architecture (`database_updated0.2.md`).
 
 ---
 
@@ -14,6 +14,7 @@ Built in accordance with **HireD Phase 1 MVP PRD v0.2** and the **HireD Technica
 - **Styling:** Vanilla CSS with HireD Design System Tokens (`#6F2794` primary brand color)
 - **HTTP Client:** Axios with JWT Interceptors & Session Handling
 - **Icons:** Lucide React
+- **Testing:** Node.js native test runner (`node --test`)
 
 ---
 
@@ -28,13 +29,15 @@ b2b-portal/
 │   │   └── logo.svg             # Brand asset
 │   ├── components/
 │   │   ├── auth/
-│   │   │   └── ProtectedRoute.jsx # Client route guard for partner session
+│   │   │   └── ProtectedRoute.jsx   # Route guard enforcing authenticated sessions
 │   │   ├── common/
-│   │   │   └── StatusBadge.jsx  # Reusable status badge with dot indicators
+│   │   │   └── StatusBadge.jsx      # Reusable status badge with dot indicators
 │   │   ├── layout/
-│   │   │   ├── Navbar.jsx       # Header with tenant status and partner profile
-│   │   │   ├── Sidebar.jsx      # Fixed desktop sidebar navigation
-│   │   │   └── PortalLayout.jsx # Shell layout
+│   │   │   ├── Navbar.jsx           # Header with tenant status & notifications
+│   │   │   ├── Sidebar.jsx          # Fixed desktop sidebar navigation
+│   │   │   └── PortalLayout.jsx     # Shell layout
+│   │   ├── notifications/
+│   │   │   └── NotificationDropdown.jsx # B-07 notification panel
 │   │   ├── orders/
 │   │   │   └── OrderDetailModal.jsx # Order details, ETA & trip-close OTP modal
 │   │   ├── reports/
@@ -50,12 +53,13 @@ b2b-portal/
 │   │   ├── DashboardPage.jsx    # Overview dashboard with dynamic KPI cards
 │   │   ├── CreateOrderPage.jsx  # B-02 Transport order creation form
 │   │   ├── OrdersPage.jsx       # B-03 Tabbed & filterable orders & trips list
-│   │   ├── ReportsPage.jsx      # B-05 Closed trip reports & export
+│   │   ├── ReportsPage.jsx      # B-05 Closed trip reports & CSV export
 │   │   ├── StatementsPage.jsx   # B-06 Verified month-end statements list
 │   │   └── NotFoundPage.jsx     # 404 handler
 │   ├── services/
 │   │   ├── apiClient.js         # Axios instance with auth & error interceptors
 │   │   ├── authService.js       # Partner auth & 15-minute lockout handling
+│   │   ├── notificationService.js # B-07 partner alerts service
 │   │   ├── orderService.js      # B-02 and B-03 order lifecycle service
 │   │   ├── reportService.js     # B-05 post-trip reporting service
 │   │   ├── statementService.js  # B-06 verified statement service
@@ -64,6 +68,8 @@ b2b-portal/
 │   │   └── index.css            # HireD design tokens & component styles
 │   ├── App.jsx                  # Route definitions
 │   └── main.jsx                 # Application entrypoint
+├── tests/
+│   └── b2b-portal.test.js       # Automated test suite
 ├── .env.example                 # Environment variable templates
 ├── index.html                   # HTML template with SEO meta and typography
 ├── package.json                 # Dependencies and npm scripts
@@ -93,7 +99,7 @@ cp .env.example .env
 ```
 Key variables:
 - `VITE_API_BASE_URL`: Base URL for HireD backend (defaults to `http://localhost:5000/api/v1`).
-- `VITE_USE_MOCK_API`: Set to `true` while backend services are in development.
+- `VITE_USE_MOCK_API`: Set to `true` during development while backend routes are in progress.
 
 ### 4. Running Dev Server
 ```bash
@@ -101,46 +107,30 @@ npm run dev
 ```
 The application will be accessible at: `http://localhost:5174`
 
-### 5. Production Build
+### 5. Running Automated Tests
+```bash
+npm test
+```
+
+### 6. Production Build
 ```bash
 npm run build
 ```
 
 ---
 
-## 🔐 Feature Highlights
+## 🔐 Feature Highlights & PRD Compliance
 
-### 1. Partner Authentication (`B-01`)
-* Partner logs in using registered corporate email and admin-created password.
-* Demo reviewer access: `partner@apexlogistics.com` / `PartnerPass123!`.
-* Brute-force protection: 5 failed attempts locks the account for 15 minutes (`database_updated0.2.md Section 10.5`).
-* Protected routes redirect unauthenticated users to `/login`.
-
-### 2. Transport Order Creation (`B-02`)
-* Form fields: Pickup spot, drop-off destination, scheduled pickup date/time, contact name, contact phone, and vehicle/service notes.
-* Initial status is strictly set to `RECEIVED` with source `PORTAL`.
-* Client-side validation prevents empty fields and invalid telephone formatting.
-* Tenant isolation: `company_id` is derived from authentication context, never entered by the user.
-
-### 3. Order & Trip Tracking (`B-03`, `B-04`, `D-09`)
-* Tabbed view across All Bookings, Pending Orders, Active Trips, and Completed Trips.
-* Real-time search by Booking ID, route keywords, or passenger name.
-* Full order inspection modal:
-  * **ETA & Duration (`B-04`):** Displays estimated route duration.
-  * **Trip-Close OTP (`D-09`):** Securely renders the system-generated 6-digit OTP for the partner to provide to the driver upon drop-off.
-  * **Rejection Reason:** Displays administrative feedback if an order is rejected.
-
-### 4. Post-Trip Reports (`B-05`)
-* Generates completion reports for trips in `CLOSED` status.
-* Displays route details, driver info, start and close timestamps, base fare, and itemized out-of-pocket expenses.
-* Driver commission percentage and platform payout amounts are excluded from per-trip views (revealed exclusively on verified month-end statements).
-* Printable view (`window.print()`) and one-click CSV export.
-
-### 5. Verified Month-End Statements (`B-06`)
-* **Two-Person Verification Integrity:** Invoices are exposed to the partner **only** when they attain `PUBLISHED` status following explicit sign-off from two distinct administrators (the statement creator plus one secondary controller).
-* Displays gross monthly trip fares, corporate split (Driver % vs Platform %), and logged disbursements.
-* Trip-wise rate ledger documenting individual closed trips included in the statement billing cycle.
-* **Offline Payment Settlement:** Clarifies payment terms via direct remittance (NEFT/RTGS), adhering to the PRD Phase 1 exclusion of in-app payment gateways.
+| Feature / Screen | PRD ID | Status | Implementation Details |
+| :--- | :---: | :---: | :--- |
+| **Partner Login** | `B-01` | **P0** | Admin-created credentials authentication. Enforces tenant isolation. 5-failed-attempts security lockout for 15 minutes (`database_updated0.2.md Section 10.5`). Auto-fill helper for reviewer demo access. |
+| **Create Transport Order** | `B-02` | **P0** | Self-service intake: pickup spot, drop-off spot, date/time, passenger contact, and vehicle/service notes. Initial status is `RECEIVED` with source `PORTAL`. |
+| **My Orders & Trips** | `B-03` | **P0** | Unified tabbed list (All, Pending Orders, Active Trips, Completed Trips). Real-time search by ID, location, or passenger. |
+| **ETA & Route Estimation** | `B-04` | **P1** | Route duration & distance display in order detail view. |
+| **Trip-Close OTP Display** | `D-09` | **P0** | Prominently displays the system-generated 6-digit OTP for the partner to provide to the driver upon drop-off to close the trip. |
+| **Closed Trip Reports** | `B-05` | **P0** | Filterable completion reports for closed trips with duration, driver details, fare breakdown, and itemized out-of-pocket expenses. Excludes internal driver commission/split. One-click CSV export and print view. |
+| **Verified Month-End Statements** | `B-06` | **P0** | Strictly requires **Two-Person Administrator Verification** (creator + secondary controller). Only `PUBLISHED` statements are viewable by partners. Trip-wise breakdown ledger and direct offline remittance guidance. |
+| **Email & System Notifications** | `B-07` | **P1** | In-app notification center tracking order acceptances, rejections with reasons, and statement publications, with simulated email delivery status. |
 
 ---
 
@@ -151,3 +141,11 @@ npm run build
 | **Order** | `RECEIVED` → `ACCEPTED` / `REJECTED` |
 | **Trip** | `UNASSIGNED` → `ASSIGNED` → `ONGOING` → `CLOSED` |
 | **Invoice** | `DRAFT` → `PENDING_VERIFICATION` → `VERIFIED` → `PUBLISHED` (Partner sees `PUBLISHED` only) |
+
+---
+
+## 🔒 Security & Tenant Isolation
+
+- **Tenant Isolation:** A partner may only access data belonging to their own organization (`company_id`). The frontend relies strictly on identity decoded from JWT tokens and never transmits arbitrary company IDs to override access.
+- **Published Statements Only:** Per PRD requirement `B-06`, draft or unverified invoices are strictly blocked from the partner portal until verified by two separate administrators (`PUBLISHED` status).
+- **Offline Settlement:** In-app payments are out of scope for Phase 1. Statements are settled directly outside the platform.
