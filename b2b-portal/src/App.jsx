@@ -1,6 +1,8 @@
 import React from 'react';
 import { Routes, Route } from 'react-router-dom';
 import PortalLayout from './components/layout/PortalLayout';
+import ProtectedRoute from './components/auth/ProtectedRoute';
+import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
 import PlaceholderPage from './pages/PlaceholderPage';
 import NotFoundPage from './pages/NotFoundPage';
@@ -8,7 +10,18 @@ import NotFoundPage from './pages/NotFoundPage';
 export function App() {
   return (
     <Routes>
-      <Route path="/" element={<PortalLayout />}>
+      {/* Public Authentication Route */}
+      <Route path="/login" element={<LoginPage />} />
+
+      {/* Protected Portal Routes */}
+      <Route
+        path="/"
+        element={
+          <ProtectedRoute>
+            <PortalLayout />
+          </ProtectedRoute>
+        }
+      >
         <Route index element={<DashboardPage />} />
         <Route
           path="orders/new"

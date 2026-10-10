@@ -1,27 +1,16 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { MOCK_COMPANY } from '../services/mockData';
+import authService from '../services/authService';
 
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
-  const [partner, setPartner] = useState(() => {
-    const saved = localStorage.getItem('hired_b2b_partner');
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch {
-        return null;
-      }
-    }
-    // Default to mock partner for initial setup development
-    return MOCK_COMPANY;
-  });
-
-  const [token, setToken] = useState(() => localStorage.getItem('hired_b2b_token') || 'mock-jwt-token-partner-101');
+  const [partner, setPartner] = useState(() => authService.getCurrentPartner());
+  const [token, setToken] = useState(() => authService.getToken());
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     const handleAuthExpired = () => {
+      authService.logout();
       setPartner(null);
       setToken(null);
     };
@@ -33,25 +22,17 @@ export function AuthProvider({ children }) {
   const login = async (email, password) => {
     setLoading(true);
     try {
-      // In Feature 2, this calls the auth service / backend API
-      if (email.toLowerCase() === MOCK_COMPANY.email_id.toLowerCase()) {
-        const dummyToken = 'mock-jwt-token-partner-101';
-        localStorage.setItem('hired_b2b_token', dummyToken);
-        localStorage.setItem('hired_b2b_partner', JSON.stringify(MOCK_COMPANY));
-        setPartner(MOCK_COMPANY);
-        setToken(dummyToken);
-        return { success: true };
-      } else {
-        throw new Error('Invalid partner credentials');
-      }
+      const result = await authService.login(email, password);
+      setPartner(result.partner);
+      setToken(result.token);
+      return result;
     } finally {
       setLoading(false);
     }
   };
 
   const logout = () => {
-    localStorage.removeItem('hired_b2b_token');
-    localStorage.removeItem('hired_b2b_partner');
+    authService.logout();
     setPartner(null);
     setToken(null);
   };

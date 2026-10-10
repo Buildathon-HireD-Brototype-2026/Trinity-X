@@ -27,6 +27,8 @@ b2b-portal/
 │   ├── assets/
 │   │   └── logo.svg             # Brand asset
 │   ├── components/
+│   │   ├── auth/
+│   │   │   └── ProtectedRoute.jsx # Client route guard for partner session
 │   │   ├── common/
 │   │   │   └── StatusBadge.jsx  # Reusable status badge with dot indicators
 │   │   └── layout/
@@ -38,11 +40,13 @@ b2b-portal/
 │   ├── context/
 │   │   └── AuthContext.jsx      # Partner authentication & session provider
 │   ├── pages/
+│   │   ├── LoginPage.jsx        # B-01 Partner login with security lockout
 │   │   ├── DashboardPage.jsx    # Overview dashboard with KPI cards and recent orders
 │   │   ├── PlaceholderPage.jsx  # Planned feature placeholders
 │   │   └── NotFoundPage.jsx     # 404 handler
 │   ├── services/
 │   │   ├── apiClient.js         # Axios instance with auth & error interceptors
+│   │   ├── authService.js       # Partner auth & 15-minute lockout handling
 │   │   └── mockData.js          # Mock data layer adhering to team database design
 │   ├── styles/
 │   │   └── index.css            # HireD design tokens & component styles
@@ -92,11 +96,21 @@ npm run build
 
 ---
 
-## 🔐 Security & Tenant Isolation
+## 🔐 Feature Highlights: Partner Authentication (B-01)
 
-- **Tenant Isolation:** A partner may only access data belonging to their own organization (`company_id`). The frontend relies strictly on identity decoded from JWT tokens and never transmits arbitrary company IDs to override access.
-- **Published Statements Only:** Per PRD requirement `B-06`, draft or unverified invoices are strictly blocked from the partner portal until verified by two separate administrators (`PUBLISHED` status).
-- **Offline Settlement:** In-app payments are out of scope for Phase 1. Statements are settled directly outside the platform.
+1. **Admin-Created Credentials:**
+   * Partner logs in using their registered corporate email and password created during company onboarding in HireD Admin.
+   * Demo reviewer credentials:
+     * **Email:** `partner@apexlogistics.com`
+     * **Password:** `PartnerPass123!`
+     * **Company:** Apex Global Logistics Pvt Ltd (`company_id: 101`)
+2. **Brute-Force & Security Lockout (`database_updated0.2.md Section 10.5`):**
+   * Automatically tracks failed login attempts.
+   * Upon 5 failed attempts, the account is temporarily locked for 15 minutes (`locked_until`), displaying an active countdown timer.
+3. **Session & Tenant Isolation:**
+   * Successful login receives a JWT token and stores partner tenant info in `localStorage`.
+   * Unauthenticated users are redirected to `/login` via `ProtectedRoute`.
+   * Logged-in partners are restricted to their company's data only.
 
 ---
 
