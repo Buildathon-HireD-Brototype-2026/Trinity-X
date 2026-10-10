@@ -103,10 +103,6 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
                     _buildQuickActionGrid(context),
                     const SizedBox(height: 16),
 
-                    // Today's Progress Card
-                    _buildTodayProgressCard(context),
-                    const SizedBox(height: 16),
-
                     // Nearby Fuel Stations Card
                     _buildNearbyFuelCard(context),
                     const SizedBox(height: 24),
@@ -743,104 +739,6 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
             ],
           ),
         ),
-      ),
-    );
-  }
-
-  /// Today's Progress Card
-  Widget _buildTodayProgressCard(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x08000000),
-            blurRadius: 14,
-            offset: Offset(0, 4),
-          ),
-        ],
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 18),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // Header Row
-          Row(
-            children: [
-              const Text(
-                "Today's Progress",
-                style: TextStyle(
-                  color: Color(0xFF16192C),
-                  fontWeight: FontWeight.w700,
-                  fontSize: 15,
-                ),
-              ),
-              const Spacer(),
-              const Text(
-                '2/5 trips',
-                style: TextStyle(
-                  color: Color(0xFF868C9F),
-                  fontSize: 13,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-              const SizedBox(width: 10),
-              Container(
-                width: 36,
-                height: 36,
-                decoration: const BoxDecoration(
-                  color: AppColors.primaryTint,
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(
-                  Icons.track_changes_rounded,
-                  color: AppColors.primary,
-                  size: 20,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
-
-          // Progress Bar (40% progress)
-          ClipRRect(
-            borderRadius: BorderRadius.circular(8),
-            child: const SizedBox(
-              height: 9,
-              child: LinearProgressIndicator(
-                value: 0.4,
-                backgroundColor: AppColors.primaryTint,
-                valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
-              ),
-            ),
-          ),
-          const SizedBox(height: 12),
-
-          // Target Earnings
-          RichText(
-            text: const TextSpan(
-              children: [
-                TextSpan(
-                  text: '₹ 1,248',
-                  style: TextStyle(
-                    color: Color(0xFF16192C),
-                    fontSize: 17,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                TextSpan(
-                  text: ' / ₹ 2,000',
-                  style: TextStyle(
-                    color: Color(0xFF868C9F),
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
       ),
     );
   }
