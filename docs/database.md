@@ -12,8 +12,8 @@
 | **Based on**         | HireD PRD v0.2 and HireD Technical Guidelines |
 | **Database**         | PostgreSQL 17                                 |
 | **ORM / migrations** | Prisma                                        |
-| **Document version** | 1.1                                           |
-| **Date**             | 07 Oct 2026                                   |
+| **Document version** | 1.2                                           |
+| **Date**             | 09 Oct 2026                                   |
 
 ---
 
@@ -86,7 +86,7 @@ The main flow in one line: a company places an order → the admin accepts it an
 - **Columns that hold a file location end in `_path`**: `file_path`, `selfie_path`, `photo_path`. They store a path in private storage, not a web address.
 - **Status columns are called `status`** (`orders.status`, `trips.status`, `invoices.status`). `trip_payrolls` has two kinds of status, so its columns are `payout_status` (the driver was paid) and `payment_status` (the partner paid HireD).
 - **A foreign key that points to `admins` is named after the role**: `created_by_admin_id`, `decided_by_admin_id`, `verified_by_admin_id1`, `verified_by_admin_id2`.
-- **"Platform" and "company".** The PRD mostly calls HireD's side of the split the "platform" share; section 8.1 of the PRD says "company %". In this database it is `platform` (`platform_share_pct`, `platform_share`), because `companies` is the table of partner companies. `driver_share_pct` and `platform_share_pct` are the PRD's own names (sections 5.4 and 6).
+- **"Platform" and "company".** The updated PRD calls HireD's side of the split the "platform" share (sections 5.4 and 6, and the glossary in 6.1), and calls it "company %" in A-10 and section 8.1. In this database it is `platform` (`platform_share_pct`, `platform_share`), because `companies` is the table of partner companies. `driver_share_pct` and `platform_share_pct` are the names the PRD gives in sections 5.4 and 6.
 - **`PARTNER`** in `actor_type`, `user_type` and `recipient_type` means a user of a `companies` row. The PRD calls these users "B2B Partners".
 
 ### Keys
@@ -1039,7 +1039,7 @@ The PRD names the reports but does not define these words, so this document does
 | -------------- | ---------- |
 | Billing issues | `trip_payrolls` with empty `invoice_id` for a past month; `trip_payrolls` with `payment_status = 'UNPAID'`; invoices whose totals differ from the sum of their payroll rows. |
 | Driver delay report | Delay (section 12.2) per trip, grouped by `driver_id`. |
-| Client order volume and success rate | `orders` grouped by `company_id` and `status`; success rate and on-time rate as defined in section 12.2. |
+| Company order volume and success rate | `orders` grouped by `company_id` and `status`; success rate and on-time rate as defined in section 12.2. |
 | Driver payout report | `trip_payrolls` grouped by `driver_id`, with the wallet balance from `driver_wallet_transactions`. |
 | Trip Report (live / daily / monthly) | Live: `trips` with `status = 'ONGOING'`. Daily or monthly: `trips` with `closed_at` in the day or month (Asia/Kolkata). |
 | Order Report | `orders` with status, source and `decided_at`. |
@@ -1147,3 +1147,4 @@ These PRD questions are not decided yet. The design can handle each answer witho
 | 0.2     | 03 Oct 2026 | PostgreSQL types, lengths and NOT NULL for every column. Status columns on company, admins and drivers. OTP attempt limit. expenses_confirmed on trips. payment_status on trip_payrolls. Contact fields and reject_reason on orders. Database-level rules for invoice approval and wallet rows. version columns. Time columns renamed to end in At. New sections: data access and security, migration strategy, change log.                                                                                                                                                                                                                                                                                                                                                                |
 | 1.0     | 03 Oct 2026 | After an independent review. trip_payrolls copies driver_id at close; driver cannot change after close. Invoices can be CANCELLED; unique index ignores cancelled rows. Month of a trip defined in Asia/Kolkata. Expenses and leaves can be deleted before close. ER diagram cardinality fixed for optional foreign keys. Tables renamed to plural (companies, audit_logs, driver_leaves). orders.admin_id split into created_by_admin_id and decided_by_admin_id, plus decided_at. orders.office_id removed. New tables: sessions, notifications. Login lockout columns. File metadata on driver_documents. More CHECK rules (approver pairs, split sum, decided fields, reject reason). payout_status explained and defaulted. New section 12: reports. Migration path moved to backend/migrations. |
 | 1.1     | 07 Oct 2026 | After the pull request review. Naming: all table and column names in this document are written in snake_case (Prisma fields stay camelCase and are mapped with `@map`); file columns end in `_path` (`file_path`, `selfie_path`, `photo_path`); no acronyms in column names, so the snake_case rule always works; `driver_split` and `hired_split` on companies, and `driver_pct` and `company_pct` on trip_payrolls, renamed `driver_share_pct` and `platform_share_pct` (the PRD's names); `company_share` and `total_company_share` renamed `platform_share` and `total_platform_share`; invoice admin columns renamed `created_by_admin_id`, `verified_by_admin_id1` and `verified_by_admin_id2`; `trips.trip_status` renamed `status`. Normalization: 1NF, 2NF and 3NF check, and the repeated values kept on purpose. Security: rules for who can create or change rows, and other protection. Audit: allowed `entity_type` values, and audit of expense edits and deletes. Reports: Trip Report field table, definitions, example queries, and partners see payroll rows only through a PUBLISHED invoice. Indexes: names, kinds, partial indexes, and the foreign keys left without an index. Fixes: broken table row in section 7.1, heading level of section 4, month filter written as a range so the `closed_at` index is used. |
+| 1.2     | 09 Oct 2026 | Checked against the updated PRD (v0.2, 30 Sep 2026). The report in section 12.3 is named "Company order volume and success rate", as in PRD 5.5. Section 3 now cites PRD 6.1 (glossary) for the words company and platform. ER diagram PDF regenerated to match this version. |
