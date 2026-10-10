@@ -31,22 +31,26 @@ b2b-portal/
 │   │   │   └── ProtectedRoute.jsx # Client route guard for partner session
 │   │   ├── common/
 │   │   │   └── StatusBadge.jsx  # Reusable status badge with dot indicators
-│   │   └── layout/
-│   │       ├── Navbar.jsx       # Header with tenant status and partner profile
-│   │       ├── Sidebar.jsx      # Fixed desktop sidebar navigation
-│   │       └── PortalLayout.jsx # Shell layout
+│   │   ├── layout/
+│   │   │   ├── Navbar.jsx       # Header with tenant status and partner profile
+│   │   │   ├── Sidebar.jsx      # Fixed desktop sidebar navigation
+│   │   └── orders/
+│   │       └── OrderDetailModal.jsx # Order details, ETA & trip-close OTP modal
 │   ├── constants/
 │   │   └── status.js            # Official order, trip, and invoice status enums
 │   ├── context/
 │   │   └── AuthContext.jsx      # Partner authentication & session provider
 │   ├── pages/
 │   │   ├── LoginPage.jsx        # B-01 Partner login with security lockout
-│   │   ├── DashboardPage.jsx    # Overview dashboard with KPI cards and recent orders
+│   │   ├── DashboardPage.jsx    # Overview dashboard with dynamic KPI cards
+│   │   ├── CreateOrderPage.jsx  # B-02 Transport order creation form
+│   │   ├── OrdersPage.jsx       # B-03 Tabbed & filterable orders & trips list
 │   │   ├── PlaceholderPage.jsx  # Planned feature placeholders
 │   │   └── NotFoundPage.jsx     # 404 handler
 │   ├── services/
 │   │   ├── apiClient.js         # Axios instance with auth & error interceptors
 │   │   ├── authService.js       # Partner auth & 15-minute lockout handling
+│   │   ├── orderService.js      # B-02 and B-03 order lifecycle service
 │   │   └── mockData.js          # Mock data layer adhering to team database design
 │   ├── styles/
 │   │   └── index.css            # HireD design tokens & component styles
@@ -96,21 +100,27 @@ npm run build
 
 ---
 
-## 🔐 Feature Highlights: Partner Authentication (B-01)
+## 🔐 Feature Highlights
 
-1. **Admin-Created Credentials:**
-   * Partner logs in using their registered corporate email and password created during company onboarding in HireD Admin.
-   * Demo reviewer credentials:
-     * **Email:** `partner@apexlogistics.com`
-     * **Password:** `PartnerPass123!`
-     * **Company:** Apex Global Logistics Pvt Ltd (`company_id: 101`)
-2. **Brute-Force & Security Lockout (`database_updated0.2.md Section 10.5`):**
-   * Automatically tracks failed login attempts.
-   * Upon 5 failed attempts, the account is temporarily locked for 15 minutes (`locked_until`), displaying an active countdown timer.
-3. **Session & Tenant Isolation:**
-   * Successful login receives a JWT token and stores partner tenant info in `localStorage`.
-   * Unauthenticated users are redirected to `/login` via `ProtectedRoute`.
-   * Logged-in partners are restricted to their company's data only.
+### 1. Partner Authentication (`B-01`)
+* Partner logs in using registered corporate email and admin-created password.
+* Demo reviewer access: `partner@apexlogistics.com` / `PartnerPass123!`.
+* Brute-force protection: 5 failed attempts locks the account for 15 minutes (`database_updated0.2.md Section 10.5`).
+* Protected routes redirect unauthenticated users to `/login`.
+
+### 2. Transport Order Creation (`B-02`)
+* Form fields: Pickup spot, drop-off destination, scheduled pickup date/time, contact name, contact phone, and vehicle/service notes.
+* Initial status is strictly set to `RECEIVED` with source `PORTAL`.
+* Client-side validation prevents empty fields and invalid telephone formatting.
+* Tenant isolation: `company_id` is derived from authentication context, never entered by the user.
+
+### 3. Order & Trip Tracking (`B-03`, `B-04`, `D-09`)
+* Tabbed view across All Bookings, Pending Orders, Active Trips, and Completed Trips.
+* Real-time search by Booking ID, route keywords, or passenger name.
+* Full order inspection modal:
+  * **ETA & Duration (`B-04`):** Displays estimated route duration.
+  * **Trip-Close OTP (`D-09`):** Securely renders the system-generated 6-digit OTP for the partner to provide to the driver upon drop-off.
+  * **Rejection Reason:** Displays administrative feedback if an order is rejected.
 
 ---
 

@@ -4,6 +4,8 @@ import PortalLayout from './components/layout/PortalLayout';
 import ProtectedRoute from './components/auth/ProtectedRoute';
 import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
+import CreateOrderPage from './pages/CreateOrderPage';
+import OrdersPage from './pages/OrdersPage';
 import PlaceholderPage from './pages/PlaceholderPage';
 import NotFoundPage from './pages/NotFoundPage';
 
@@ -23,26 +25,8 @@ export function App() {
         }
       >
         <Route index element={<DashboardPage />} />
-        <Route
-          path="orders/new"
-          element={
-            <PlaceholderPage
-              title="Create Transport Order"
-              featureId="feature/b2b-orders (P0)"
-              description="Self-service transport intake form for pickup, drop, date/time, vehicle/service notes, and passenger contact details."
-            />
-          }
-        />
-        <Route
-          path="orders"
-          element={
-            <PlaceholderPage
-              title="My Orders & Trips"
-              featureId="feature/b2b-orders (P0)"
-              description="Track current and past orders (RECEIVED, ACCEPTED, REJECTED) and trips (UNASSIGNED, ASSIGNED, ONGOING, CLOSED)."
-            />
-          }
-        />
+        <Route path="orders/new" element={<CreateOrderPage />} />
+        <Route path="orders" element={<OrdersPage />} />
         <Route
           path="reports"
           element={

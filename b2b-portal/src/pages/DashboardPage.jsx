@@ -1,8 +1,10 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { StatusBadge } from '../components/common/StatusBadge';
-import { INITIAL_ORDERS, INITIAL_TRIPS, INITIAL_INVOICES } from '../services/mockData';
+import orderService from '../services/orderService';
+import OrderDetailModal from '../components/orders/OrderDetailModal';
+import { INITIAL_INVOICES } from '../services/mockData';
 import {
   Car,
   Clock,
@@ -11,14 +13,30 @@ import {
   PlusCircle,
   ArrowRight,
   Info,
+  Eye,
 } from 'lucide-react';
 
 export function DashboardPage() {
   const { partner } = useAuth();
+  const [orders, setOrders] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedOrder, setSelectedOrder] = useState(null);
 
-  const ongoingTripsCount = INITIAL_TRIPS.filter((t) => t.status === 'ONGOING').length;
-  const pendingOrdersCount = INITIAL_ORDERS.filter((o) => o.status === 'RECEIVED').length;
-  const closedTripsCount = INITIAL_TRIPS.filter((t) => t.status === 'CLOSED').length;
+  useEffect(() => {
+    async function loadData() {
+      try {
+        const data = await orderService.getOrders();
+        setOrders(data);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadData();
+  }, []);
+
+  const ongoingTripsCount = orders.filter((o) => o.trip && o.trip.status === 'ONGOING').length;
+  const pendingOrdersCount = orders.filter((o) => o.status === 'RECEIVED').length;
+  const closedTripsCount = orders.filter((o) => o.trip && o.trip.status === 'CLOSED').length;
   const publishedStatementsCount = INITIAL_INVOICES.filter((i) => i.status === 'PUBLISHED').length;
 
   return (
@@ -117,34 +135,76 @@ export function DashboardPage() {
           <table className="data-table">
             <thead>
               <tr>
-                <th>Order ID</th>
+                <th>Booking ID</th>
                 <th>Pickup Location</th>
                 <th>Drop-off Location</th>
                 <th>Scheduled Date & Time</th>
-                <th>Passenger Contact</th>
+                <th>Passenger</th>
                 <th>Status</th>
+                <th>Action</th>
               </tr>
             </thead>
             <tbody>
-              {INITIAL_ORDERS.map((order) => (
-                <tr key={order.order_id}>
-                  <td style={{ fontWeight: 600 }}>ORD-{order.order_id}</td>
-                  <td>{order.pickup_spot}</td>
-                  <td>{order.dropoff_spot}</td>
-                  <td>{new Date(order.pickup_time).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}</td>
-                  <td>
-                    <div>{order.contact_name}</div>
-                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{order.contact_phone}</div>
-                  </td>
-                  <td>
-                    <StatusBadge status={order.status} />
+              {loading ? (
+                <tr>
+                  <td colSpan={7} style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>
+                    Loading recent orders...
                   </td>
                 </tr>
-              ))}
+              ) : orders.length === 0 ? (
+                <tr>
+                  <td colSpan={7} style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>
+                    No transport orders found. Click &quot;Create Transport Order&quot; to place your first booking.
+                  </td>
+                </tr>
+              ) : (
+                orders.slice(0, 5).map((order) => (
+                  <tr key={order.order_id}>
+                    <td>
+                      <span style={{ fontWeight: 600 }}>ORD-{order.order_id}</span>
+                      {order.trip && (
+                        <div style={{ fontSize: '0.75rem', color: 'var(--primary)', fontWeight: 600 }}>
+                          TRIP-{order.trip.trip_id}
+                        </div>
+                      )}
+                    </td>
+                    <td>{order.pickup_spot}</td>
+                    <td>{order.dropoff_spot}</td>
+                    <td>{new Date(order.pickup_time).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}</td>
+                    <td>
+                      <div>{order.contact_name}</div>
+                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{order.contact_phone}</div>
+                    </td>
+                    <td>
+                      <StatusBadge status={order.trip ? order.trip.status : order.status} />
+                    </td>
+                    <td>
+                      <button
+                        type="button"
+                        className="btn btn-secondary"
+                        style={{ padding: '0.35rem 0.65rem', fontSize: '0.75rem' }}
+                        onClick={() => setSelectedOrder(order)}
+                        title="View details"
+                      >
+                        <Eye size={14} />
+                        <span>View</span>
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
       </div>
+
+      {/* Details Modal */}
+      {selectedOrder && (
+        <OrderDetailModal
+          order={selectedOrder}
+          onClose={() => setSelectedOrder(null)}
+        />
+      )}
     </div>
   );
 }
