@@ -456,11 +456,11 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
                       decoration: BoxDecoration(
-                        color: AppColors.primary,
+                        color: isOnline ? const Color(0xFFE11D48) : const Color(0xFF10B981),
                         borderRadius: BorderRadius.circular(30),
                         boxShadow: [
                           BoxShadow(
-                            color: AppColors.primary.withValues(alpha: 0.35),
+                            color: (isOnline ? const Color(0xFFE11D48) : const Color(0xFF10B981)).withValues(alpha: 0.35),
                             blurRadius: 14,
                             offset: const Offset(0, 5),
                           ),
