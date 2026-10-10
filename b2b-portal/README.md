@@ -37,8 +37,10 @@ b2b-portal/
 │   │   │   └── PortalLayout.jsx # Shell layout
 │   │   ├── orders/
 │   │   │   └── OrderDetailModal.jsx # Order details, ETA & trip-close OTP modal
-│   │   └── reports/
-│   │       └── TripReportViewModal.jsx # Official printable closed trip report modal
+│   │   ├── reports/
+│   │   │   └── TripReportViewModal.jsx # Official printable closed trip report modal
+│   │   └── statements/
+│   │       └── StatementDetailModal.jsx # Verified month-end statement modal
 │   ├── constants/
 │   │   └── status.js            # Official order, trip, and invoice status enums
 │   ├── context/
@@ -49,13 +51,14 @@ b2b-portal/
 │   │   ├── CreateOrderPage.jsx  # B-02 Transport order creation form
 │   │   ├── OrdersPage.jsx       # B-03 Tabbed & filterable orders & trips list
 │   │   ├── ReportsPage.jsx      # B-05 Closed trip reports & export
-│   │   ├── PlaceholderPage.jsx  # Planned feature placeholders
+│   │   ├── StatementsPage.jsx   # B-06 Verified month-end statements list
 │   │   └── NotFoundPage.jsx     # 404 handler
 │   ├── services/
 │   │   ├── apiClient.js         # Axios instance with auth & error interceptors
 │   │   ├── authService.js       # Partner auth & 15-minute lockout handling
 │   │   ├── orderService.js      # B-02 and B-03 order lifecycle service
 │   │   ├── reportService.js     # B-05 post-trip reporting service
+│   │   ├── statementService.js  # B-06 verified statement service
 │   │   └── mockData.js          # Mock data layer adhering to team database design
 │   ├── styles/
 │   │   └── index.css            # HireD design tokens & component styles
@@ -130,8 +133,14 @@ npm run build
 ### 4. Post-Trip Reports (`B-05`)
 * Generates completion reports for trips in `CLOSED` status.
 * Displays route details, driver info, start and close timestamps, base fare, and itemized out-of-pocket expenses.
-* **Security & Confidentiality Rule (`database_updated0.2.md Section 12.1`):** In accordance with the PRD, driver payout shares (`driver_share_pct`, `driver_share`) are not exposed in per-trip reports. Commission amounts appear exclusively on verified month-end statements.
+* Driver commission percentage and platform payout amounts are excluded from per-trip views (revealed exclusively on verified month-end statements).
 * Printable view (`window.print()`) and one-click CSV export.
+
+### 5. Verified Month-End Statements (`B-06`)
+* **Two-Person Verification Integrity:** Invoices are exposed to the partner **only** when they attain `PUBLISHED` status following explicit sign-off from two distinct administrators (the statement creator plus one secondary controller).
+* Displays gross monthly trip fares, corporate split (Driver % vs Platform %), and logged disbursements.
+* Trip-wise rate ledger documenting individual closed trips included in the statement billing cycle.
+* **Offline Payment Settlement:** Clarifies payment terms via direct remittance (NEFT/RTGS), adhering to the PRD Phase 1 exclusion of in-app payment gateways.
 
 ---
 

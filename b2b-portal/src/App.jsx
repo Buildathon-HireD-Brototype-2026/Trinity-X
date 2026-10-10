@@ -7,7 +7,7 @@ import DashboardPage from './pages/DashboardPage';
 import CreateOrderPage from './pages/CreateOrderPage';
 import OrdersPage from './pages/OrdersPage';
 import ReportsPage from './pages/ReportsPage';
-import PlaceholderPage from './pages/PlaceholderPage';
+import StatementsPage from './pages/StatementsPage';
 import NotFoundPage from './pages/NotFoundPage';
 
 export function App() {
@@ -29,16 +29,7 @@ export function App() {
         <Route path="orders/new" element={<CreateOrderPage />} />
         <Route path="orders" element={<OrdersPage />} />
         <Route path="reports" element={<ReportsPage />} />
-        <Route
-          path="statements"
-          element={
-            <PlaceholderPage
-              title="Month-End Statements"
-              featureId="feature/b2b-statements (P0)"
-              description="View and verify published month-end statements once approved by two platform administrators."
-            />
-          }
-        />
+        <Route path="statements" element={<StatementsPage />} />
         <Route path="*" element={<NotFoundPage />} />
       </Route>
     </Routes>
