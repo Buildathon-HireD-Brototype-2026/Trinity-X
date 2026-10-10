@@ -1,6 +1,6 @@
 {
-    "name": "driver_app",
-    "short_name": "driver_app",
+    "name": "HireD Partner",
+    "short_name": "HireD Partner",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",

@@ -9,7 +9,7 @@ abstract class TripRepository {
 class MockTripRepository implements TripRepository {
   final _controller = StreamController<List<TripModel>>.broadcast();
 
-  // Mock initial trip in UTC (e.g. 5:00 UTC = 10:30 AM IST)
+  // Mock initial trips in UTC (e.g. 5:00 UTC = 10:30 AM IST, 6:15 UTC = 11:45 AM IST)
   List<TripModel> _mockTrips = [
     TripModel(
       tripId: '8421',
@@ -17,6 +17,13 @@ class MockTripRepository implements TripRepository {
       pickupSpot: 'Tech Park Gate 2, Electronic City',
       pickupTime: DateTime.utc(2026, 10, 11, 5, 0), // 10:30 AM IST
       estimatedReachMinutes: 18,
+    ),
+    TripModel(
+      tripId: '8422',
+      status: 'ASSIGNED',
+      pickupSpot: 'Prestige Tech Cloud, Devanahalli',
+      pickupTime: DateTime.utc(2026, 10, 11, 6, 15), // 11:45 AM IST
+      estimatedReachMinutes: 35,
     ),
   ];
 
