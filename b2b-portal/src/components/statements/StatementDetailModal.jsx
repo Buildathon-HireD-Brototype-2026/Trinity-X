@@ -93,7 +93,7 @@ export function StatementDetailModal({ statement, onClose }) {
           {/* Statement Header */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '2rem' }}>
             <div>
-              <img src="/logo.svg" alt="HireD" style={{ height: '38px', marginBottom: '0.5rem' }} />
+              <img src="/logo.png" alt="HireD" style={{ height: '38px', marginBottom: '0.5rem' }} />
               <div style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)' }}>
                 HireD Enterprise Logistics Platform
               </div>

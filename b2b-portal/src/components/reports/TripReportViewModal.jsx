@@ -97,7 +97,7 @@ export function TripReportViewModal({ report, onClose }) {
           {/* Header */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '2rem' }}>
             <div>
-              <img src="/logo.svg" alt="HireD" style={{ height: '36px', marginBottom: '0.5rem' }} />
+              <img src="/logo.png" alt="HireD" style={{ height: '36px', marginBottom: '0.5rem' }} />
               <div style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)' }}>
                 B2B Commercial Transport Logistics
               </div>

@@ -119,7 +119,7 @@ export function LoginPage() {
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-          <img src="/logo.svg" alt="HireD Logo" style={{ height: '36px', width: 'auto' }} />
+          <img src="/logo.png" alt="HireD Logo" style={{ height: '36px', width: 'auto' }} />
           <span className="brand-badge">B2B Portal</span>
         </div>
 

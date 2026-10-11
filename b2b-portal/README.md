@@ -23,10 +23,10 @@ Built in strict compliance with the **HireD Phase 1 MVP PRD v0.2** (dated 30 Sep
 ```text
 b2b-portal/
 ├── public/
-│   └── logo.svg                 # Official HireD Vector Logo
+│   └── logo.png                 # Official HireD Logo
 ├── src/
 │   ├── assets/
-│   │   └── logo.svg             # Brand asset
+│   │   └── logo.png             # Brand asset
 │   ├── components/
 │   │   ├── auth/
 │   │   │   └── ProtectedRoute.jsx   # Route guard enforcing authenticated sessions

@@ -30,7 +30,7 @@ export function Sidebar({ isCollapsed, onToggleCollapse }) {
       {/* Sidebar Header */}
       <div className="sidebar-header">
         <div className="sidebar-brand-group">
-          <img src="/logo.svg" alt="HireD" className="brand-logo-img" />
+          <img src="/logo.png" alt="HireD" className="brand-logo-img" />
           <span className="brand-badge">B2B Portal</span>
         </div>
 
