@@ -129,7 +129,7 @@ export function OrderDetailModal({ order, onClose }) {
 
         {/* Passenger & Service Notes */}
         <div style={{ marginBottom: '1.5rem', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-          <div style={{ background: '#FFFFFF', padding: '1rem', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-md)' }}>
+          <div style={{ background: 'var(--bg-surface)', padding: '1rem', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-md)' }}>
             <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600, marginBottom: '0.35rem' }}>
               PASSENGER CONTACT
             </div>
@@ -143,7 +143,7 @@ export function OrderDetailModal({ order, onClose }) {
             </div>
           </div>
 
-          <div style={{ background: '#FFFFFF', padding: '1rem', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-md)' }}>
+          <div style={{ background: 'var(--bg-surface)', padding: '1rem', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-md)' }}>
             <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600, marginBottom: '0.35rem' }}>
               SERVICE NOTES
             </div>
@@ -174,7 +174,7 @@ export function OrderDetailModal({ order, onClose }) {
 
         {/* Linked Trip & OTP Section (PRD B-04 & D-09) */}
         {trip ? (
-          <div style={{ background: '#FAF5FF', border: '1px solid var(--primary-200)', borderRadius: 'var(--radius-md)', padding: '1.25rem', marginBottom: '1rem' }}>
+          <div style={{ background: 'var(--primary-50)', border: '1px solid var(--primary-200)', borderRadius: 'var(--radius-md)', padding: '1.25rem', marginBottom: '1rem' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <Car size={20} color="var(--primary)" />
@@ -202,7 +202,7 @@ export function OrderDetailModal({ order, onClose }) {
             </div>
 
             {/* Trip-Close OTP Display (PRD D-09) */}
-            <div style={{ background: '#FFFFFF', padding: '1rem', borderRadius: 'var(--radius-sm)', border: '1px dashed var(--primary-300)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem' }}>
+            <div style={{ background: 'var(--bg-surface)', padding: '1rem', borderRadius: 'var(--radius-sm)', border: '1px dashed var(--primary-300)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem' }}>
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.75rem', fontWeight: 700, color: 'var(--primary)', textTransform: 'uppercase' }}>
                   <KeyRound size={14} />

@@ -1,10 +1,12 @@
 import React from 'react';
 import { useAuth } from '../../context/AuthContext';
+import { useTheme } from '../../context/ThemeContext';
 import NotificationDropdown from '../notifications/NotificationDropdown';
-import { Building2, ShieldCheck } from 'lucide-react';
+import { Building2, ShieldCheck, Sun, Moon } from 'lucide-react';
 
 export function Navbar() {
   const { partner } = useAuth();
+  const { theme, toggleTheme, isDark } = useTheme();
 
   return (
     <header className="top-navbar">
@@ -22,11 +24,22 @@ export function Navbar() {
         </div>
       </div>
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+        {/* Night & Day Theme Toggle Button */}
+        <button
+          type="button"
+          onClick={toggleTheme}
+          className="theme-toggle-btn"
+          title={isDark ? 'Switch to Light Theme' : 'Switch to Dark Theme'}
+          aria-label={isDark ? 'Switch to Light Theme' : 'Switch to Dark Theme'}
+        >
+          {isDark ? <Sun size={19} color="#FBBF24" /> : <Moon size={19} color="var(--primary)" />}
+        </button>
+
         {/* Interactive Notification Dropdown */}
         <NotificationDropdown />
 
-        <div style={{ textAlign: 'right' }}>
+        <div style={{ textAlign: 'right', borderLeft: '1px solid var(--border-subtle)', paddingLeft: '1rem' }}>
           <div style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-main)' }}>
             {partner?.contact_person || 'Partner User'}
           </div>

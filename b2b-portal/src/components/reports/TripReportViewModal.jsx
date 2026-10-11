@@ -47,7 +47,7 @@ export function TripReportViewModal({ report, onClose }) {
           maxHeight: '92vh',
           overflowY: 'auto',
           padding: '2.5rem',
-          backgroundColor: '#FFFFFF',
+          backgroundColor: 'var(--bg-surface)',
         }}
         onClick={(e) => e.stopPropagation()}
       >

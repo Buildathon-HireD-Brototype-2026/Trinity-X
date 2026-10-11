@@ -129,7 +129,7 @@ export function NotificationDropdown() {
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
-              backgroundColor: '#FAFAFA',
+              backgroundColor: 'var(--bg-muted)',
             }}
           >
             <div style={{ fontWeight: 700, fontSize: '0.875rem', color: 'var(--text-main)' }}>
@@ -165,7 +165,7 @@ export function NotificationDropdown() {
                   style={{
                     padding: '0.875rem 1rem',
                     borderBottom: '1px solid var(--border-subtle)',
-                    backgroundColor: n.is_read ? '#FFFFFF' : '#FAF5FF',
+                    backgroundColor: n.is_read ? 'var(--bg-surface)' : 'var(--primary-50)',
                     cursor: 'pointer',
                     transition: 'background-color 0.15s ease',
                   }}
