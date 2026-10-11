@@ -90,8 +90,8 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
                     _buildTopHeader(context, ref, driverName, driver.status, isOnline),
                     const SizedBox(height: 16),
 
-                    // Hero Card: Duty Status & Go Online/Offline Toggle
-                    _buildHeroDutyCard(context, ref, isOnline, driver.status),
+                    // Today's Roster Card (from updated nowFollow.jpeg)
+                    _buildTodaysRosterCard(),
                     const SizedBox(height: 16),
 
                     // Assigned Trip Card (on top of quick actions, exactly as in nowFollow.jpeg)
@@ -100,9 +100,7 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
                       const SizedBox(height: 16),
                     ],
 
-                    // 3-Column Quick Actions: Trip History, Wallet, Performance (in middle)
-                    _buildQuickActionGrid(context),
-                    const SizedBox(height: 16),
+
 
                     // Map Card (at bottom above nav bar, exactly as in nowFollow.jpeg)
                     _buildMapCard(context, selectedTrip, assignedTrips),
@@ -130,34 +128,42 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
 
     return Row(
       children: [
-        // Driver Avatar
-        Container(
-          width: 52,
-          height: 52,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            border: Border.all(color: Colors.white, width: 2),
-            boxShadow: const [
-              BoxShadow(
-                color: Color(0x10000000),
-                blurRadius: 8,
-                offset: Offset(0, 2),
+        // Driver Avatar - navigates to profile on tap
+        Material(
+          color: Colors.transparent,
+          child: InkWell(
+            key: const Key('driver_profile_avatar_button'),
+            onTap: () => context.push(RouteNames.profile),
+            borderRadius: BorderRadius.circular(26),
+            child: Container(
+              width: 52,
+              height: 52,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white, width: 2),
+                boxShadow: const [
+                  BoxShadow(
+                    color: Color(0x10000000),
+                    blurRadius: 8,
+                    offset: Offset(0, 2),
+                  ),
+                ],
               ),
-            ],
-          ),
-          child: ClipOval(
-            child: Image.network(
-              'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
-              fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) => Container(
-                color: AppColors.primary,
-                child: Center(
-                  child: Text(
-                    driverName.isNotEmpty ? driverName[0].toUpperCase() : 'A',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold,
+              child: ClipOval(
+                child: Image.network(
+                  'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) => Container(
+                    color: AppColors.primary,
+                    child: Center(
+                      child: Text(
+                        driverName.isNotEmpty ? driverName[0].toUpperCase() : 'A',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 22,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
                     ),
                   ),
                 ),
@@ -282,68 +288,142 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
     );
   }
 
-  /// Hero Card for Duty Status (rich purple/magenta gradient matching nowFollow.jpeg)
-  Widget _buildHeroDutyCard(
-    BuildContext context,
-    WidgetRef ref,
-    bool isOnline,
-    String status,
-  ) {
+  /// Today's Roster Card (from updated nowFollow.jpeg)
+  Widget _buildTodaysRosterCard() {
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [
-            Color(0xFF4C1D95),
-            Color(0xFF7E22CE),
-            Color(0xFFA855F7),
-            Color(0xFFEC4899),
-          ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+        color: Colors.white,
         borderRadius: BorderRadius.circular(24),
-        boxShadow: [
+        boxShadow: const [
           BoxShadow(
-            color: const Color(0xFF7E22CE).withValues(alpha: 0.3),
-            blurRadius: 18,
-            offset: const Offset(0, 6),
+            color: Color(0x0A000000),
+            blurRadius: 16,
+            offset: Offset(0, 4),
           ),
         ],
       ),
-      padding: const EdgeInsets.symmetric(horizontal: 22.0, vertical: 22.0),
+      padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 20.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'You are currently',
+          const Text(
+            "TODAY'S ROSTER",
             style: TextStyle(
-              color: Colors.white.withValues(alpha: 0.9),
-              fontSize: 18,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            isOnline ? 'online' : 'offline',
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 32,
-              fontWeight: FontWeight.w800,
-              letterSpacing: -0.5,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            isOnline ? 'Ready to accept new trips.' : 'Go online to accept new trips.',
-            style: TextStyle(
-              color: Colors.white.withValues(alpha: 0.85),
+              color: Color(0xFF1E293B),
               fontSize: 13,
-              fontWeight: FontWeight.w400,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.5,
             ),
+          ),
+          const SizedBox(height: 22),
+
+          // Stepper Indicator Row (Dots and Connecting Lines)
+          Row(
+            children: [
+              _buildRosterDot(isCompleted: true),
+              Expanded(child: _buildRosterLine(isSolid: true)),
+              _buildRosterDot(isCompleted: true),
+              Expanded(child: _buildRosterLine(isSolid: true)),
+              _buildRosterDot(isCompleted: true),
+              Expanded(child: _buildRosterLine(isSolid: false)),
+              _buildRosterDot(isCompleted: false),
+            ],
+          ),
+          const SizedBox(height: 10),
+
+          // Labels Row
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildRosterLabel('Assigned', '10:00 AM', CrossAxisAlignment.start),
+              _buildRosterLabel('Spot Reached', '10:20 AM', CrossAxisAlignment.center),
+              _buildRosterLabel('In Journey', '10:32 AM', CrossAxisAlignment.center),
+              _buildRosterLabel('Reached Place', '10:50 AM (Est.)', CrossAxisAlignment.end),
+            ],
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildRosterDot({required bool isCompleted}) {
+    if (isCompleted) {
+      return Container(
+        width: 14,
+        height: 14,
+        decoration: const BoxDecoration(
+          color: Color(0xFF581C87),
+          shape: BoxShape.circle,
+        ),
+      );
+    }
+    return Container(
+      width: 14,
+      height: 14,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        shape: BoxShape.circle,
+        border: Border.all(
+          color: const Color(0xFF581C87),
+          width: 2.5,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRosterLine({required bool isSolid}) {
+    if (isSolid) {
+      return Container(
+        height: 2.5,
+        color: const Color(0xFF581C87),
+      );
+    }
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final boxWidth = constraints.maxWidth;
+        const dashWidth = 5.0;
+        const dashSpace = 4.0;
+        final dashCount = (boxWidth / (dashWidth + dashSpace)).floor().clamp(1, 10);
+        return Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: List.generate(dashCount, (_) {
+            return const SizedBox(
+              width: dashWidth,
+              height: 2,
+              child: DecoratedBox(
+                decoration: BoxDecoration(color: Color(0xFFCBD5E1)),
+              ),
+            );
+          }),
+        );
+      },
+    );
+  }
+
+  Widget _buildRosterLabel(String title, String subtitle, CrossAxisAlignment align) {
+    return Column(
+      crossAxisAlignment: align,
+      children: [
+        Text(
+          title,
+          style: const TextStyle(
+            color: Color(0xFF0F172A),
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const SizedBox(height: 3),
+        Text(
+          subtitle,
+          style: const TextStyle(
+            color: Color(0xFF64748B),
+            fontSize: 11,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      ],
     );
   }
 
@@ -510,7 +590,11 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
     );
   }
 
-  /// 3-Column Quick Actions Grid
+  // ===========================================================================
+  // PRESERVED REFERENCE: Trip History, Wallet, and Performance Containers
+  // Exactly preserves the container shape, icons, subtitles, and layout.
+  // ===========================================================================
+  /*
   Widget _buildQuickActionGrid(BuildContext context) {
     return Row(
       children: [
@@ -540,18 +624,13 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
             icon: Icons.bar_chart_rounded,
             title: 'Performance',
             subtitle: 'View your stats ›',
-            onTap: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Opening Performance Analytics...')),
-              );
-            },
+            onTap: () {},
           ),
         ),
       ],
     );
   }
 
-  /// Individual Quick Action Card
   Widget _buildActionCard({
     required BuildContext context,
     required IconData icon,
@@ -612,6 +691,7 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
       ),
     );
   }
+  */
 
   /// Assigned Trip Card showing selected trip with swap button and short fade under 200ms
   Widget _buildAssignedTripCard(
@@ -815,51 +895,6 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
                 ],
               ),
             ),
-            const SizedBox(height: 16),
-
-            // Start Trip & Navigate button (acts on selected trip shown in card)
-            Material(
-              color: Colors.transparent,
-              child: InkWell(
-                onTap: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Starting Navigation for Trip #${selectedTrip.tripId}...'),
-                    ),
-                  );
-                },
-                borderRadius: BorderRadius.circular(18),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(vertical: 15),
-                  decoration: BoxDecoration(
-                    color: AppColors.primary,
-                    borderRadius: BorderRadius.circular(18),
-                    boxShadow: [
-                      BoxShadow(
-                        color: AppColors.primary.withValues(alpha: 0.35),
-                        blurRadius: 14,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  child: const Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.navigation_rounded, color: Colors.white, size: 16),
-                      SizedBox(width: 8),
-                      Text(
-                        'Start Trip & Navigate',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w700,
-                          fontSize: 14.5,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
           ],
         ),
       ),
@@ -873,7 +908,7 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
   }
 
 
-  /// 4-Tab Docked Bottom Navigation Bar
+  /// 3-Tab Docked Bottom Navigation Bar
   Widget _buildBottomNavigationBar() {
     return Container(
       decoration: const BoxDecoration(
@@ -912,12 +947,6 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
               icon: Icons.account_balance_wallet_outlined,
               label: 'Wallet',
               isActive: _selectedNavIndex == 2,
-            ),
-            _buildNavItem(
-              index: 3,
-              icon: Icons.grid_view_rounded,
-              label: 'More',
-              isActive: _selectedNavIndex == 3,
             ),
           ],
         ),
