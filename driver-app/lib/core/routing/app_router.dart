@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../core/storage/local_cache_service.dart';
 import '../../features/auth/presentation/controllers/auth_controller.dart';
 import '../../features/auth/presentation/login_screen.dart';
 import '../../features/auth/presentation/splash_screen.dart';
 import '../../features/home/presentation/home_dashboard_screen.dart';
+import '../../features/profile/presentation/documents_screen.dart';
 import '../../features/profile/presentation/profile_screen.dart';
 import 'route_names.dart';
 
@@ -25,6 +27,7 @@ final authRouterListenableProvider = Provider<AuthRouterListenable>((ref) {
 
 final appRouterProvider = Provider<GoRouter>((ref) {
   final refreshListenable = ref.watch(authRouterListenableProvider);
+  final prefs = ref.watch(sharedPreferencesProvider);
 
   return GoRouter(
     initialLocation: RouteNames.splash,
@@ -42,8 +45,13 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           return isSplash ? null : RouteNames.splash;
 
         case AuthStatus.authenticated:
-          // Authenticated: any auth route (splash, login) redirects to /home
+          // Authenticated: check if returning from camera or document upload
           if (isAuthRoute) {
+            final pendingDoc = prefs.getString('pending_upload_doc_type');
+            final activeRoute = prefs.getString('active_route');
+            if (pendingDoc != null || activeRoute == RouteNames.documents) {
+              return RouteNames.documents;
+            }
             return RouteNames.home;
           }
           return null;
@@ -72,6 +80,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: RouteNames.profile,
         builder: (context, state) => const ProfileScreen(),
+      ),
+      GoRoute(
+        path: RouteNames.documents,
+        builder: (context, state) => const DocumentsScreen(),
       ),
     ],
   );

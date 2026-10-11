@@ -70,3 +70,7 @@ List<TripModel> _resolveAssignedTrips(List<TripModel> trips) {
   active.sort((a, b) => a.pickupTime.compareTo(b.pickupTime));
   return active.take(2).toList();
 }
+
+/// Controls whether the driver is scheduled to go offline automatically after the ongoing trip ends (Recommendation 2).
+final isOfflineAfterTripProvider = StateProvider<bool>((ref) => false);
+

@@ -4,8 +4,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/routing/route_names.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_theme_colors.dart';
+import '../../../core/theme/theme_provider.dart';
 import '../../auth/presentation/controllers/auth_controller.dart';
 import '../../auth/presentation/controllers/driver_profile_controller.dart';
+import 'controllers/driver_documents_provider.dart';
 
 /// Driver Profile Screen styled identically to the reference design (Profile ui.jpeg)
 class ProfileScreen extends ConsumerStatefulWidget {
@@ -32,36 +35,75 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         ? 'HD-${driver.id.toString().padLeft(5, '0')}'
         : 'HD-94821';
 
+    final themeColors = context.appColors;
+    final isDark = context.isDarkMode;
+
     return Scaffold(
       key: _scaffoldKey,
-      backgroundColor: const Color(0xFFF8FAFC),
+      backgroundColor: themeColors.pageBackground,
       drawerScrimColor: Colors.black.withValues(alpha: 0.35),
       drawer: _buildDrawerTaskbar(context, ref),
       body: SafeArea(
         child: Column(
           children: [
-            // Top App Bar: 3-Bar Menu Icon
+            // Top App Bar: 3-Bar Menu Icon & Dark/Light Theme Switch Button
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: Material(
-                  color: Colors.transparent,
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(20),
-                    onTap: () {
-                      _scaffoldKey.currentState?.openDrawer();
-                    },
-                    child: const Padding(
-                      padding: EdgeInsets.all(6.0),
-                      child: Icon(
-                        Icons.menu_rounded,
-                        color: Color(0xFF1E293B),
-                        size: 26,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(20),
+                      onTap: () {
+                        _scaffoldKey.currentState?.openDrawer();
+                      },
+                      child: Padding(
+                        padding: const EdgeInsets.all(6.0),
+                        child: Icon(
+                          Icons.menu_rounded,
+                          color: themeColors.textPrimary,
+                          size: 26,
+                        ),
                       ),
                     ),
                   ),
-                ),
+                  Tooltip(
+                    message: isDark ? 'Light mode' : 'Dark mode',
+                    child: Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        key: const Key('theme_mode_toggle_button'),
+                        borderRadius: BorderRadius.circular(20),
+                        onTap: () {
+                          ref.read(themeModeProvider.notifier).toggleTheme();
+                        },
+                        child: Container(
+                          width: 38,
+                          height: 38,
+                          decoration: BoxDecoration(
+                            color: themeColors.cardBackground,
+                            shape: BoxShape.circle,
+                            border: Border.all(color: themeColors.border),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: isDark ? 0.25 : 0.05),
+                                blurRadius: 6,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: Icon(
+                            isDark ? Icons.light_mode_outlined : Icons.dark_mode_outlined,
+                            size: 20,
+                            color: isDark ? themeColors.purpleAccent : const Color(0xFF4B5162),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
 
@@ -77,6 +119,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
                     // Top Profile Card
                     _buildProfileCard(
+                      context: context,
                       driverName: driverName,
                       driverPhone: driverPhone,
                       driverId: driverId,
@@ -102,20 +145,25 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
   /// Profile Summary Card with avatar, name, badge, ID, contact and zone
   Widget _buildProfileCard({
+    required BuildContext context,
     required String driverName,
     required String driverPhone,
     required String driverId,
     String? photoPath,
   }) {
+    final themeColors = context.appColors;
+    final isDark = context.isDarkMode;
+
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: themeColors.cardBackground,
         borderRadius: BorderRadius.circular(24),
-        boxShadow: const [
+        border: Border.all(color: themeColors.border),
+        boxShadow: [
           BoxShadow(
-            color: Color(0x0A000000),
+            color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.04),
             blurRadius: 16,
-            offset: Offset(0, 4),
+            offset: const Offset(0, 4),
           ),
         ],
       ),
@@ -128,12 +176,12 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             height: 86,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              border: Border.all(color: const Color(0xFF581C87), width: 3.5),
-              boxShadow: const [
+              border: Border.all(color: themeColors.purpleAccent, width: 3.5),
+              boxShadow: [
                 BoxShadow(
-                  color: Color(0x15000000),
+                  color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.08),
                   blurRadius: 10,
-                  offset: Offset(0, 4),
+                  offset: const Offset(0, 4),
                 ),
               ],
             ),
@@ -144,7 +192,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     : 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
                 fit: BoxFit.cover,
                 errorBuilder: (_, __, ___) => Container(
-                  color: AppColors.primary,
+                  color: themeColors.primaryButton,
                   child: Center(
                     child: Text(
                       driverName.isNotEmpty ? driverName[0].toUpperCase() : 'R',
@@ -164,8 +212,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           // Driver Name
           Text(
             driverName,
-            style: const TextStyle(
-              color: Color(0xFF0F172A),
+            style: TextStyle(
+              color: themeColors.textPrimary,
               fontSize: 22,
               fontWeight: FontWeight.w700,
               letterSpacing: -0.3,
@@ -177,15 +225,16 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 3.5),
             decoration: BoxDecoration(
-              color: const Color(0xFFF3E8FF),
+              color: themeColors.purpleTint,
               borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: themeColors.border),
             ),
-            child: const Text(
+            child: Text(
               'HireD Partner',
               style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
-                color: Color(0xFF6B21A8),
+                color: themeColors.purpleAccent,
               ),
             ),
           ),
@@ -194,8 +243,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           // ID and Active Status Subtitle
           Text(
             'ID: #$driverId • Active Partner',
-            style: const TextStyle(
-              color: Color(0xFF64748B),
+            style: TextStyle(
+              color: themeColors.textSecondary,
               fontSize: 13,
               fontWeight: FontWeight.w500,
             ),
@@ -203,7 +252,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           const SizedBox(height: 18),
 
           // Horizontal Divider
-          const Divider(height: 1, color: Color(0xFFF1F5F9)),
+          Divider(height: 1, color: themeColors.divider),
           const SizedBox(height: 16),
 
           // Contact & Zone Info Tiles
@@ -217,12 +266,12 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       width: 42,
                       height: 42,
                       decoration: BoxDecoration(
-                        color: const Color(0xFFF3E8FF),
+                        color: themeColors.purpleTint,
                         borderRadius: BorderRadius.circular(14),
                       ),
-                      child: const Icon(
+                      child: Icon(
                         Icons.phone_rounded,
-                        color: Color(0xFF581C87),
+                        color: themeColors.purpleAccent,
                         size: 19,
                       ),
                     ),
@@ -231,10 +280,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text(
+                          Text(
                             'Contact',
                             style: TextStyle(
-                              color: Color(0xFF1E293B),
+                              color: themeColors.textSecondary,
                               fontSize: 13,
                               fontWeight: FontWeight.w600,
                             ),
@@ -242,8 +291,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                           const SizedBox(height: 2),
                           Text(
                             driverPhone,
-                            style: const TextStyle(
-                              color: Color(0xFF0F172A),
+                            style: TextStyle(
+                              color: themeColors.textPrimary,
                               fontSize: 12,
                               fontWeight: FontWeight.w500,
                             ),
@@ -261,7 +310,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               Container(
                 width: 1,
                 height: 40,
-                color: const Color(0xFFE2E8F0),
+                color: themeColors.divider,
                 margin: const EdgeInsets.symmetric(horizontal: 10),
               ),
 
@@ -273,33 +322,33 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       width: 42,
                       height: 42,
                       decoration: BoxDecoration(
-                        color: const Color(0xFFF3E8FF),
+                        color: themeColors.purpleTint,
                         borderRadius: BorderRadius.circular(14),
                       ),
-                      child: const Icon(
+                      child: Icon(
                         Icons.location_on_rounded,
-                        color: Color(0xFF581C87),
+                        color: themeColors.purpleAccent,
                         size: 20,
                       ),
                     ),
                     const SizedBox(width: 10),
-                    const Expanded(
+                    Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
                             'Zone',
                             style: TextStyle(
-                              color: Color(0xFF1E293B),
+                              color: themeColors.textSecondary,
                               fontSize: 13,
                               fontWeight: FontWeight.w600,
                             ),
                           ),
-                          SizedBox(height: 2),
+                          const SizedBox(height: 2),
                           Text(
                             'Electronic City, BLR',
                             style: TextStyle(
-                              color: Color(0xFF0F172A),
+                              color: themeColors.textPrimary,
                               fontSize: 12,
                               fontWeight: FontWeight.w500,
                             ),
@@ -321,15 +370,20 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
   /// Request & Leave Status Section Card
   Widget _buildRequestAndLeaveCard(BuildContext context) {
+    final themeColors = context.appColors;
+    final isDark = context.isDarkMode;
+    final docsState = ref.watch(driverDocumentsProvider);
+
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: themeColors.cardBackground,
         borderRadius: BorderRadius.circular(24),
-        boxShadow: const [
+        border: Border.all(color: themeColors.border),
+        boxShadow: [
           BoxShadow(
-            color: Color(0x0A000000),
+            color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.04),
             blurRadius: 16,
-            offset: Offset(0, 4),
+            offset: const Offset(0, 4),
           ),
         ],
       ),
@@ -338,10 +392,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Section Title
-          const Text(
+          Text(
             'OPERATIONS',
             style: TextStyle(
-              color: Color(0xFF1E293B),
+              color: themeColors.textSecondary,
               fontSize: 13,
               fontWeight: FontWeight.w700,
               letterSpacing: 0.5,
@@ -351,17 +405,40 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
           // 1. Apply for Leave
           _buildActionRow(
+            context: context,
             icon: Icons.flight_takeoff_rounded,
             title: 'Apply for Leave',
             onTap: () {},
           ),
-          const Divider(height: 24, color: Color(0xFFF1F5F9)),
+          Divider(height: 24, color: themeColors.divider),
 
           // 2. Documents
           _buildActionRow(
+            context: context,
             icon: Icons.description_rounded,
             title: 'Documents',
-            onTap: () {},
+            badge: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3.5),
+              decoration: BoxDecoration(
+                color: docsState.isAllUploaded
+                    ? (isDark ? const Color(0xFF064E3B) : const Color(0xFFD1FAE5))
+                    : (isDark ? const Color(0xFF451A03) : const Color(0xFFFEF3C7)),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Text(
+                docsState.isAllUploaded
+                    ? 'Verified'
+                    : '${docsState.uploadedCount}/4 Uploaded',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: docsState.isAllUploaded
+                      ? (isDark ? const Color(0xFF34D399) : const Color(0xFF059669))
+                      : (isDark ? const Color(0xFFFBBF24) : const Color(0xFFD97706)),
+                ),
+              ),
+            ),
+            onTap: () => context.push(RouteNames.documents),
           ),
         ],
       ),
@@ -370,10 +447,14 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
   /// Reusable row item for settings and action lists
   Widget _buildActionRow({
+    required BuildContext context,
     required IconData icon,
     required String title,
     required VoidCallback onTap,
+    Widget? badge,
   }) {
+    final themeColors = context.appColors;
+
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -387,12 +468,12 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 width: 44,
                 height: 44,
                 decoration: BoxDecoration(
-                  color: const Color(0xFFF3E8FF),
+                  color: themeColors.purpleTint,
                   borderRadius: BorderRadius.circular(14),
                 ),
                 child: Icon(
                   icon,
-                  color: const Color(0xFF581C87),
+                  color: themeColors.purpleAccent,
                   size: 21,
                 ),
               ),
@@ -400,16 +481,20 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               Expanded(
                 child: Text(
                   title,
-                  style: const TextStyle(
-                    color: Color(0xFF0F172A),
+                  style: TextStyle(
+                    color: themeColors.textPrimary,
                     fontSize: 15,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
               ),
-              const Icon(
+              if (badge != null) ...[
+                badge,
+                const SizedBox(width: 6),
+              ],
+              Icon(
                 Icons.chevron_right_rounded,
-                color: Color(0xFF94A3B8),
+                color: themeColors.unselectedIcon,
                 size: 22,
               ),
             ],
@@ -421,13 +506,15 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
   /// 3-Tab Bottom Navigation Bar (Home, Trips, Wallet) matching dashboard
   Widget _buildBottomNavigationBar(BuildContext context) {
+    final themeColors = context.appColors;
+
     return Container(
-      decoration: const BoxDecoration(
-        color: Colors.white,
+      decoration: BoxDecoration(
+        color: themeColors.cardBackground,
         border: Border(
-          top: BorderSide(color: Color(0xFFF1F3F8), width: 1),
+          top: BorderSide(color: themeColors.border, width: 1),
         ),
-        boxShadow: [
+        boxShadow: const [
           BoxShadow(
             color: Color(0x0D000000),
             blurRadius: 16,
@@ -442,6 +529,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           mainAxisAlignment: MainAxisAlignment.spaceAround,
           children: [
             _buildNavItem(
+              context: context,
               icon: Icons.home_outlined,
               label: 'Home',
               onTap: () {
@@ -453,6 +541,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               },
             ),
             _buildNavItem(
+              context: context,
               icon: Icons.directions_car_outlined,
               label: 'Trips',
               onTap: () {
@@ -464,6 +553,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               },
             ),
             _buildNavItem(
+              context: context,
               icon: Icons.account_balance_wallet_outlined,
               label: 'Wallet',
               onTap: () {
@@ -481,10 +571,13 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   }
 
   Widget _buildNavItem({
+    required BuildContext context,
     required IconData icon,
     required String label,
     required VoidCallback onTap,
   }) {
+    final themeColors = context.appColors;
+
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(16),
@@ -495,14 +588,14 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           children: [
             Icon(
               icon,
-              color: const Color(0xFF868C9F),
+              color: themeColors.unselectedIcon,
               size: 24,
             ),
             const SizedBox(height: 2),
             Text(
               label,
-              style: const TextStyle(
-                color: Color(0xFF868C9F),
+              style: TextStyle(
+                color: themeColors.unselectedIcon,
                 fontWeight: FontWeight.w500,
                 fontSize: 11,
               ),
@@ -522,6 +615,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   ) {
     // Compact, minimal width (60% of screen) so it feels like a sleek floating side panel
     final drawerWidth = MediaQuery.of(context).size.width * 0.60;
+    final themeColors = context.appColors;
+    final isDark = context.isDarkMode;
 
     return Drawer(
       backgroundColor: Colors.transparent,
@@ -536,23 +631,30 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           child: Container(
             decoration: BoxDecoration(
               // Half-transparent frosted glass following the App UI color theme
-              gradient: const LinearGradient(
+              gradient: LinearGradient(
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
-                colors: [
-                  Color(0xF6FFFFFF),
-                  Color(0xF2F6EDFD), // Subtle app primary tint #F3EDF9
-                ],
+                colors: isDark
+                    ? [
+                        themeColors.cardBackground.withValues(alpha: 0.95),
+                        themeColors.innerBox.withValues(alpha: 0.95),
+                      ]
+                    : const [
+                        Color(0xF6FFFFFF),
+                        Color(0xF2F6EDFD), // Subtle app primary tint #F3EDF9
+                      ],
               ),
               border: Border(
                 right: BorderSide(
-                  color: AppColors.primary.withValues(alpha: 0.2),
+                  color: themeColors.taskbarBorder,
                   width: 1.5,
                 ),
               ),
               boxShadow: [
                 BoxShadow(
-                  color: AppColors.primary.withValues(alpha: 0.08),
+                  color: isDark
+                      ? Colors.black.withValues(alpha: 0.4)
+                      : AppColors.primary.withValues(alpha: 0.08),
                   blurRadius: 30,
                   offset: const Offset(4, 0),
                 ),
@@ -566,6 +668,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
                   // Menu navigation items (My Trips, Earnings & Wallet, Support & Help)
                   _buildDrawerItem(
+                    context: context,
                     icon: Icons.directions_car_rounded,
                     label: 'My Trips',
                     onTap: () {
@@ -573,6 +676,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     },
                   ),
                   _buildDrawerItem(
+                    context: context,
                     icon: Icons.account_balance_wallet_rounded,
                     label: 'Earnings & Wallet',
                     onTap: () {
@@ -580,6 +684,16 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     },
                   ),
                   _buildDrawerItem(
+                    context: context,
+                    icon: Icons.description_rounded,
+                    label: 'My Documents',
+                    onTap: () {
+                      Navigator.of(context).pop();
+                      context.push(RouteNames.documents);
+                    },
+                  ),
+                  _buildDrawerItem(
+                    context: context,
                     icon: Icons.headset_mic_rounded,
                     label: 'Support & Help',
                     onTap: () {
@@ -608,33 +722,33 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                               vertical: 10,
                             ),
                             decoration: BoxDecoration(
-                              color: Colors.white,
+                              color: themeColors.logoutBg,
                               borderRadius: BorderRadius.circular(12),
                               border: Border.all(
-                                color: const Color(0xFFE2E8F0),
+                                color: themeColors.logoutBorder,
                                 width: 1.2,
                               ),
-                              boxShadow: const [
+                              boxShadow: [
                                 BoxShadow(
-                                  color: Color(0x0A000000),
+                                  color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.04),
                                   blurRadius: 6,
-                                  offset: Offset(0, 2),
+                                  offset: const Offset(0, 2),
                                 ),
                               ],
                             ),
-                            child: const Row(
+                            child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 Icon(
                                   Icons.power_settings_new_rounded,
-                                  color: Color(0xFFB91C1C),
+                                  color: themeColors.logoutText,
                                   size: 19,
                                 ),
-                                SizedBox(width: 8),
+                                const SizedBox(width: 8),
                                 Text(
                                   'Logout',
                                   style: TextStyle(
-                                    color: Color(0xFFB91C1C),
+                                    color: themeColors.logoutText,
                                     fontSize: 14,
                                     fontWeight: FontWeight.w600,
                                     letterSpacing: 0.2,
@@ -656,17 +770,19 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     );
   }
 
-
   Widget _buildDrawerItem({
+    required BuildContext context,
     required IconData icon,
     required String label,
     required VoidCallback onTap,
     bool isSelected = false,
   }) {
+    final themeColors = context.appColors;
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 3),
       child: Material(
-        color: isSelected ? AppColors.primaryTint : Colors.transparent,
+        color: isSelected ? themeColors.purpleTint : Colors.transparent,
         borderRadius: BorderRadius.circular(14),
         child: InkWell(
           borderRadius: BorderRadius.circular(14),
@@ -681,20 +797,20 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     height: 18,
                     margin: const EdgeInsets.only(right: 10),
                     decoration: BoxDecoration(
-                      color: AppColors.primary,
+                      color: themeColors.purpleAccent,
                       borderRadius: BorderRadius.circular(2),
                     ),
                   ),
                 Icon(
                   icon,
                   size: 21,
-                  color: isSelected ? AppColors.primary : const Color(0xFF64748B),
+                  color: isSelected ? themeColors.purpleAccent : themeColors.textSecondary,
                 ),
                 const SizedBox(width: 12),
                 Text(
                   label,
                   style: TextStyle(
-                    color: isSelected ? AppColors.primary : const Color(0xFF334155),
+                    color: isSelected ? themeColors.purpleAccent : themeColors.textPrimary,
                     fontSize: 14,
                     fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
                   ),

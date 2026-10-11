@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 /// HireD Brand Colors extracted from logo and Admin Design Reference.
-/// Main Brand Purple: #6E2894
+/// Main Brand Purple: #6A379F
 class AppColors {
   AppColors._();
 

@@ -4,6 +4,8 @@ import '../domain/trip_model.dart';
 abstract class TripRepository {
   Future<List<TripModel>> getTrips();
   Stream<List<TripModel>> watchTrips();
+  Future<void> startTrip(String tripId);
+  Future<void> completeTrip(String tripId);
 }
 
 class MockTripRepository implements TripRepository {
@@ -40,6 +42,28 @@ class MockTripRepository implements TripRepository {
   Stream<List<TripModel>> watchTrips() async* {
     yield List.unmodifiable(_mockTrips);
     yield* _controller.stream;
+  }
+
+  @override
+  Future<void> startTrip(String tripId) async {
+    _mockTrips = _mockTrips.map((t) {
+      if (t.tripId == tripId) {
+        return t.copyWith(status: 'ONGOING');
+      }
+      return t;
+    }).toList();
+    _controller.add(List.unmodifiable(_mockTrips));
+  }
+
+  @override
+  Future<void> completeTrip(String tripId) async {
+    _mockTrips = _mockTrips.map((t) {
+      if (t.tripId == tripId) {
+        return t.copyWith(status: 'COMPLETED');
+      }
+      return t;
+    }).toList();
+    _controller.add(List.unmodifiable(_mockTrips));
   }
 
   /// Updates mock trips (for testing assignment, start, closure)

@@ -6,6 +6,7 @@ import '../../../core/routing/route_names.dart';
 import '../../../core/storage/secure_storage_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
+import '../../../core/theme/app_theme_colors.dart';
 import '../../../core/widgets/app_loading_indicator.dart';
 import 'controllers/auth_controller.dart';
 import 'controllers/login_controller.dart';
@@ -74,9 +75,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   Widget build(BuildContext context) {
     final authState = ref.watch(authControllerProvider);
     final loginState = ref.watch(loginControllerProvider);
+    final themeColors = context.appColors;
+    final isDark = context.isDarkMode;
 
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: themeColors.pageBackground,
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
@@ -95,12 +98,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         height: 72,
                         fit: BoxFit.contain,
                         errorBuilder: (context, error, stackTrace) {
-                          return const Text(
+                          return Text(
                             'HireD',
                             style: TextStyle(
                               fontSize: 38,
                               fontWeight: FontWeight.w800,
-                              color: AppColors.primary,
+                              color: themeColors.purpleAccent,
                               letterSpacing: -0.5,
                             ),
                           );
@@ -114,7 +117,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       'Driver Partner Login',
                       textAlign: TextAlign.center,
                       style: AppTextStyles.headlineSmall.copyWith(
-                        color: AppColors.textPrimary,
+                        color: themeColors.textPrimary,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
@@ -123,7 +126,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       'Welcome back! Enter your registered details.',
                       textAlign: TextAlign.center,
                       style: AppTextStyles.bodyMedium.copyWith(
-                        color: AppColors.textSecondary,
+                        color: themeColors.textSecondary,
                       ),
                     ),
                     const SizedBox(height: 32),
@@ -221,12 +224,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     // Phone Number Input Card
                     Container(
                       decoration: BoxDecoration(
-                        color: Colors.white,
+                        color: themeColors.cardBackground,
                         borderRadius: BorderRadius.circular(14),
-                        border: Border.all(color: AppColors.border),
+                        border: Border.all(color: themeColors.border),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.02),
+                            color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.02),
                             blurRadius: 10,
                             offset: const Offset(0, 4),
                           ),
@@ -237,12 +240,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           // Phone Field Label
-                          const Text(
+                          Text(
                             'Phone Number',
                             style: TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.w600,
-                              color: AppColors.textPrimary,
+                              color: themeColors.textPrimary,
                             ),
                           ),
                           const SizedBox(height: 8),
@@ -261,17 +264,17 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                               hintText: '98765 43210',
                               prefixIcon: Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-                                child: const Text(
+                                child: Text(
                                   '+91',
                                   style: TextStyle(
                                     fontWeight: FontWeight.w700,
                                     fontSize: 15,
-                                    color: AppColors.textPrimary,
+                                    color: themeColors.textPrimary,
                                   ),
                                 ),
                               ),
                               prefixIconConstraints: const BoxConstraints(minWidth: 0, minHeight: 0),
-                              suffixIcon: const Icon(Icons.phone_android, color: AppColors.textMuted),
+                              suffixIcon: Icon(Icons.phone_android, color: themeColors.textMuted),
                             ),
                             validator: (value) =>
                                 ref.read(loginControllerProvider.notifier).validatePhone(value),
@@ -279,12 +282,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           const SizedBox(height: 20),
 
                           // Password Field Label
-                          const Text(
+                          Text(
                             'Password',
                             style: TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.w600,
-                              color: AppColors.textPrimary,
+                              color: themeColors.textPrimary,
                             ),
                           ),
                           const SizedBox(height: 8),
@@ -298,12 +301,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             onFieldSubmitted: (_) => _onLoginPressed(),
                             decoration: InputDecoration(
                               hintText: '••••••••',
-                              prefixIcon: const Icon(Icons.lock_outline, color: AppColors.textMuted),
+                              prefixIcon: Icon(Icons.lock_outline, color: themeColors.textMuted),
                               suffixIcon: IconButton(
                                 key: const Key('toggle_password_visibility_button'),
                                 icon: Icon(
                                   _obscurePassword ? Icons.visibility_off : Icons.visibility,
-                                  color: AppColors.textMuted,
+                                  color: themeColors.textMuted,
                                 ),
                                 onPressed: () {
                                   setState(() {
@@ -327,8 +330,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         key: const Key('login_submit_button'),
                         onPressed: loginState.isLoading ? null : _onLoginPressed,
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.primary,
-                          disabledBackgroundColor: AppColors.primary.withValues(alpha: 0.5),
+                          backgroundColor: themeColors.primaryButton,
+                          disabledBackgroundColor: themeColors.primaryButton.withValues(alpha: 0.5),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
                           ),
@@ -355,8 +358,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: AppColors.primaryTint,
+                        color: themeColors.purpleTint,
                         borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: themeColors.border),
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -364,7 +368,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           Text(
                             'Demo Partner Credentials:',
                             style: AppTextStyles.labelSmall.copyWith(
-                              color: AppColors.primary,
+                              color: themeColors.purpleAccent,
                               fontWeight: FontWeight.bold,
                             ),
                           ),
@@ -372,7 +376,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           Text(
                             '• Active: 9876543210 | Driver@123\n• Pending: 9876543211 | Driver@123',
                             style: AppTextStyles.bodySmall.copyWith(
-                              color: AppColors.primaryDark,
+                              color: themeColors.textSecondary,
                             ),
                           ),
                         ],
