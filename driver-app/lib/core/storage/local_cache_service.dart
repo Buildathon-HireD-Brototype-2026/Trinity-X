@@ -73,6 +73,17 @@ class LocalCacheService {
 
   String? getLastCacheTime() => _prefs.getString(_keyLastCacheTime);
 
+  // Duty Status Cache (persists Online/Offline across app kills)
+  Future<void> saveDutyStatus(int driverId, bool isOnline) async {
+    await _prefs.setBool('driver_duty_status_$driverId', isOnline);
+  }
+
+  bool? getDutyStatus(int driverId) {
+    return _prefs.getBool('driver_duty_status_$driverId');
+  }
+
+  SharedPreferences get prefs => _prefs;
+
   Future<void> _updateCacheTimestamp() async {
     await _prefs.setString(_keyLastCacheTime, DateTime.now().toIso8601String());
   }

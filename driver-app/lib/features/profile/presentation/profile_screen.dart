@@ -1,4 +1,3 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -162,8 +161,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.04),
-            blurRadius: 16,
-            offset: const Offset(0, 4),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
           ),
         ],
       ),
@@ -191,6 +190,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     ? photoPath
                     : 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
                 fit: BoxFit.cover,
+                cacheWidth: 160,
+                cacheHeight: 160,
                 errorBuilder: (_, __, ___) => Container(
                   color: themeColors.primaryButton,
                   child: Center(
@@ -626,41 +627,39 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         borderRadius: const BorderRadius.horizontal(
           right: Radius.circular(28),
         ),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-          child: Container(
-            decoration: BoxDecoration(
-              // Half-transparent frosted glass following the App UI color theme
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: isDark
-                    ? [
-                        themeColors.cardBackground.withValues(alpha: 0.95),
-                        themeColors.innerBox.withValues(alpha: 0.95),
-                      ]
-                    : const [
-                        Color(0xF6FFFFFF),
-                        Color(0xF2F6EDFD), // Subtle app primary tint #F3EDF9
-                      ],
-              ),
-              border: Border(
-                right: BorderSide(
-                  color: themeColors.taskbarBorder,
-                  width: 1.5,
-                ),
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: isDark
-                      ? Colors.black.withValues(alpha: 0.4)
-                      : AppColors.primary.withValues(alpha: 0.08),
-                  blurRadius: 30,
-                  offset: const Offset(4, 0),
-                ),
-              ],
+        child: Container(
+          decoration: BoxDecoration(
+            // Half-transparent frosted look following App UI color theme without expensive live-blur shader
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: isDark
+                  ? [
+                      themeColors.cardBackground.withValues(alpha: 0.98),
+                      themeColors.innerBox.withValues(alpha: 0.98),
+                    ]
+                  : const [
+                      Color(0xFAFFFFFF),
+                      Color(0xF5F6EDFD), // Subtle app primary tint #F3EDF9
+                    ],
             ),
-            child: SafeArea(
+            border: Border(
+              right: BorderSide(
+                color: themeColors.taskbarBorder,
+                width: 1.5,
+              ),
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: isDark
+                    ? Colors.black.withValues(alpha: 0.3)
+                    : AppColors.primary.withValues(alpha: 0.06),
+                blurRadius: 10,
+                offset: const Offset(3, 0),
+              ),
+            ],
+          ),
+          child: SafeArea(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
@@ -766,9 +765,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             ),
           ),
         ),
-      ),
-    );
-  }
+      );
+    }
 
   Widget _buildDrawerItem({
     required BuildContext context,

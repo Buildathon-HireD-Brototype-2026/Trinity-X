@@ -270,6 +270,8 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
                 child: Image.network(
                   'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
                   fit: BoxFit.cover,
+                  cacheWidth: 104,
+                  cacheHeight: 104,
                   errorBuilder: (_, __, ___) => Container(
                     color: themeColors.primaryButton,
                     child: Center(
@@ -897,8 +899,8 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.04),
-            blurRadius: 16,
-            offset: const Offset(0, 4),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
           ),
         ],
       ),
@@ -1056,8 +1058,8 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.04),
-            blurRadius: 16,
-            offset: const Offset(0, 4),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
           ),
         ],
       ),
@@ -1136,12 +1138,14 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
                     duration: const Duration(milliseconds: 180),
                     transitionBuilder: (child, animation) =>
                         FadeTransition(opacity: animation, child: child),
-                    child: CustomPaint(
-                      key: ValueKey('map_paint_${selectedTrip?.tripId ?? 'none'}_${isDark ? 'dark' : 'light'}'),
-                      size: const Size(double.infinity, 190),
-                      painter: _PlainMapPlaceholderPainter(
-                        markerPosition: markerPosition,
-                        colors: themeColors,
+                    child: RepaintBoundary(
+                      child: CustomPaint(
+                        key: ValueKey('map_paint_${selectedTrip?.tripId ?? 'none'}_${isDark ? 'dark' : 'light'}'),
+                        size: const Size(double.infinity, 190),
+                        painter: _PlainMapPlaceholderPainter(
+                          markerPosition: markerPosition,
+                          colors: themeColors,
+                        ),
                       ),
                     ),
                   ),
@@ -1328,8 +1332,8 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
               boxShadow: [
                 BoxShadow(
                   color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.04),
-                  blurRadius: 14,
-                  offset: const Offset(0, 4),
+                  blurRadius: 6,
+                  offset: const Offset(0, 2),
                 ),
               ],
             ),

@@ -114,18 +114,29 @@ class MockAuthRepository implements AuthRepository {
       driverName: driver.name,
     );
 
-    // Cache driver profile locally for instant Zomato-like hydration on reopen
-    await localCache.cacheProfile(driver.toJson());
-    _driverStreamController.add(driver);
+    // Restore persisted duty status if driver previously set it
+    final savedDuty = localCache.getDutyStatus(driver.id);
+    final effectiveDriver = savedDuty != null
+        ? driver.copyWith(isOnline: savedDuty)
+        : driver;
 
-    return (tokens: tokens, driver: driver);
+    // Cache driver profile locally for instant Zomato-like hydration on reopen
+    await localCache.cacheProfile(effectiveDriver.toJson());
+    _driverStreamController.add(effectiveDriver);
+
+    return (tokens: tokens, driver: effectiveDriver);
   }
 
   @override
   Future<DriverModel?> getCachedDriver() async {
     final cached = localCache.getCachedProfile();
     if (cached != null) {
-      return DriverModel.fromJson(cached);
+      final driver = DriverModel.fromJson(cached);
+      final savedDuty = localCache.getDutyStatus(driver.id);
+      if (savedDuty != null) {
+        return driver.copyWith(isOnline: savedDuty);
+      }
+      return driver;
     }
     return null;
   }
@@ -136,10 +147,16 @@ class MockAuthRepository implements AuthRepository {
     // Find driver from mock database
     for (final record in _mockDb.values) {
       if (record.driver.id == driverId) {
+        // Apply persisted duty status so in-memory mock does not overwrite user choice
+        final savedDuty = localCache.getDutyStatus(driverId);
+        final effectiveDriver = savedDuty != null
+            ? record.driver.copyWith(isOnline: savedDuty)
+            : record.driver;
+
         // Update local cache
-        await localCache.cacheProfile(record.driver.toJson());
-        _driverStreamController.add(record.driver);
-        return record.driver;
+        await localCache.cacheProfile(effectiveDriver.toJson());
+        _driverStreamController.add(effectiveDriver);
+        return effectiveDriver;
       }
     }
     throw const AuthException('Driver not found');
@@ -167,6 +184,9 @@ class MockAuthRepository implements AuthRepository {
 
   @override
   Future<DriverModel> toggleDuty(int driverId, bool isOnline) async {
+    // Persist duty status immediately to local disk so app remembers it on reopen
+    await localCache.saveDutyStatus(driverId, isOnline);
+
     for (final key in _mockDb.keys) {
       final record = _mockDb[key]!;
       if (record.driver.id == driverId) {
