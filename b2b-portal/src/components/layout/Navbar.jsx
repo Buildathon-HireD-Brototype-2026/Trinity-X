@@ -10,17 +10,39 @@ export function Navbar() {
 
   return (
     <header className="top-navbar">
-      <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-secondary)' }}>
-          <Building2 size={18} color="var(--primary)" />
-          <span style={{ fontWeight: 600, color: 'var(--text-main)', fontSize: '0.9375rem' }}>
-            {partner?.name || 'Partner Company'}
-          </span>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.875rem' }}>
+        <div
+          style={{
+            width: '38px',
+            height: '38px',
+            borderRadius: 'var(--radius-md)',
+            backgroundColor: 'var(--primary-50)',
+            border: '1px solid var(--primary-200)',
+            color: 'var(--primary)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexShrink: 0,
+          }}
+        >
+          <Building2 size={20} />
         </div>
-        <span style={{ color: 'var(--border-strong)' }}>|</span>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.8125rem', color: 'var(--success)' }}>
-          <ShieldCheck size={16} />
-          <span>Tenant Verified: Company #{partner?.company_id || '101'}</span>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+            <span style={{ fontWeight: 700, color: 'var(--text-main)', fontSize: '0.9375rem', lineHeight: 1.2 }}>
+              {partner?.name || 'Partner Company'}
+            </span>
+            <span style={{ color: 'var(--border-strong)', fontSize: '0.8125rem' }}>•</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.75rem', color: 'var(--success)', fontWeight: 500 }}>
+              <ShieldCheck size={13} />
+              <span>Verified #{partner?.company_id || '101'}</span>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <span className="brand-badge">B2B Portal</span>
+          </div>
         </div>
       </div>
 

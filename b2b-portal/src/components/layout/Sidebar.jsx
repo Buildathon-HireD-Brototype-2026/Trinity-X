@@ -31,7 +31,6 @@ export function Sidebar({ isCollapsed, onToggleCollapse }) {
       <div className="sidebar-header">
         <div className="sidebar-brand-group">
           <img src="/logo.png" alt="HireD" className="brand-logo-img" />
-          <span className="brand-badge">B2B Portal</span>
         </div>
 
         {/* Collapse / Expand Toggle Button */}
