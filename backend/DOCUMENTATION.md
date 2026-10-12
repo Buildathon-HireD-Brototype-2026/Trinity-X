@@ -508,18 +508,62 @@ Accounts are never created with default or plaintext passwords:
 
 ---
 
+---
+
+### Company Management Endpoints (`/api/v1/admin/companies`)
+*All endpoints require Bearer token with `userType === 'ADMIN'`.*
+
+1. **List Companies:** `GET /api/v1/admin/companies?status=ACTIVE&page=1&limit=20`
+   - Returns paginated list of company profiles with payout splits.
+2. **Create Company & Login:** `POST /api/v1/admin/companies`
+   - Body: `{ name, email_id, password, office_id, driver_share_pct, platform_share_pct, address, contact_person, phone_no, company_location }`
+   - Enforces `driver_share_pct + platform_share_pct = 100`, case-insensitive unique email. Password hashed with bcrypt.
+3. **Get Company Details:** `GET /api/v1/admin/companies/:company_id`
+   - Returns single company object; 404 if not found.
+4. **Update Company Details:** `PATCH /api/v1/admin/companies/:company_id`
+   - Updates editable company profile fields without modifying payout split or status.
+5. **Update Payout Split:** `PATCH /api/v1/admin/companies/:company_id/payout-split`
+   - Body: `{ driver_share_pct, platform_share_pct }`
+   - Validates sum = 100, preserves historical payroll records, audits action as `PAYOUT_SPLIT_CHANGED` in the same transaction.
+6. **Change Company Status:** `PATCH /api/v1/admin/companies/:company_id/status`
+   - Body: `{ status: "ACTIVE" | "INACTIVE", reason }`
+   - Setting `INACTIVE` revokes all active partner sessions in the same transaction; audits action as `USER_DEACTIVATED` / `USER_REACTIVATED`.
+
+---
+
+### Driver Management Endpoints (`/api/v1/admin/drivers`)
+*All endpoints require Bearer token with `userType === 'ADMIN'`.*
+
+1. **List Drivers:** `GET /api/v1/admin/drivers?status=ACTIVE&is_online=true&available_on=YYYY-MM-DD&page=1&limit=20`
+   - Supports filtering by status, online switch, and date availability (excludes drivers with active leave on that date).
+2. **Get Driver Detail:** `GET /api/v1/admin/drivers/:driver_id`
+   - Returns full driver detail including newest document of each type (`DRIVING_LICENCE`, `AADHAAR`, `PAN`, `PCC`) and scheduled leaves.
+3. **List Driver Documents History:** `GET /api/v1/admin/drivers/:driver_id/documents`
+   - Returns all historical document records for the driver.
+4. **Generate Signed Document Link:** `GET /api/v1/admin/drivers/:driver_id/documents/:document_id/link`
+   - Generates a secure HMAC/JWT-signed link with 5-minute expiry. Private file paths are never exposed.
+5. **Change Driver Status:** `PATCH /api/v1/admin/drivers/:driver_id/status`
+   - Body: `{ status: "ACTIVE" | "INACTIVE", reason }`
+   - Strictly enforces allowed state transitions:
+     - `PENDING -> ACTIVE` (audited as `DRIVER_ACTIVATED`)
+     - `ACTIVE -> INACTIVE` (revokes all active driver sessions in same transaction, audited as `USER_DEACTIVATED`)
+     - `INACTIVE -> ACTIVE` (audited as `USER_REACTIVATED`)
+     - Disallows arbitrary/invalid status transitions with 409 `INVALID_STATUS`.
+6. **Driver Wallet View:** `GET /api/v1/admin/drivers/:driver_id/wallet?page=1&limit=20`
+   - Returns aggregate balance (`sum(credits) - sum(debits)`) and paginated transaction ledger.
+7. **Record Offline Wallet Debit:** `POST /api/v1/admin/drivers/:driver_id/wallet-debits`
+   - Body: `{ debit: "2000.00", note }`
+   - Validates debit <= current balance (rejects excess with 422 `INSUFFICIENT_BALANCE`); audits as `WALLET_DEBITED`.
+
+---
+
 ## 7. Middleware & Authorization Guards
 
-Located in [src/middlewares/auth.middleware.js](file:///c:/brototype/buildathon/Hire_D/Trinity-X/backend/src/middlewares/auth.middleware.js):
+Located in [src/middlewares/auth.middleware.js](file:///c:/brototype/buildathon/Hire_D/Trinity-X/backend/src/middlewares/auth.middleware.js) & [src/middlewares/error.middleware.js](file:///c:/brototype/buildathon/Hire_D/Trinity-X/backend/src/middlewares/error.middleware.js):
 
-* **`authenticate`**:
-  1. Checks `Authorization: Bearer <token>`.
-  2. Verifies JWT signature and expiry.
-  3. Validates database session row in `sessions` (`revokedAt === null` and `expiresAt > now()`).
-  4. Checks identity table to confirm user exists and is `ACTIVE` (and `lockedUntil` is not in the future).
-  5. Attaches `req.user = { userType, userId, sessionId, profile }`.
-* **`requireUserType(...allowedTypes)`**:
-  Restricts endpoint access to specific roles. E.g., `requireAdmin` blocks non-admins with `403 Forbidden`.
+* **`authenticate`**: Verifies Bearer JWT, validates active session in `sessions`, checks user status is `ACTIVE` and account is not locked.
+* **`requireAdmin`**: Authorization guard enforcing admin role.
+* **`errorHandler`**: Centralized error middleware ensuring standard OpenAPI error structure: `{ "success": false, "error": { "code": "...", "message": "...", "details": [] } }`.
 
 ---
 
@@ -538,27 +582,14 @@ The script is idempotent:
 
 ## 9. Automated Testing & Verification
 
-An automated test suite is located in [tests/auth_and_onboarding.test.js](file:///c:/brototype/buildathon/Hire_D/Trinity-X/backend/tests/auth_and_onboarding.test.js). Run via:
+Comprehensive automated test suites:
+- `tests/auth_and_onboarding.test.js`: 15 integration scenarios for authentication, session rotation, lockouts, and partner/driver setup.
+- `tests/admin_company_driver.test.js`: 21 integration scenarios testing OpenAPI Admin, Company, and Driver management endpoints.
+
+Run all 36 tests via:
 ```powershell
 npm test
 ```
-
-### Coverage (15 Scenarios Verified):
-1. **Admin Login** with valid credentials.
-2. **`GET /auth/me`** protected profile verification.
-3. **Invalid Credentials** returns generic 401 without enumeration leaks.
-4. **Brute-Force Lockout** triggered after 5 consecutive failed logins.
-5. **Counter Reset** resets failed attempts to 0 on valid authentication.
-6. **Public Partner Registration** starts in `PENDING` (immediate login blocked).
-7. **Admin Approval** of registration request issues setup token.
-8. **Partner Password Setup** validates token and blocks token reuse.
-9. **Partner Login** succeeds with newly established password.
-10. **Cross-Role Protection** blocks partners from calling `/admin` endpoints.
-11. **Driver Creation** starts in `PENDING` (login blocked with 403).
-12. **Driver Activation & Password Setup** transitions driver to `ACTIVE` and enables login.
-13. **Refresh Token Rotation & Replay Detection** rotates session and blocks replayed tokens.
-14. **Logout Revocation** invalidates the active database session.
-15. **Inactive Account Rejection** immediately prevents deactivated accounts from logging in.
 
 ---
 

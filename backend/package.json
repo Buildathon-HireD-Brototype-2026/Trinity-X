@@ -6,7 +6,9 @@
   "scripts": {
     "dev": "nodemon src/server.js",
     "start": "node src/server.js",
-    "test": "node tests/auth_and_onboarding.test.js"
+    "test": "node tests/auth_and_onboarding.test.js && node tests/admin_company_driver.test.js",
+    "test:auth": "node tests/auth_and_onboarding.test.js",
+    "test:management": "node tests/admin_company_driver.test.js"
   },
   "keywords": [],
   "author": "",
@@ -22,6 +24,7 @@
     "express": "^5.3.0",
     "helmet": "^8.3.0",
     "jsonwebtoken": "^9.0.3",
+    "multer": "^2.4.0",
     "pg": "^8.23.1"
   },
   "devDependencies": {
