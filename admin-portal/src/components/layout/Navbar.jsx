@@ -1,73 +1,54 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { User, LogOut, ChevronDown } from 'lucide-react';
+import React from 'react';
+import {
+  Bell,
+  Moon,
+  Sun
+} from 'lucide-react';
 import { useAuth } from '../../features/auth/AuthContext';
-import logoSvg from '../../assets/logo.svg';
+import { useTheme } from '../../context/ThemeContext';
 
 export default function Navbar() {
-  const { user, logout } = useAuth();
-  const [dropdownOpen, setDropdownOpen] = useState(false);
-  const dropdownRef = useRef(null);
+  const { user } = useAuth();
+  const { theme, toggleTheme } = useTheme();
 
-  useEffect(() => {
-    function handleClickOutside(event) {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
-        setDropdownOpen(false);
-      }
-    }
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
+  const adminName = user?.name || 'Neha Sharma';
+  const adminEmail = user?.email || 'admin2@hired.com';
 
   return (
-    <header className="admin-navbar">
-      <div className="navbar-left">
-        <img src={logoSvg} alt="HireD Logo" className="navbar-logo" />
-        <span className="navbar-badge">Admin</span>
+    <header className="admin-topbar">
+      <div className="topbar-left">
+        <div className="topbar-admin-profile">
+          <span className="topbar-admin-name">{adminName}</span>
+          <span className="topbar-admin-email">{adminEmail}</span>
+        </div>
       </div>
 
-      <div className="navbar-right" ref={dropdownRef}>
+      <div className="topbar-right">
+        {/* Dark / Light Mode Toggle */}
         <button
           type="button"
-          className="admin-profile-trigger"
-          onClick={() => setDropdownOpen(!dropdownOpen)}
-          aria-expanded={dropdownOpen}
+          className="topbar-icon-btn topbar-theme-toggle"
+          onClick={toggleTheme}
+          aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+          title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
         >
-          <div className="admin-avatar">
-            <User size={18} />
-          </div>
-          <div className="admin-info">
-            <span className="admin-name">{user?.name || 'Admin'}</span>
-            <span className="admin-role">{user?.role || 'Admin'}</span>
-          </div>
-          <ChevronDown size={16} className={`dropdown-chevron ${dropdownOpen ? 'open' : ''}`} />
+          {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
         </button>
 
-        {dropdownOpen && (
-          <div className="profile-dropdown-menu">
-            <div className="dropdown-user-header">
-              <p className="dropdown-user-name">{user?.name}</p>
-              <p className="dropdown-user-email">{user?.email}</p>
-            </div>
-            <div className="dropdown-divider" />
-            <button
-              type="button"
-              className="dropdown-item"
-              onClick={() => alert(`Admin Profile:\n\nName: ${user?.name}\nEmail: ${user?.email}\nRole: ${user?.role}\nAdmin ID: ${user?.id}`)}
-            >
-              <User size={16} />
-              <span>Admin Profile</span>
-            </button>
-            <div className="dropdown-divider" />
-            <button
-              type="button"
-              className="dropdown-item text-danger"
-              onClick={logout}
-            >
-              <LogOut size={16} />
-              <span>Sign Out</span>
-            </button>
-          </div>
-        )}
+        {/* Notification Bell */}
+        <button
+          type="button"
+          className="topbar-icon-btn"
+          aria-label="Notifications"
+          title="Notifications"
+          onClick={() => alert('No new notifications')}
+        >
+          <Bell size={18} />
+          <span className="notification-dot" />
+        </button>
+
+        {/* Admin Badge */}
+        <span className="topbar-role-badge">ADMIN</span>
       </div>
     </header>
   );
