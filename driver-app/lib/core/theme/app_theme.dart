@@ -34,7 +34,15 @@ class AppTheme {
         centerTitle: false,
         titleTextStyle: AppTextStyles.titleLarge,
         iconTheme: IconThemeData(color: AppColors.textPrimary),
-        systemOverlayStyle: SystemUiOverlayStyle.dark,
+        systemOverlayStyle: SystemUiOverlayStyle(
+          statusBarColor: Colors.transparent,
+          statusBarIconBrightness: Brightness.dark,
+          statusBarBrightness: Brightness.light,
+          systemNavigationBarColor: Colors.white,
+          systemNavigationBarIconBrightness: Brightness.dark,
+          systemNavigationBarDividerColor: Colors.transparent,
+          systemNavigationBarContrastEnforced: false,
+        ),
       ),
       cardTheme: CardThemeData(
         color: AppColors.cardBg,
@@ -143,7 +151,15 @@ class AppTheme {
           fontWeight: FontWeight.w600,
         ),
         iconTheme: IconThemeData(color: Color(0xFFF2EEF6)),
-        systemOverlayStyle: SystemUiOverlayStyle.light,
+        systemOverlayStyle: SystemUiOverlayStyle(
+          statusBarColor: Colors.transparent,
+          statusBarIconBrightness: Brightness.light,
+          statusBarBrightness: Brightness.dark,
+          systemNavigationBarColor: Color(0xFF1C1823),
+          systemNavigationBarIconBrightness: Brightness.light,
+          systemNavigationBarDividerColor: Colors.transparent,
+          systemNavigationBarContrastEnforced: false,
+        ),
       ),
       cardTheme: CardThemeData(
         color: const Color(0xFF1C1823),
