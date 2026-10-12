@@ -1,0 +1,28 @@
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Dependencies
+node_modules/
+venv/
+.venv/
+__pycache__/
+
+# Build outputs
+dist/
+build/
+.next/
+
+# Flutter / Mobile
+.dart_tool/
+*.iml
+.flutter-plugins
+.flutter-plugins-dependencies
+
+# Logs and OS / Editor files
+*.log
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
