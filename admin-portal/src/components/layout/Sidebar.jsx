@@ -63,6 +63,7 @@ export default function Sidebar({
   onSelectView,
   isCollapsed = false,
   onToggleCollapse,
+  onOpenProfile,
 }) {
   const { user, logout } = useAuth();
 
@@ -135,8 +136,11 @@ export default function Sidebar({
       {/* Bottom Profile Footer */}
       <div className="sidebar-footer">
         <div
-          className="sidebar-user-card"
-          title={`${adminName} (${adminEmail})`}
+          className={`sidebar-user-card ${currentView === 'profile' ? 'active' : ''}`}
+          onClick={onOpenProfile}
+          role="button"
+          tabIndex={0}
+          title={`View Admin Profile: ${adminName} (${adminEmail})`}
         >
           <div className="sidebar-user-avatar">
             <span>{initial}</span>

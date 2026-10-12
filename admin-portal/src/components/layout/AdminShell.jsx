@@ -3,6 +3,7 @@ import Sidebar from './Sidebar';
 import Navbar from './Navbar';
 import DashboardPage from '../../features/dashboard/DashboardPage';
 import BlankPage from '../common/BlankPage';
+import AdminProfilePage from '../../features/profile/AdminProfilePage';
 
 const VIEW_TITLES = {
   dashboard: 'Dashboard Overview',
@@ -13,6 +14,7 @@ const VIEW_TITLES = {
   admins: 'Admin Onboarding',
   invoices: 'Invoice Verification',
   reports: 'Reports',
+  profile: 'Admin Profile',
 };
 
 export default function AdminShell() {
@@ -21,6 +23,7 @@ export default function AdminShell() {
 
   const activeTitle = VIEW_TITLES[currentView] || 'Dashboard Overview';
   const handleToggleCollapse = () => setIsCollapsed((prev) => !prev);
+  const handleOpenProfile = () => setCurrentView('profile');
 
   return (
     <div className="admin-layout">
@@ -29,15 +32,18 @@ export default function AdminShell() {
         onSelectView={setCurrentView}
         isCollapsed={isCollapsed}
         onToggleCollapse={handleToggleCollapse}
+        onOpenProfile={handleOpenProfile}
       />
 
       <div className="admin-main-wrapper">
-        <Navbar />
+        <Navbar onOpenProfile={handleOpenProfile} currentView={currentView} />
 
         {/* Page Content */}
         <main className="admin-page-content">
           {currentView === 'dashboard' ? (
             <DashboardPage onNavigate={setCurrentView} />
+          ) : currentView === 'profile' ? (
+            <AdminProfilePage onNavigate={setCurrentView} />
           ) : (
             <BlankPage title={activeTitle} />
           )}
