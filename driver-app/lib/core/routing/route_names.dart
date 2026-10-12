@@ -6,4 +6,5 @@ class RouteNames {
   static const String home = '/home';
   static const String profile = '/profile';
   static const String documents = '/documents';
+  static const String tripDetails = '/trip-details';
 }

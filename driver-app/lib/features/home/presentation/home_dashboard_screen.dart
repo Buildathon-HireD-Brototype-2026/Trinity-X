@@ -104,9 +104,12 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
                     _buildTodaysRosterCard(context),
                     const SizedBox(height: 16),
 
-                    // Assigned Trip Card (on top of quick actions, exactly as in nowFollow.jpeg)
+                    // Assigned Trip Card or No Trips Assigned Empty State
                     if (selectedTrip != null) ...[
-                      _buildAssignedTripCard(context, ref, selectedTrip, assignedTrips),
+                      _buildAssignedTripCard(context, selectedTrip),
+                      const SizedBox(height: 16),
+                    ] else ...[
+                      _buildNoTripsAssignedCard(context),
                       const SizedBox(height: 16),
                     ],
 
@@ -1307,15 +1310,14 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
   }
   */
 
-  /// Assigned Trip Card showing selected trip with swap button and short fade under 200ms
+  /// Assigned Trip Card showing selected trip with short fade under 200ms
   Widget _buildAssignedTripCard(
     BuildContext context,
-    WidgetRef ref,
     TripModel selectedTrip,
-    List<TripModel> assignedTrips,
   ) {
-    final formattedTime = _formatPickupTime(selectedTrip.pickupTime);
-    final hasTwoTrips = assignedTrips.length >= 2;
+    // Displays 10 minutes earlier than scheduled B2B time so driver reports on time
+    final driverPickupTime = selectedTrip.pickupTime.subtract(const Duration(minutes: 10));
+    final formattedTime = _formatPickupTime(driverPickupTime);
     final themeColors = context.appColors;
     final isDark = context.isDarkMode;
 
@@ -1325,204 +1327,245 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
           FadeTransition(opacity: animation, child: child),
       child: Container(
         key: ValueKey('assigned_card_${selectedTrip.tripId}'),
-            decoration: BoxDecoration(
-              color: themeColors.cardBackground,
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: themeColors.border),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.04),
-                  blurRadius: 6,
-                  offset: const Offset(0, 2),
-                ),
-              ],
+        decoration: BoxDecoration(
+          color: themeColors.cardBackground,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: themeColors.border),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.04),
+              blurRadius: 6,
+              offset: const Offset(0, 2),
             ),
-            padding: const EdgeInsets.all(18),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // Header: Icon, "Assigned Trip", Trip ID (#trip_id), Status chip, and Swap button if 2 trips
-                Row(
-                  children: [
-                    Container(
-                      width: 44,
-                      height: 44,
-                      decoration: BoxDecoration(
-                        color: selectedTrip.isOngoing
-                            ? (isDark ? const Color(0xFF1E3A8A) : const Color(0xFFDBEAFE))
-                            : themeColors.purpleTint,
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      child: Icon(
-                        selectedTrip.isOngoing ? Icons.navigation_rounded : Icons.near_me_rounded,
-                        color: selectedTrip.isOngoing
-                            ? (isDark ? const Color(0xFF93C5FD) : const Color(0xFF1D4ED8))
-                            : themeColors.purpleAccent,
-                        size: 22,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            selectedTrip.isOngoing ? 'Active Trip' : 'Assigned Trip',
-                            style: TextStyle(
-                              color: themeColors.textPrimary,
-                              fontWeight: FontWeight.w700,
-                              fontSize: 15,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            '#${selectedTrip.tripId}',
-                            style: TextStyle(
-                              color: themeColors.textSecondary,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: selectedTrip.isOngoing
-                            ? (isDark ? const Color(0xFF1E3A8A) : const Color(0xFFDBEAFE))
-                            : themeColors.statusAssignedBg,
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Text(
-                        selectedTrip.isOngoing ? 'IN JOURNEY' : selectedTrip.status.toUpperCase(),
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.bold,
+          ],
+        ),
+        child: Material(
+          color: Colors.transparent,
+          borderRadius: BorderRadius.circular(20),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(20),
+            onTap: () => context.push(RouteNames.tripDetails),
+            child: Padding(
+              padding: const EdgeInsets.all(18),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // Header: Icon, "Assigned Trip", and Status chip
+                  Row(
+                    children: [
+                      Container(
+                        width: 44,
+                        height: 44,
+                        decoration: BoxDecoration(
+                          color: selectedTrip.isOngoing
+                              ? (isDark ? const Color(0xFF1E3A8A) : const Color(0xFFDBEAFE))
+                              : themeColors.purpleTint,
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: Icon(
+                          selectedTrip.isOngoing ? Icons.navigation_rounded : Icons.near_me_rounded,
                           color: selectedTrip.isOngoing
                               ? (isDark ? const Color(0xFF93C5FD) : const Color(0xFF1D4ED8))
-                              : themeColors.statusAssignedText,
+                              : themeColors.purpleAccent,
+                          size: 22,
                         ),
                       ),
-                    ),
-                    // Swap Button: Two arrows (reference design style), shown only when 2 trips exist
-                    if (hasTwoTrips) ...[
-                      const SizedBox(width: 8),
-                      Material(
-                        color: Colors.transparent,
-                        child: InkWell(
-                          key: const Key('swap_assigned_trip_button'),
-                          onTap: () {
-                            ref.read(selectedTripIdProvider.notifier).swap(assignedTrips);
-                          },
-                          borderRadius: BorderRadius.circular(12),
-                          child: Container(
-                            width: 40,
-                            height: 40,
-                            decoration: BoxDecoration(
-                              color: themeColors.purpleTint,
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(
-                                color: themeColors.border,
-                              ),
-                            ),
-                            child: Center(
-                              child: Icon(
-                                Icons.swap_horiz_rounded,
-                                color: themeColors.purpleAccent,
-                                size: 20,
-                              ),
-                            ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          selectedTrip.isOngoing ? 'Active Trip' : 'Assigned Trip',
+                          style: TextStyle(
+                            color: themeColors.textPrimary,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 15,
                           ),
                         ),
                       ),
                     ],
-                  ],
-                ),
-                const SizedBox(height: 16),
-
-                // Body: ONLY two things:
-                // a) Vehicle pickup spot + Pickup Time
-                // b) Time to reach the vehicle's pickup spot
-                Container(
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: themeColors.innerBox,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: themeColors.border),
                   ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // a) Vehicle pickup spot & pickup time
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Container(
-                            margin: const EdgeInsets.only(top: 3),
-                            width: 10,
-                            height: 10,
-                            decoration: const BoxDecoration(
-                              color: Color(0xFF22C55E),
-                              shape: BoxShape.circle,
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  selectedTrip.pickupSpot,
-                                  style: TextStyle(
-                                    color: themeColors.textPrimary,
-                                    fontWeight: FontWeight.w700,
-                                    fontSize: 14.5,
-                                  ),
-                                ),
-                                const SizedBox(height: 3),
-                                Text(
-                                  'Pickup Time: $formattedTime',
-                                  style: TextStyle(
-                                    color: themeColors.textSecondary,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      Divider(height: 1, color: themeColors.divider),
-                      const SizedBox(height: 12),
+                  const SizedBox(height: 16),
 
-                      // b) Time to reach the vehicle's pickup spot
-                      Row(
-                        children: [
-                          Icon(
-                            Icons.timer_outlined,
-                            color: themeColors.purpleAccent,
-                            size: 18,
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            'Reach in ${selectedTrip.estimatedReachMinutes} min',
-                            style: TextStyle(
-                              color: themeColors.textPrimary,
-                              fontWeight: FontWeight.w600,
-                              fontSize: 13.5,
+                  // Body: ONLY two things:
+                  // a) Vehicle pickup spot + Pickup Time
+                  // b) Time to reach the vehicle's pickup spot
+                  Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: themeColors.innerBox,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: themeColors.border),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // a) Vehicle pickup spot & pickup time
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Container(
+                              margin: const EdgeInsets.only(top: 3),
+                              width: 10,
+                              height: 10,
+                              decoration: const BoxDecoration(
+                                color: Color(0xFF22C55E),
+                                shape: BoxShape.circle,
+                              ),
                             ),
-                          ),
-                        ],
-                      ),
-                    ],
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    selectedTrip.pickupSpot,
+                                    style: TextStyle(
+                                      color: themeColors.textPrimary,
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 14.5,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 3),
+                                  Text(
+                                    'Pickup Time: $formattedTime',
+                                    style: TextStyle(
+                                      color: themeColors.textSecondary,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        Divider(height: 1, color: themeColors.divider),
+                        const SizedBox(height: 12),
+
+                        // b) Punctuality reminder for reporting ahead of time
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.access_time_rounded,
+                              color: themeColors.purpleAccent,
+                              size: 18,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Please reach on time',
+                                style: TextStyle(
+                                  color: themeColors.textPrimary,
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 13.5,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Empty state card displayed when no trips are scheduled/assigned.
+  Widget _buildNoTripsAssignedCard(BuildContext context) {
+    final themeColors = context.appColors;
+    final isDark = context.isDarkMode;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: themeColors.cardBackground,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: themeColors.border),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.04),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.all(18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Header: Icon + "Assigned Trip"
+          Row(
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: themeColors.purpleTint,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Icon(
+                  Icons.near_me_rounded,
+                  color: themeColors.purpleAccent,
+                  size: 22,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  'Assigned Trip',
+                  style: TextStyle(
+                    color: themeColors.textPrimary,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 15,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+
+          // Inner Box: Empty State Content
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 22),
+            decoration: BoxDecoration(
+              color: themeColors.innerBox,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: themeColors.border),
+            ),
+            child: Column(
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: themeColors.purpleTint,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    Icons.event_busy_rounded,
+                    color: themeColors.purpleAccent,
+                    size: 22,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'Right now no trip assigned',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: themeColors.textSecondary,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
               ],
             ),
           ),
+        ],
+      ),
     );
   }
 
