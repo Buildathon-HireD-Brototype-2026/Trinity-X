@@ -23,9 +23,13 @@ import {
   createWalletDebitHandler
 } from '../modules/driver/driver.controller.js';
 
-// Existing Admin controllers
+// Admin Account Management & Onboarding controllers
 import {
-  createAdmin,
+  listAdminsHandler,
+  getAdminHandler,
+  createAdminHandler,
+  updateAdminHandler,
+  changeAdminStatusHandler,
   createPartner,
   createDriver,
   activateDriverAccount,
@@ -38,6 +42,15 @@ const router = Router();
 
 // Protect all admin management routes with Admin authentication
 router.use(authenticate, requireAdmin);
+
+// ============================================================================
+// Admin Account Management Endpoints
+// ============================================================================
+router.get('/admins', listAdminsHandler);
+router.post('/admins', createAdminHandler);
+router.get('/admins/:admin_id', validateIdParam('admin_id'), getAdminHandler);
+router.patch('/admins/:admin_id', validateIdParam('admin_id'), updateAdminHandler);
+router.patch('/admins/:admin_id/status', validateIdParam('admin_id'), changeAdminStatusHandler);
 
 // ============================================================================
 // Company Management Endpoints (OpenAPI spec: x-prd: A-10, A-11)
@@ -61,9 +74,8 @@ router.get('/drivers/:driver_id/wallet', validateIdParam('driver_id'), getDriver
 router.post('/drivers/:driver_id/wallet-debits', validateIdParam('driver_id'), createWalletDebitHandler);
 
 // ============================================================================
-// Preserved Baseline Admin Account & Onboarding Endpoints
+// Preserved Baseline Onboarding Endpoints
 // ============================================================================
-router.post('/admins', createAdmin);
 router.post('/partners', createPartner);
 router.post('/drivers', createDriver);
 router.patch('/drivers/:driverId/activate', activateDriverAccount);

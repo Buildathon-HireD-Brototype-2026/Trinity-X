@@ -508,6 +508,27 @@ Accounts are never created with default or plaintext passwords:
 
 ---
 
+### Admin Account Management Endpoints (`/api/v1/admin/admins`)
+*All endpoints require Bearer token with `userType === 'ADMIN'`. All admins possess equal management permissions.*
+
+1. **List Admin Accounts:** `GET /api/v1/admin/admins?status=ACTIVE&page=1&limit=20`
+   - Returns paginated list of admin accounts with safe attributes (`admin_id`, `office_id`, `admin_name`, `phone_no`, `email_id`, `status`, `created_at`, `updated_at`). Never exposes password hashes or session secrets.
+2. **Get Admin Details:** `GET /api/v1/admin/admins/:admin_id`
+   - Returns single admin object; 404 if not found.
+3. **Create Admin Account:** `POST /api/v1/admin/admins`
+   - Body: `{ admin_name, email_id, password, office_id, phone_no }`
+   - Validates required fields, password length >= 8, valid email, and office existence. Enforces case-insensitive uniqueness on `email_id` (409 `DUPLICATE_EMAIL`). Hashes password with bcrypt. Audits action as `ADMIN_CREATED`.
+4. **Update Admin Profile:** `PATCH /api/v1/admin/admins/:admin_id`
+   - Body: `{ admin_name, phone_no, email_id, office_id, password }`
+   - Updates permitted admin profile fields. If `password` is provided, enforces length >= 8, hashes with bcrypt, and revokes prior active sessions. Audits action as `ADMIN_UPDATED`.
+5. **Change Admin Status:** `PATCH /api/v1/admin/admins/:admin_id/status`
+   - Body: `{ status: "ACTIVE" | "INACTIVE", reason }`
+   - Business Rules:
+     - **Self-Deactivation Prevention:** An admin cannot deactivate their own account (`400 CANNOT_DEACTIVATE_SELF`).
+     - **Minimum Active Admins Rule:** Enforces the database design requirement to maintain at least two active admins in the system for critical operations such as invoice verification (`422 MINIMUM_ACTIVE_ADMINS_REQUIRED`).
+     - **Session Revocation:** Setting status to `INACTIVE` revokes all active sessions for that admin in the same transaction.
+     - Audits action as `USER_DEACTIVATED` / `USER_REACTIVATED`.
+
 ---
 
 ### Company Management Endpoints (`/api/v1/admin/companies`)
@@ -584,9 +605,10 @@ The script is idempotent:
 
 Comprehensive automated test suites:
 - `tests/auth_and_onboarding.test.js`: 15 integration scenarios for authentication, session rotation, lockouts, and partner/driver setup.
-- `tests/admin_company_driver.test.js`: 21 integration scenarios testing OpenAPI Admin, Company, and Driver management endpoints.
+- `tests/admin_company_driver.test.js`: 21 integration scenarios testing OpenAPI Company and Driver management endpoints.
+- `tests/admin_account_management.test.js`: 16 integration scenarios testing Admin Account Management endpoints, validations, self-deactivation prevention, session revocations, and the minimum 2 active admins requirement.
 
-Run all 36 tests via:
+Run all 52 tests via:
 ```powershell
 npm test
 ```

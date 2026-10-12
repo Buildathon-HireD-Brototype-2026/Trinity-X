@@ -53,9 +53,448 @@
     },
     {
       "name": "Driver - Wallet"
+    },
+    {
+      "name": "Admin - Accounts"
     }
   ],
   "paths": {
+    "/admin/admins": {
+      "get": {
+        "tags": [
+          "Admin - Accounts"
+        ],
+        "operationId": "adminListAdmins",
+        "summary": "List admin accounts",
+        "description": "**Access:** ADMIN.\n\nAdmin accounts with pagination and status filtering.",
+        "x-roles": [
+          "ADMIN"
+        ],
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "description": "Filter by status.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "ACTIVE",
+                "INACTIVE"
+              ]
+            }
+          },
+          {
+            "$ref": "#/components/parameters/Page"
+          },
+          {
+            "$ref": "#/components/parameters/Limit"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Page of admin accounts.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "data",
+                    "message"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "items": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/Admin"
+                          }
+                        },
+                        "page": {
+                          "type": "integer",
+                          "example": 1
+                        },
+                        "limit": {
+                          "type": "integer",
+                          "example": 20
+                        },
+                        "total": {
+                          "type": "integer",
+                          "example": 2
+                        }
+                      },
+                      "required": [
+                        "items",
+                        "page",
+                        "limit",
+                        "total"
+                      ]
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "OK"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Admin - Accounts"
+        ],
+        "operationId": "adminCreateAdmin",
+        "summary": "Create an admin account",
+        "description": "**Access:** ADMIN.\n\nCreates another admin account directly with password hashing. Writes ADMIN_CREATED to the audit log.",
+        "x-roles": [
+          "ADMIN"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Admin created.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "data",
+                    "message"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/Admin"
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Admin created."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "A user with this email_id already exists.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "error": {
+                    "code": "DUPLICATE_EMAIL",
+                    "message": "A user with this email_id already exists."
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          }
+        }
+      }
+    },
+    "/admin/admins/{admin_id}": {
+      "get": {
+        "tags": [
+          "Admin - Accounts"
+        ],
+        "operationId": "adminGetAdmin",
+        "summary": "Retrieve an admin's details",
+        "description": "**Access:** ADMIN.\n\nOne admin account.",
+        "x-roles": [
+          "ADMIN"
+        ],
+        "parameters": [
+          {
+            "name": "admin_id",
+            "in": "path",
+            "required": true,
+            "description": "The admin_id.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The admin account.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "data",
+                    "message"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/Admin"
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "OK"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "Admin - Accounts"
+        ],
+        "operationId": "adminUpdateAdmin",
+        "summary": "Update permitted admin profile fields",
+        "description": "**Access:** ADMIN.\n\nName, phone, email, office and password. Status is updated via its own endpoint. Audited as ADMIN_UPDATED.",
+        "x-roles": [
+          "ADMIN"
+        ],
+        "parameters": [
+          {
+            "name": "admin_id",
+            "in": "path",
+            "required": true,
+            "description": "The admin_id.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Admin updated.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "data",
+                    "message"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/Admin"
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Admin updated."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "A user with this email_id already exists.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "error": {
+                    "code": "DUPLICATE_EMAIL",
+                    "message": "A user with this email_id already exists."
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          }
+        }
+      }
+    },
+    "/admin/admins/{admin_id}/status": {
+      "patch": {
+        "tags": [
+          "Admin - Accounts"
+        ],
+        "operationId": "adminChangeAdminStatus",
+        "summary": "Activate or deactivate an admin account",
+        "description": "**Access:** ADMIN.\n\nACTIVE <-> INACTIVE switches access. Deactivation revokes all active sessions for that admin transactionally. Prevents self-deactivation. Enforces maintaining at least two active admins for two-person verification. Audited as USER_DEACTIVATED or USER_REACTIVATED.",
+        "x-roles": [
+          "ADMIN"
+        ],
+        "parameters": [
+          {
+            "name": "admin_id",
+            "in": "path",
+            "required": true,
+            "description": "The admin_id.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminStatusChange"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Status changed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "data",
+                    "message"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/Admin"
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Admin status changed."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          }
+        }
+      }
+    },
     "/admin/companies": {
       "get": {
         "tags": [
@@ -6927,6 +7366,149 @@
           "office_id",
           "office_name",
           "created_at"
+        ]
+      },
+      "Admin": {
+        "type": "object",
+        "properties": {
+          "admin_id": {
+            "type": "integer",
+            "example": 1
+          },
+          "office_id": {
+            "type": "integer",
+            "example": 1
+          },
+          "admin_name": {
+            "type": "string",
+            "example": "Lead Admin Savio"
+          },
+          "phone_no": {
+            "type": "string",
+            "example": "+91 9876543210",
+            "nullable": true
+          },
+          "email_id": {
+            "type": "string",
+            "example": "admin1@hired.com",
+            "format": "email"
+          },
+          "status": {
+            "type": "string",
+            "example": "ACTIVE",
+            "enum": [
+              "ACTIVE",
+              "INACTIVE"
+            ]
+          },
+          "office_name": {
+            "type": "string",
+            "example": "Trinity X HQ Kochi",
+            "nullable": true
+          },
+          "created_at": {
+            "type": "string",
+            "example": "2026-10-10T04:30:00.000Z",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "example": "2026-10-10T04:30:00.000Z",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "admin_id",
+          "office_id",
+          "admin_name",
+          "email_id",
+          "status",
+          "created_at",
+          "updated_at"
+        ]
+      },
+      "AdminCreate": {
+        "type": "object",
+        "properties": {
+          "admin_name": {
+            "type": "string",
+            "example": "Operations Admin Charlie"
+          },
+          "email_id": {
+            "type": "string",
+            "example": "charlie@hired.test",
+            "format": "email"
+          },
+          "password": {
+            "type": "string",
+            "format": "password",
+            "minLength": 8,
+            "example": "Charlie@Password123"
+          },
+          "office_id": {
+            "type": "integer",
+            "example": 1
+          },
+          "phone_no": {
+            "type": "string",
+            "example": "+91 9876543299",
+            "nullable": true
+          }
+        },
+        "required": [
+          "admin_name",
+          "email_id",
+          "password",
+          "office_id"
+        ]
+      },
+      "AdminUpdate": {
+        "type": "object",
+        "properties": {
+          "admin_name": {
+            "type": "string",
+            "example": "Charlie Senior Admin"
+          },
+          "phone_no": {
+            "type": "string",
+            "example": "+91 9998887776",
+            "nullable": true
+          },
+          "email_id": {
+            "type": "string",
+            "example": "charlie_updated@hired.test",
+            "format": "email"
+          },
+          "office_id": {
+            "type": "integer",
+            "example": 1
+          },
+          "password": {
+            "type": "string",
+            "format": "password",
+            "minLength": 8,
+            "example": "NewPassword@999"
+          }
+        }
+      },
+      "AdminStatusChange": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "ACTIVE",
+              "INACTIVE"
+            ],
+            "example": "INACTIVE"
+          },
+          "reason": {
+            "type": "string",
+            "example": "Role transition"
+          }
+        },
+        "required": [
+          "status"
         ]
       },
       "Company": {
