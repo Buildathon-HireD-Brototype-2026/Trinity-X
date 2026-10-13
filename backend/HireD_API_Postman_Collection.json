@@ -1,0 +1,247 @@
+{
+  "info": {
+    "name": "HireD Backend API - Auth & Onboarding",
+    "description": "Collection for testing HireD Phase 1 Authentication and Onboarding APIs.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:5000" },
+    { "key": "adminAccessToken", "value": "" },
+    { "key": "adminRefreshToken", "value": "" },
+    { "key": "partnerAccessToken", "value": "" },
+    { "key": "partnerRefreshToken", "value": "" },
+    { "key": "driverAccessToken", "value": "" },
+    { "key": "driverRefreshToken", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "0. System Health",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": { "raw": "{{baseUrl}}/health", "host": ["{{baseUrl}}"], "path": ["health"] }
+      }
+    },
+    {
+      "name": "1. Admin Portal APIs",
+      "item": [
+        {
+          "name": "Admin Login",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin1@hired.com\",\n  \"password\": \"Admin@12345\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/auth/admin/login", "host": ["{{baseUrl}}"], "path": ["auth", "admin", "login"] }
+          }
+        },
+        {
+          "name": "Admin Get Me",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminAccessToken}}" }],
+            "url": { "raw": "{{baseUrl}}/auth/me", "host": ["{{baseUrl}}"], "path": ["auth", "me"] }
+          }
+        },
+        {
+          "name": "List Partner Registrations",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminAccessToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/admin/partner-registrations?status=PENDING",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "partner-registrations"],
+              "query": [{ "key": "status", "value": "PENDING" }]
+            }
+          }
+        },
+        {
+          "name": "Approve Partner Registration",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{adminAccessToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"officeId\": 1,\n  \"hiredSplit\": 70.00,\n  \"driverSplit\": 30.00\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/admin/partner-registrations/1/approve", "host": ["{{baseUrl}}"], "path": ["admin", "partner-registrations", "1", "approve"] }
+          }
+        },
+        {
+          "name": "Create Partner Directly",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{adminAccessToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"City Logistics Inc\",\n  \"contactPerson\": \"Anil Verma\",\n  \"phoneNo\": \"+919876543200\",\n  \"emailId\": \"contact@citylogistics.com\",\n  \"officeId\": 1,\n  \"hiredSplit\": 70.00,\n  \"driverSplit\": 30.00\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/admin/partners", "host": ["{{baseUrl}}"], "path": ["admin", "partners"] }
+          }
+        },
+        {
+          "name": "Create Driver (Pending)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{adminAccessToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Rahul Nair\",\n  \"phoneNo\": \"+919876500001\",\n  \"currentLocation\": \"Kochi\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/admin/drivers", "host": ["{{baseUrl}}"], "path": ["admin", "drivers"] }
+          }
+        },
+        {
+          "name": "Activate Driver",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminAccessToken}}" }],
+            "url": { "raw": "{{baseUrl}}/admin/drivers/1/activate", "host": ["{{baseUrl}}"], "path": ["admin", "drivers", "1", "activate"] }
+          }
+        },
+        {
+          "name": "Create Another Admin",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{adminAccessToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"adminName\": \"Operations Admin\",\n  \"emailId\": \"ops@hired.com\",\n  \"phoneNo\": \"+919876543999\",\n  \"officeId\": 1\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/admin/admins", "host": ["{{baseUrl}}"], "path": ["admin", "admins"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. B2B Partner Portal APIs",
+      "item": [
+        {
+          "name": "Public Partner Registration",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"companyName\": \"Speedy Express Pvt Ltd\",\n  \"address\": \"Infopark Phase 2, Kochi\",\n  \"contactPerson\": \"Kavita Menon\",\n  \"phoneNo\": \"+919845012345\",\n  \"emailId\": \"kavita@speedyexpress.com\",\n  \"companyLocation\": \"Kochi\",\n  \"notes\": \"Daily airport transfers\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/auth/partner/register", "host": ["{{baseUrl}}"], "path": ["auth", "partner", "register"] }
+          }
+        },
+        {
+          "name": "Partner Setup Password",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"PASTE_SETUP_TOKEN_HERE\",\n  \"password\": \"PartnerPass@123\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/auth/partner/password/setup", "host": ["{{baseUrl}}"], "path": ["auth", "partner", "password", "setup"] }
+          }
+        },
+        {
+          "name": "Partner Login",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"kavita@speedyexpress.com\",\n  \"password\": \"PartnerPass@123\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/auth/partner/login", "host": ["{{baseUrl}}"], "path": ["auth", "partner", "login"] }
+          }
+        },
+        {
+          "name": "Partner Get Me",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{partnerAccessToken}}" }],
+            "url": { "raw": "{{baseUrl}}/auth/me", "host": ["{{baseUrl}}"], "path": ["auth", "me"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Driver Mobile App APIs",
+      "item": [
+        {
+          "name": "Driver Setup Password",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"PASTE_SETUP_TOKEN_HERE\",\n  \"password\": \"DriverPass@123\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/auth/driver/password/setup", "host": ["{{baseUrl}}"], "path": ["auth", "driver", "password", "setup"] }
+          }
+        },
+        {
+          "name": "Driver Login",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phoneNo\": \"+919876500001\",\n  \"password\": \"DriverPass@123\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/auth/driver/login", "host": ["{{baseUrl}}"], "path": ["auth", "driver", "login"] }
+          }
+        },
+        {
+          "name": "Driver Get Me",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{driverAccessToken}}" }],
+            "url": { "raw": "{{baseUrl}}/auth/me", "host": ["{{baseUrl}}"], "path": ["auth", "me"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Shared Session APIs",
+      "item": [
+        {
+          "name": "Refresh Token",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"{{adminRefreshToken}}\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/auth/refresh", "host": ["{{baseUrl}}"], "path": ["auth", "refresh"] }
+          }
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"{{adminRefreshToken}}\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/auth/logout", "host": ["{{baseUrl}}"], "path": ["auth", "logout"] }
+          }
+        }
+      ]
+    }
+  ]
+}
