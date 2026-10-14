@@ -1344,7 +1344,7 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
           borderRadius: BorderRadius.circular(20),
           child: InkWell(
             borderRadius: BorderRadius.circular(20),
-            onTap: () => context.push(RouteNames.tripDetails),
+            onTap: () => context.push(RouteNames.trips),
             child: Padding(
               padding: const EdgeInsets.all(18),
               child: Column(
@@ -1647,7 +1647,7 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
                                 borderRadius: BorderRadius.circular(8),
                               ),
                               child: Text(
-                                '#${trip.tripId}',
+                                'Trip ${trip.tripId}',
                                 style: TextStyle(
                                   color: themeColors.purpleAccent,
                                   fontWeight: FontWeight.w700,
@@ -1747,7 +1747,7 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
                     if (trip.isAssigned) ...[
                       // PRD D-06: Driver Selfie Verification
                       Text(
-                        'STEP 1: PRE-TRIP VERIFICATION (PRD D-06)',
+                        'STEP 1: PRE-TRIP VERIFICATION',
                         style: TextStyle(
                           color: themeColors.textSecondary,
                           fontSize: 11.5,
@@ -1850,7 +1850,7 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
 
                       // PRD D-07: Start Trip & Navigate
                       Text(
-                        'STEP 2: START TRIP (PRD D-07)',
+                        'STEP 2: START TRIP',
                         style: TextStyle(
                           color: themeColors.textSecondary,
                           fontSize: 11.5,
@@ -1877,7 +1877,7 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
                                         behavior: SnackBarBehavior.floating,
                                         backgroundColor: themeColors.primaryButton,
                                         content: Text(
-                                          'Trip #${trip.tripId} started! Live GPS tracking active.',
+                                          'Trip started! Live GPS tracking active.',
                                           style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
                                         ),
                                       ),
@@ -1935,7 +1935,7 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
                     ] else ...[
                       // PRD D-09: Complete Trip with OTP Verification
                       Text(
-                        'DROP-OFF & TRIP COMPLETION (PRD D-09)',
+                        'DROP-OFF & TRIP COMPLETION',
                         style: TextStyle(
                           color: themeColors.textSecondary,
                           fontSize: 11.5,
@@ -2063,7 +2063,7 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
                                     behavior: SnackBarBehavior.floating,
                                     backgroundColor: const Color(0xFF1E293B),
                                     content: Text(
-                                      'Trip #${trip.tripId} completed! Duty automatically switched to Offline.',
+                                      'Trip completed! Duty automatically switched to Offline.',
                                       style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
                                     ),
                                   ),
@@ -2077,7 +2077,7 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
                                     behavior: SnackBarBehavior.floating,
                                     backgroundColor: const Color(0xFF10B981),
                                     content: Text(
-                                      'Trip #${trip.tripId} completed successfully!',
+                                      'Trip completed successfully!',
                                       style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
                                     ),
                                   ),
@@ -2198,7 +2198,7 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
 
     void handleTap() {
       if (index == 1) {
-        context.push(RouteNames.tripDetails);
+        context.push(RouteNames.trips);
         return;
       }
       setState(() => _selectedNavIndex = index);

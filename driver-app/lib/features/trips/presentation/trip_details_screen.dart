@@ -62,9 +62,7 @@ class _TripDetailsScreenState extends ConsumerState<TripDetailsScreen> {
           onPressed: () => context.pop(),
         ),
         title: Text(
-          selectedTrip != null
-              ? 'Trip #${selectedTrip.tripId} Details'
-              : 'Assigned Trips',
+          'Trip Details',
           style: TextStyle(
             color: themeColors.textPrimary,
             fontSize: 18,
@@ -187,7 +185,7 @@ class _TripDetailsScreenState extends ConsumerState<TripDetailsScreen> {
                 ),
                 child: Center(
                   child: Text(
-                    'Trip #${trip.tripId} (${trip.status})',
+                    'Trip ${trip.tripId} • ${trip.status}',
                     style: TextStyle(
                       color: isSelected ? Colors.white : themeColors.textSecondary,
                       fontSize: 12,
@@ -258,7 +256,7 @@ class _TripDetailsScreenState extends ConsumerState<TripDetailsScreen> {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        'Order #${trip.orderId} • Corporate Booking',
+                        'Corporate Order Ref: ORD-${trip.orderId}',
                         style: TextStyle(
                           color: themeColors.textSecondary,
                           fontSize: 11.5,
@@ -700,7 +698,7 @@ class _TripDetailsScreenState extends ConsumerState<TripDetailsScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'TRIP EXPENSES (PRD D-08)',
+                    'TRIP EXPENSES',
                     style: TextStyle(
                       color: themeColors.textMuted,
                       fontSize: 11,
@@ -844,7 +842,7 @@ class _TripDetailsScreenState extends ConsumerState<TripDetailsScreen> {
           const SizedBox(height: 10),
           Center(
             child: Text(
-              'Trip close requires 6-digit OTP from client (PRD D-09)',
+              'Trip completion requires 6-digit OTP from passenger',
               style: TextStyle(color: themeColors.textMuted, fontSize: 11),
             ),
           ),
@@ -1027,7 +1025,7 @@ class _TripDetailsScreenState extends ConsumerState<TripDetailsScreen> {
                 ),
                 const SizedBox(height: 16),
                 Text(
-                  'Complete Trip #${trip.tripId}',
+                  'Complete Trip',
                   style: TextStyle(
                     color: themeColors.textPrimary,
                     fontSize: 18,
@@ -1105,7 +1103,7 @@ class _TripDetailsScreenState extends ConsumerState<TripDetailsScreen> {
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
                             content: Text(
-                              'Trip #${trip.tripId} closed successfully! ₹${trip.driverShare.toStringAsFixed(2)} credited to your wallet.',
+                              'Trip completed successfully! ₹${trip.driverShare.toStringAsFixed(2)} credited to your wallet.',
                             ),
                             backgroundColor: const Color(0xFF10B981),
                             behavior: SnackBarBehavior.floating,

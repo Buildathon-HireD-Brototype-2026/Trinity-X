@@ -15,23 +15,57 @@ abstract class TripRepository {
 class MockTripRepository implements TripRepository {
   final _controller = StreamController<List<TripModel>>.broadcast();
 
-  // Mock initial trips matching database.md and PRD D-04 & D-05
-  List<TripModel> _mockTrips = [
+  static DateTime _calcKolkataUtc(int daysOffset, int hour, int minute) {
+    final nowKolkata = DateTime.now().toUtc().add(const Duration(hours: 5, minutes: 30));
+    final targetDate = nowKolkata.add(Duration(days: daysOffset));
+    final kolkataDateTime = DateTime.utc(targetDate.year, targetDate.month, targetDate.day, hour, minute);
+    return kolkataDateTime.subtract(const Duration(hours: 5, minutes: 30));
+  }
+
+  // Mock trips ordered chronologically: today 9 AM first, 1 PM second, another day below
+  static final List<TripModel> _initialTrips = [
+    TripModel(
+      tripId: '8420',
+      orderId: 1041,
+      status: 'ONGOING',
+      companyName: 'Apex Logistics Ltd.',
+      pickupSpot: 'Indiranagar Metro Station, 100 Feet Rd, Bengaluru',
+      dropoffSpot: 'Embassy GolfLinks Business Park, Domlur, Bengaluru',
+      pickupTime: _calcKolkataUtc(0, 9, 0), // Today 9:00 AM IST
+      estimatedReachMinutes: 12,
+      contactName: 'Rohan Mehra',
+      contactPhone: '+91 98765 43210',
+      notes: 'Morning corporate commute. Client meeting at 9:45 AM.',
+      amount: 1200.00,
+      driverShare: 360.00,
+      otp: '389102',
+      otpAttempts: 0,
+      expensesConfirmed: false,
+      expenses: const [
+        TripExpenseModel(
+          expenseId: 500,
+          description: 'Parking Ticket - Metro Station',
+          amount: 50.00,
+        ),
+      ],
+      assignedAt: _calcKolkataUtc(0, 8, 15),
+      startedAt: _calcKolkataUtc(0, 9, 5),
+    ),
     TripModel(
       tripId: '8421',
       orderId: 1042,
       status: 'ASSIGNED',
-      companyName: 'Apex Logistics Ltd.',
+      companyName: 'Wipro Enterprises',
       pickupSpot: 'Tech Park Gate 2, Electronic City, Bengaluru',
       dropoffSpot: 'Kempegowda International Airport (BLR), Terminal 2',
-      pickupTime: DateTime.utc(2026, 10, 14, 5, 0), // 10:30 AM IST
-      estimatedReachMinutes: 18,
+      pickupTime: _calcKolkataUtc(0, 13, 0), // Today 1:00 PM IST
+      estimatedReachMinutes: 25,
       contactName: 'Ananya Sharma',
       contactPhone: '+91 98765 12345',
-      notes: 'VIP client airport drop. Executive Sedan requested. Assistance with 2 luggage bags required.',
+      notes: 'Executive airport drop. Assistance with luggage required.',
       amount: 1850.00,
-      driverShare: 555.00, // 30% driver_share_pct per database.md
-      otp: '482910', // 6-digit trip close code generated per trip (PRD D-09)
+      driverShare: 555.00,
+      otp: '482910',
       otpAttempts: 0,
       expensesConfirmed: false,
       expenses: const [
@@ -41,7 +75,7 @@ class MockTripRepository implements TripRepository {
           amount: 110.00,
         ),
       ],
-      assignedAt: DateTime.utc(2026, 10, 14, 4, 30),
+      assignedAt: _calcKolkataUtc(0, 10, 0),
     ),
     TripModel(
       tripId: '8422',
@@ -50,20 +84,42 @@ class MockTripRepository implements TripRepository {
       companyName: 'Infosys Technologies',
       pickupSpot: 'Prestige Tech Cloud, Devanahalli, Bengaluru',
       dropoffSpot: 'UB City Mall, Vittal Mallya Road, Bengaluru',
-      pickupTime: DateTime.utc(2026, 10, 14, 8, 15), // 1:45 PM IST
+      pickupTime: _calcKolkataUtc(1, 10, 30), // Tomorrow 10:30 AM IST
       estimatedReachMinutes: 35,
       contactName: 'Karthik Raman',
       contactPhone: '+91 98450 67890',
-      notes: 'Corporate client executive transport. Ensure vehicle AC is set to 22°C before pickup.',
+      notes: 'Corporate client transport. Please ensure vehicle AC is set to 22°C.',
       amount: 2400.00,
-      driverShare: 720.00, // 30% driver_share_pct
+      driverShare: 720.00,
       otp: '739104',
       otpAttempts: 0,
       expensesConfirmed: false,
       expenses: const [],
-      assignedAt: DateTime.utc(2026, 10, 14, 4, 45),
+      assignedAt: _calcKolkataUtc(0, 16, 0),
+    ),
+    TripModel(
+      tripId: '8423',
+      orderId: 1044,
+      status: 'ASSIGNED',
+      companyName: 'Tata Consultancy Services',
+      pickupSpot: 'TCS Think Campus, Electronic City Phase 2',
+      dropoffSpot: 'ITC Gardenia, Residency Road, Bengaluru',
+      pickupTime: _calcKolkataUtc(2, 16, 0), // Upcoming 4:00 PM IST
+      estimatedReachMinutes: 40,
+      contactName: 'Priya Nair',
+      contactPhone: '+91 98123 45678',
+      notes: 'Delegation transport from gate 1.',
+      amount: 1650.00,
+      driverShare: 495.00,
+      otp: '518294',
+      otpAttempts: 0,
+      expensesConfirmed: false,
+      expenses: const [],
+      assignedAt: _calcKolkataUtc(0, 17, 30),
     ),
   ];
+
+  late List<TripModel> _mockTrips = List.from(_initialTrips);
 
   MockTripRepository() {
     _controller.add(_mockTrips);

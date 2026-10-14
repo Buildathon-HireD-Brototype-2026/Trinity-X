@@ -9,6 +9,7 @@ import '../../features/home/presentation/home_dashboard_screen.dart';
 import '../../features/profile/presentation/documents_screen.dart';
 import '../../features/profile/presentation/profile_screen.dart';
 import '../../features/trips/presentation/trip_details_screen.dart';
+import '../../features/trips/presentation/trips_screen.dart';
 import 'route_names.dart';
 
 /// Bridges Riverpod AuthState updates to GoRouter's refreshListenable.
@@ -85,6 +86,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: RouteNames.documents,
         builder: (context, state) => const DocumentsScreen(),
+      ),
+      GoRoute(
+        path: RouteNames.trips,
+        builder: (context, state) => const TripsScreen(),
       ),
       GoRoute(
         path: RouteNames.tripDetails,

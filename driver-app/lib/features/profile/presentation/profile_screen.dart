@@ -546,7 +546,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               icon: Icons.directions_car_outlined,
               label: 'Trips',
               onTap: () {
-                context.push(RouteNames.tripDetails);
+                context.push(RouteNames.trips);
               },
             ),
             _buildNavItem(
