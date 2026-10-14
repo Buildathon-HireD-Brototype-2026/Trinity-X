@@ -2196,50 +2196,68 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
   }) {
     final themeColors = context.appColors;
 
+    void handleTap() {
+      if (index == 1) {
+        context.push(RouteNames.tripDetails);
+        return;
+      }
+      setState(() => _selectedNavIndex = index);
+    }
+
     if (isActive) {
-      return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        decoration: BoxDecoration(
-          color: themeColors.purpleTint,
+      return Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: handleTap,
           borderRadius: BorderRadius.circular(20),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, color: themeColors.purpleAccent, size: 24),
-            const SizedBox(height: 2),
-            Text(
-              label,
-              style: TextStyle(
-                color: themeColors.purpleAccent,
-                fontWeight: FontWeight.w700,
-                fontSize: 11,
-              ),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            decoration: BoxDecoration(
+              color: themeColors.purpleTint,
+              borderRadius: BorderRadius.circular(20),
             ),
-          ],
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon, color: themeColors.purpleAccent, size: 24),
+                const SizedBox(height: 2),
+                Text(
+                  label,
+                  style: TextStyle(
+                    color: themeColors.purpleAccent,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 11,
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       );
     }
 
-    return InkWell(
-      onTap: () => setState(() => _selectedNavIndex = index),
-      borderRadius: BorderRadius.circular(16),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, color: themeColors.unselectedIcon, size: 24),
-            const SizedBox(height: 2),
-            Text(
-              label,
-              style: TextStyle(
-                color: themeColors.unselectedIcon,
-                fontWeight: FontWeight.w500,
-                fontSize: 11,
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: handleTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, color: themeColors.unselectedIcon, size: 24),
+              const SizedBox(height: 2),
+              Text(
+                label,
+                style: TextStyle(
+                  color: themeColors.unselectedIcon,
+                  fontWeight: FontWeight.w500,
+                  fontSize: 11,
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
