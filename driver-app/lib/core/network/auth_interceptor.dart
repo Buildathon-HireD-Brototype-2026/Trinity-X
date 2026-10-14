@@ -43,6 +43,13 @@ class AuthInterceptor extends Interceptor {
                          err.requestOptions.path.contains('/auth/refresh');
 
       if (!isAuthPath && onRefreshToken != null) {
+        // Prevent infinite retry loop if token replay also returns 401
+        final retryCount = (err.requestOptions.extra['retry_count'] as int? ?? 0);
+        if (retryCount >= 1) {
+          onSessionExpired?.call('Active session expired. Please log in again.');
+          return super.onError(err, handler);
+        }
+
         try {
           // If a refresh is already in progress, await the existing one; otherwise initiate.
           _refreshFuture ??= onRefreshToken!();
@@ -53,6 +60,7 @@ class AuthInterceptor extends Interceptor {
             // Update request header with the refreshed token and replay the original request
             final options = err.requestOptions;
             options.headers['Authorization'] = 'Bearer $newToken';
+            options.extra['retry_count'] = retryCount + 1;
             final client = dio ?? Dio();
             final response = await client.fetch(options);
             return handler.resolve(response);

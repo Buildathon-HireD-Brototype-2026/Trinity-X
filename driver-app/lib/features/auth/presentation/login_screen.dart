@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -354,34 +355,36 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     ),
                     const SizedBox(height: 24),
 
-                    // Demo Helper Credentials
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: themeColors.purpleTint,
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: themeColors.border),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Demo Partner Credentials:',
-                            style: AppTextStyles.labelSmall.copyWith(
-                              color: themeColors.purpleAccent,
-                              fontWeight: FontWeight.bold,
+                    // Demo Helper Credentials - only visible in debug/testing builds
+                    if (kDebugMode) ...[
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: themeColors.purpleTint,
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: themeColors.border),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Demo Partner Credentials:',
+                              style: AppTextStyles.labelSmall.copyWith(
+                                color: themeColors.purpleAccent,
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            '• Active: 9876543210 | Driver@123\n• Pending: 9876543211 | Driver@123',
-                            style: AppTextStyles.bodySmall.copyWith(
-                              color: themeColors.textSecondary,
+                            const SizedBox(height: 4),
+                            Text(
+                              '• Active: 9876543210 | Driver@123\n• Pending: 9876543211 | Driver@123',
+                              style: AppTextStyles.bodySmall.copyWith(
+                                color: themeColors.textSecondary,
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
-                    ),
+                    ],
                   ],
                 ),
               ),

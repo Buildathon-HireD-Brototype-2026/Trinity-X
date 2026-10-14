@@ -4,6 +4,8 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 final secureStorageServiceProvider = Provider<SecureStorageService>((ref) {
   return SecureStorageService(
     const FlutterSecureStorage(
+      aOptions: AndroidOptions(encryptedSharedPreferences: true),
+      iOptions: IOSOptions(accessibility: KeychainAccessibility.first_unlock),
       webOptions: WebOptions(
         dbName: 'hired_driver_auth',
         publicKey: 'hired_driver_auth_key',
