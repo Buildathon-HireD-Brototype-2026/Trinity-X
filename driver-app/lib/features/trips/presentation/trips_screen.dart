@@ -256,48 +256,49 @@ class _TripsScreenState extends ConsumerState<TripsScreen> {
               children: [
                 // Top Row: Time, Company & Status Chip
                 Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                          decoration: BoxDecoration(
-                            color: trip.isOngoing
-                                ? const Color(0xFF10B981)
-                                : themeColors.purpleTint,
-                            borderRadius: BorderRadius.circular(10),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: trip.isOngoing
+                            ? const Color(0xFF10B981)
+                            : themeColors.purpleTint,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.access_time_filled_rounded,
+                            size: 14,
+                            color: trip.isOngoing ? Colors.white : themeColors.purpleAccent,
                           ),
-                          child: Row(
-                            children: [
-                              Icon(
-                                Icons.access_time_filled_rounded,
-                                size: 14,
-                                color: trip.isOngoing ? Colors.white : themeColors.purpleAccent,
-                              ),
-                              const SizedBox(width: 5),
-                              Text(
-                                _formatTime(trip.pickupTime),
-                                style: TextStyle(
-                                  color: trip.isOngoing ? Colors.white : themeColors.purpleAccent,
-                                  fontSize: 12.5,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                            ],
+                          const SizedBox(width: 5),
+                          Text(
+                            _formatTime(trip.pickupTime),
+                            style: TextStyle(
+                              color: trip.isOngoing ? Colors.white : themeColors.purpleAccent,
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w700,
+                            ),
                           ),
-                        ),
-                        const SizedBox(width: 10),
-                        Text(
-                          trip.companyName,
-                          style: TextStyle(
-                            color: themeColors.textPrimary,
-                            fontSize: 14,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        trip.companyName,
+                        style: TextStyle(
+                          color: themeColors.textPrimary,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
                       decoration: BoxDecoration(
@@ -380,23 +381,30 @@ class _TripsScreenState extends ConsumerState<TripsScreen> {
 
                 // Bottom row: Passenger Name, Payout & Arrow
                 Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Row(
-                      children: [
-                        Icon(Icons.person_outline_rounded, size: 16, color: themeColors.textMuted),
-                        const SizedBox(width: 6),
-                        Text(
-                          trip.contactName,
-                          style: TextStyle(
-                            color: themeColors.textSecondary,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w500,
+                    Expanded(
+                      child: Row(
+                        children: [
+                          Icon(Icons.person_outline_rounded, size: 16, color: themeColors.textMuted),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              trip.contactName,
+                              style: TextStyle(
+                                color: themeColors.textSecondary,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w500,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
+                    const SizedBox(width: 8),
                     Row(
+                      mainAxisSize: MainAxisSize.min,
                       children: [
                         Text(
                           '₹${trip.driverShare.toStringAsFixed(0)}',
