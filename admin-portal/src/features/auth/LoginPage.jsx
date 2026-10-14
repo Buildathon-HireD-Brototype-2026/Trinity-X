@@ -45,12 +45,6 @@ export default function LoginPage() {
     }
   };
 
-  const fillTestCredentials = (testEmail, testPassword) => {
-    setEmail(testEmail);
-    setPassword(testPassword);
-    setFieldErrors({});
-    setError('');
-  };
 
   return (
     <div className="login-wrapper">
@@ -143,26 +137,6 @@ export default function LoginPage() {
           </button>
         </form>
 
-        {/* Testing Hint */}
-        <div className="test-credentials-box">
-          <span className="test-label">Demo Credentials:</span>
-          <div className="test-accounts">
-            <button
-              type="button"
-              className="test-account-chip"
-              onClick={() => fillTestCredentials('admin1@hired.com', 'Password@123')}
-            >
-              admin1@hired.com
-            </button>
-            <button
-              type="button"
-              className="test-account-chip"
-              onClick={() => fillTestCredentials('admin2@hired.com', 'Password@123')}
-            >
-              admin2@hired.com
-            </button>
-          </div>
-        </div>
       </div>
     </div>
   );

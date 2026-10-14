@@ -1,33 +1,34 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState } from 'react';
 
 const AuthContext = createContext(null);
 
-const DEFAULT_ADMINS = [
-  {
-    id: 'ADM-001',
-    name: 'Admin One',
-    email: 'admin1@hired.com',
-    password: 'Password@123',
-    role: 'Admin',
-    status: 'ACTIVE',
-  },
-  {
-    id: 'ADM-002',
-    name: 'Admin Two',
-    email: 'admin2@hired.com',
-    password: 'Password@123',
-    role: 'Admin',
-    status: 'ACTIVE',
-  },
-  {
-    id: 'ADM-003',
-    name: 'Inactive Admin',
-    email: 'inactive@hired.com',
-    password: 'Password@123',
-    role: 'Admin',
-    status: 'INACTIVE',
-  },
-];
+// ---------------------------------------------------------------------------
+// TODO (SECURITY): This entire mock auth block MUST be replaced with a real
+// server-side API call (e.g. POST /api/auth/login returning a signed JWT)
+// before any production deployment. Credentials must never live in client code.
+//
+// Credentials are loaded from environment variables defined in .env.local
+// (gitignored). Run: cp .env.example .env.local  and fill in the passwords.
+// ---------------------------------------------------------------------------
+function buildMockAdminList() {
+  const list = [];
+
+  const email1 = import.meta.env.VITE_DEV_ADMIN1_EMAIL;
+  const pass1 = import.meta.env.VITE_DEV_ADMIN1_PASSWORD;
+  if (email1 && pass1) {
+    list.push({ id: 'ADM-001', name: 'Admin One', email: email1, password: pass1, role: 'Admin', status: 'ACTIVE' });
+  }
+
+  const email2 = import.meta.env.VITE_DEV_ADMIN2_EMAIL;
+  const pass2 = import.meta.env.VITE_DEV_ADMIN2_PASSWORD;
+  if (email2 && pass2) {
+    list.push({ id: 'ADM-002', name: 'Admin Two', email: email2, password: pass2, role: 'Admin', status: 'ACTIVE' });
+  }
+
+  return list;
+}
+
+const MOCK_ADMINS = buildMockAdminList();
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(() => {
@@ -59,7 +60,13 @@ export function AuthProvider({ children }) {
     }
 
     const normalizedEmail = (email || '').trim().toLowerCase();
-    const adminByEmail = DEFAULT_ADMINS.find((a) => a.email.toLowerCase() === normalizedEmail);
+
+    if (MOCK_ADMINS.length === 0) {
+      setLoading(false);
+      throw new Error('Auth is not configured. Set VITE_DEV_ADMIN credentials in .env.local.');
+    }
+
+    const adminByEmail = MOCK_ADMINS.find((a) => a.email.toLowerCase() === normalizedEmail);
 
     if (!adminByEmail || adminByEmail.password !== password) {
       const nextFailures = failedAttempts + 1;
