@@ -5,7 +5,14 @@ import {
   generateDocumentSignedLink,
   changeDriverStatus,
   getDriverWallet,
-  createWalletDebit
+  createWalletDebit,
+  getDriverProfile,
+  updateDriverAvailability,
+  uploadDriverDocument,
+  listDriverTrips,
+  getDriverTrip,
+  startDriverTrip,
+  closeDriverTrip
 } from './driver.service.js';
 import { successResponse, listResponse } from '../../shared/response.js';
 import { parsePagination } from '../../middlewares/validate.middleware.js';
@@ -100,3 +107,129 @@ export async function createWalletDebitHandler(req, res, next) {
     next(err);
   }
 }
+
+/**
+ * GET /driver/profile
+ */
+export async function getOwnProfileHandler(req, res, next) {
+  try {
+    const driverId = req.user.userId;
+    const profile = await getDriverProfile(driverId);
+    return successResponse(res, 200, profile, 'OK');
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * PATCH /driver/availability
+ */
+export async function setOwnAvailabilityHandler(req, res, next) {
+  try {
+    const driverId = req.user.userId;
+    const isOnline = req.body.is_online !== undefined ? req.body.is_online : req.body.isOnline;
+    const driver = await updateDriverAvailability(driverId, isOnline);
+    return successResponse(res, 200, driver, 'Availability updated.');
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * GET /driver/documents
+ */
+export async function listOwnDocumentsHandler(req, res, next) {
+  try {
+    const driverId = req.user.userId;
+    const documents = await listDriverDocuments(driverId);
+    return successResponse(res, 200, documents, 'OK');
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * POST /driver/documents
+ */
+export async function uploadOwnDocumentHandler(req, res, next) {
+  try {
+    const driverId = req.user.userId;
+    const docType = req.body.document_type || req.body.documentType;
+    const document = await uploadDriverDocument(driverId, req.file, docType);
+    return successResponse(res, 201, document, 'Document uploaded.');
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * GET /driver/documents/:document_id/link
+ */
+export async function getOwnDocumentLinkHandler(req, res, next) {
+  try {
+    const driverId = req.user.userId;
+    const documentId = req.params.document_id || req.params.documentId;
+    const baseUrl = getBaseUrl(req);
+    const linkData = await generateDocumentSignedLink(driverId, documentId, baseUrl);
+    return successResponse(res, 200, linkData, 'OK');
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * GET /driver/trips
+ */
+export async function listOwnTripsHandler(req, res, next) {
+  try {
+    const driverId = req.user.userId;
+    const { status, page, limit } = req.query;
+    const result = await listDriverTrips(driverId, { status, page, limit });
+    return listResponse(res, result.items, result.page, result.limit, result.total, 'OK');
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * GET /driver/trips/:trip_id
+ */
+export async function getOwnTripDetailHandler(req, res, next) {
+  try {
+    const driverId = req.user.userId;
+    const tripId = req.params.trip_id || req.params.tripId;
+    const trip = await getDriverTrip(driverId, tripId);
+    return successResponse(res, 200, trip, 'OK');
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * POST /driver/trips/:trip_id/start
+ */
+export async function startOwnTripHandler(req, res, next) {
+  try {
+    const driverId = req.user.userId;
+    const tripId = req.params.trip_id || req.params.tripId;
+    const trip = await startDriverTrip(driverId, tripId, req.body, req.ip);
+    return successResponse(res, 200, trip, 'Trip started.');
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * POST /driver/trips/:trip_id/close
+ */
+export async function closeOwnTripHandler(req, res, next) {
+  try {
+    const driverId = req.user.userId;
+    const tripId = req.params.trip_id || req.params.tripId;
+    const result = await closeDriverTrip(driverId, tripId, req.body, req.ip);
+    return successResponse(res, 200, result, 'Trip closed successfully.');
+  } catch (err) {
+    next(err);
+  }
+}
+

@@ -6,6 +6,11 @@ import cookieParser from 'cookie-parser';
 import prisma from './config/db.js';
 import authRouter from './routes/auth.routes.js';
 import adminRouter from './routes/admin.routes.js';
+import orderRouter from './routes/order.routes.js';
+import invoiceRouter from './routes/invoice.routes.js';
+import reportRouter from './routes/report.routes.js';
+import notificationRouter from './routes/notification.routes.js';
+import driverRouter from './routes/driver.routes.js';
 import { downloadSignedFileHandler } from './modules/driver/file.controller.js';
 import { errorHandler } from './middlewares/error.middleware.js';
 import { errorResponse } from './shared/response.js';
@@ -26,11 +31,33 @@ app.use(cookieParser());
 app.get('/api/v1/files/signed', downloadSignedFileHandler);
 app.get('/files/signed', downloadSignedFileHandler);
 
-// Route registration (both standard /api/v1 paths and direct /auth, /admin paths)
+// Route registration (both standard /api/v1 paths and direct paths)
 app.use('/api/v1/auth', authRouter);
-app.use('/api/v1/admin', adminRouter);
 app.use('/auth', authRouter);
+
+app.use('/api/v1/admin', adminRouter);
 app.use('/admin', adminRouter);
+
+app.use('/api/v1/orders', orderRouter);
+app.use('/orders', orderRouter);
+app.use('/api/v1/partner/orders', orderRouter);
+app.use('/partner/orders', orderRouter);
+
+app.use('/api/v1/invoices', invoiceRouter);
+app.use('/invoices', invoiceRouter);
+app.use('/api/v1/partner/invoices', invoiceRouter);
+app.use('/partner/invoices', invoiceRouter);
+
+app.use('/api/v1/reports', reportRouter);
+app.use('/reports', reportRouter);
+app.use('/api/v1/partner/trips', reportRouter);
+app.use('/partner/trips', reportRouter);
+
+app.use('/api/v1/notifications', notificationRouter);
+app.use('/notifications', notificationRouter);
+
+app.use('/api/v1/driver', driverRouter);
+app.use('/driver', driverRouter);
 
 // Health check endpoint to verify server and database connectivity
 app.get('/health', async (req, res) => {

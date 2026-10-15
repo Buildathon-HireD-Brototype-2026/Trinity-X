@@ -38,6 +38,15 @@ import {
   rejectRegistration
 } from '../modules/admin/admin.controller.js';
 
+// Order & Trip Management controllers
+import {
+  listAdminOrdersHandler,
+  getAdminOrderHandler,
+  acceptOrderHandler,
+  rejectOrderHandler,
+  assignDriverHandler
+} from '../modules/order/order.controller.js';
+
 const router = Router();
 
 // Protect all admin management routes with Admin authentication
@@ -72,6 +81,15 @@ router.get('/drivers/:driver_id/documents/:document_id/link', validateIdParam('d
 router.patch('/drivers/:driver_id/status', validateIdParam('driver_id'), changeDriverStatusHandler);
 router.get('/drivers/:driver_id/wallet', validateIdParam('driver_id'), getDriverWalletHandler);
 router.post('/drivers/:driver_id/wallet-debits', validateIdParam('driver_id'), createWalletDebitHandler);
+
+// ============================================================================
+// Order & Trip Management Endpoints (OpenAPI spec: x-prd: A-02, A-05, A-08)
+// ============================================================================
+router.get('/orders', listAdminOrdersHandler);
+router.get('/orders/:order_id', validateIdParam('order_id'), getAdminOrderHandler);
+router.post('/orders/:order_id/accept', validateIdParam('order_id'), acceptOrderHandler);
+router.post('/orders/:order_id/reject', validateIdParam('order_id'), rejectOrderHandler);
+router.post('/trips/:trip_id/assign-driver', validateIdParam('trip_id'), assignDriverHandler);
 
 // ============================================================================
 // Preserved Baseline Onboarding Endpoints

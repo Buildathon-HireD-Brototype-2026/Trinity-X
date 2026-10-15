@@ -423,3 +423,322 @@ export async function createWalletDebit(driverId, { debit, note = null }, actor 
     return formatWalletTransaction(transaction);
   });
 }
+
+/**
+ * Get profile for driver app.
+ */
+export async function getDriverProfile(driverId) {
+  const driver = await prisma.driver.findUnique({
+    where: { driverId: Number(driverId) }
+  });
+
+  if (!driver) {
+    throw new AppError(404, 'NOT_FOUND', 'Driver not found.');
+  }
+
+  return formatDriverResponse(driver);
+}
+
+/**
+ * Toggle driver availability online/offline (PRD D-03).
+ */
+export async function updateDriverAvailability(driverId, isOnline) {
+  const onlineBool = Boolean(isOnline);
+
+  const updated = await prisma.driver.update({
+    where: { driverId: Number(driverId) },
+    data: { isOnline: onlineBool }
+  });
+
+  return formatDriverResponse(updated);
+}
+
+/**
+ * Upload driver KYC document with 5MB limit and allowed mime types (PRD D-02).
+ */
+export async function uploadDriverDocument(driverId, file, documentType) {
+  if (!file) {
+    throw new AppError(422, 'INVALID_FILE', 'Document file is required.');
+  }
+
+  // 5MB limit
+  const MAX_BYTES = 5 * 1024 * 1024;
+  if (file.size > MAX_BYTES) {
+    throw new AppError(422, 'INVALID_FILE', 'File is larger than 5 MB.');
+  }
+
+  const allowedMimeTypes = ['image/jpeg', 'image/png', 'image/jpg', 'application/pdf'];
+  if (!allowedMimeTypes.includes(file.mimetype)) {
+    throw new AppError(422, 'INVALID_FILE', 'Wrong file type. Only JPG, PNG, and PDF allowed.');
+  }
+
+  const rawType = (documentType || 'DRIVING_LICENCE').toUpperCase().trim();
+  let cleanDocType = rawType;
+  if (rawType.includes('DL') || rawType.includes('LICEN')) {
+    cleanDocType = 'DRIVING_LICENCE';
+  } else if (rawType.includes('AADHAAR') || rawType.includes('ADHAR')) {
+    cleanDocType = 'AADHAAR';
+  } else if (rawType.includes('PAN')) {
+    cleanDocType = 'PAN';
+  } else if (rawType.includes('PCC') || rawType.includes('POLICE')) {
+    cleanDocType = 'PCC';
+  }
+
+  if (!['DRIVING_LICENCE', 'AADHAAR', 'PAN', 'PCC'].includes(cleanDocType)) {
+    cleanDocType = 'DRIVING_LICENCE';
+  }
+
+  const doc = await prisma.driverDocument.create({
+    data: {
+      driverId: Number(driverId),
+      documentType: cleanDocType,
+      fileURL: `uploads/driver_${driverId}_${cleanDocType}_${Date.now()}_${file.originalname}`,
+      originalFileName: file.originalname,
+      mimeType: file.mimetype,
+      sizeBytes: file.size
+    }
+  });
+
+  return formatDriverDocumentResponse(doc);
+}
+
+/**
+ * Format DriverTrip to OpenAPI and driver-app schema.
+ */
+export function formatDriverTripResponse(trip) {
+  if (!trip) return null;
+  return {
+    trip_id: String(trip.tripId),
+    order_id: trip.orderId,
+    status: trip.tripStatus,
+    trip_status: trip.tripStatus,
+    amount: Number(trip.amount).toFixed(2),
+    eta: trip.eta ? trip.eta.toISOString() : null,
+    pickup_spot: trip.order ? trip.order.pickupSpot : 'N/A',
+    dropoff_spot: trip.order ? trip.order.dropoffSpot : 'N/A',
+    pickup_time: trip.order?.pickupTime ? trip.order.pickupTime.toISOString() : null,
+    contact_name: trip.order ? trip.order.contactName : 'N/A',
+    contact_phone: trip.order ? trip.order.contactPhone : 'N/A',
+    notes: trip.order?.notes || null,
+    selfie_url: trip.selfieURL || null,
+    expenses_confirmed: Boolean(trip.expensesConfirmed),
+    assigned_at: trip.assignedAt ? trip.assignedAt.toISOString() : null,
+    started_at: trip.startedAt ? trip.startedAt.toISOString() : null,
+    closed_at: trip.closedAt ? trip.closedAt.toISOString() : null,
+    created_at: trip.createdAt ? trip.createdAt.toISOString() : null
+  };
+}
+
+/**
+ * List trips assigned to a driver.
+ */
+export async function listDriverTrips(driverId, { status, page = 1, limit = 50 } = {}) {
+  const where = {
+    driverId: Number(driverId)
+  };
+
+  if (status) {
+    where.tripStatus = status.toUpperCase();
+  }
+
+  const take = Math.min(Math.max(Number(limit) || 20, 1), 100);
+  const skip = (Math.max(Number(page) || 1, 1) - 1) * take;
+
+  const [total, trips] = await Promise.all([
+    prisma.trip.count({ where }),
+    prisma.trip.findMany({
+      where,
+      include: {
+        order: true,
+        expenses: true
+      },
+      orderBy: { createdAt: 'desc' },
+      skip,
+      take
+    })
+  ]);
+
+  const items = trips.map(formatDriverTripResponse);
+  return {
+    items,
+    total,
+    page: Number(page) || 1,
+    limit: take
+  };
+}
+
+/**
+ * Get single trip detail for assigned driver.
+ */
+export async function getDriverTrip(driverId, tripId) {
+  const trip = await prisma.trip.findFirst({
+    where: {
+      tripId: Number(tripId),
+      driverId: Number(driverId)
+    },
+    include: {
+      order: true,
+      expenses: true
+    }
+  });
+
+  if (!trip) {
+    throw new AppError(404, 'NOT_FOUND', 'Trip not found or not assigned to this driver.');
+  }
+
+  return formatDriverTripResponse(trip);
+}
+
+/**
+ * Start a trip assigned to driver (PRD D-07).
+ */
+export async function startDriverTrip(driverId, tripId, { selfie_url } = {}, ipAddress) {
+  const trip = await prisma.trip.findFirst({
+    where: {
+      tripId: Number(tripId),
+      driverId: Number(driverId)
+    },
+    include: { order: true }
+  });
+
+  if (!trip) {
+    throw new AppError(404, 'NOT_FOUND', 'Trip not found.');
+  }
+
+  if (trip.tripStatus !== 'ASSIGNED') {
+    throw new AppError(409, 'CONFLICT', `Cannot start trip in ${trip.tripStatus} status. Must be ASSIGNED.`);
+  }
+
+  const updatedTrip = await prisma.trip.update({
+    where: { tripId: trip.tripId },
+    data: {
+      tripStatus: 'ONGOING',
+      startedAt: new Date(),
+      selfieURL: selfie_url || null,
+      version: { increment: 1 }
+    },
+    include: { order: true }
+  });
+
+  await recordAuditLog(prisma, {
+    actorId: driverId,
+    actorType: 'DRIVER',
+    action: 'TRIP_STARTED',
+    entityType: 'TRIP',
+    entityId: trip.tripId,
+    oldValue: { tripStatus: 'ASSIGNED' },
+    newValue: { tripStatus: 'ONGOING' },
+    ipAddress
+  });
+
+  return formatDriverTripResponse(updatedTrip);
+}
+
+/**
+ * Close trip upon arrival with passenger 6-digit OTP verification (PRD D-09, D-10).
+ * Calculates payroll and credits driver wallet atomically.
+ */
+export async function closeDriverTrip(driverId, tripId, { otp } = {}, ipAddress) {
+  if (!otp || typeof otp !== 'string' || !otp.trim()) {
+    throw new AppError(400, 'BAD_REQUEST', '6-digit trip closure OTP is required.');
+  }
+
+  return prisma.$transaction(async (tx) => {
+    const trip = await tx.trip.findFirst({
+      where: {
+        tripId: Number(tripId),
+        driverId: Number(driverId)
+      },
+      include: {
+        order: {
+          include: {
+            company: true
+          }
+        }
+      }
+    });
+
+    if (!trip) {
+      throw new AppError(404, 'NOT_FOUND', 'Trip not found.');
+    }
+
+    if (trip.tripStatus !== 'ONGOING') {
+      throw new AppError(409, 'CONFLICT', `Cannot close trip in ${trip.tripStatus} status. Must be ONGOING.`);
+    }
+
+    // Verify OTP
+    if (otp.trim() !== trip.otp.trim()) {
+      await tx.trip.update({
+        where: { tripId: trip.tripId },
+        data: { otpAttempts: { increment: 1 } }
+      });
+      throw new AppError(400, 'INVALID_OTP', 'Invalid trip completion OTP. Please verify with passenger.');
+    }
+
+    // Calculate payouts
+    const company = trip.order.company;
+    const driverPct = Number(company.driverSplit || 30.00);
+    const companyPct = Number(company.hiredSplit || 70.00);
+    const tripAmount = Number(trip.amount);
+    const driverShare = (tripAmount * driverPct) / 100;
+    const companyShare = (tripAmount * companyPct) / 100;
+
+    const closedAt = new Date();
+
+    // 1. Update Trip
+    await tx.trip.update({
+      where: { tripId: trip.tripId },
+      data: {
+        tripStatus: 'CLOSED',
+        expensesConfirmed: true,
+        closedAt,
+        version: { increment: 1 }
+      }
+    });
+
+    // 2. Create TripPayroll
+    await tx.tripPayroll.create({
+      data: {
+        tripId: trip.tripId,
+        driverId: Number(driverId),
+        driverPCT: driverPct.toFixed(2),
+        companyPCT: companyPct.toFixed(2),
+        tripAmount: tripAmount.toFixed(2),
+        driverShare: driverShare.toFixed(2),
+        companyShare: companyShare.toFixed(2),
+        payoutStatus: 'CREDITED',
+        paymentStatus: 'UNPAID'
+      }
+    });
+
+    // 3. Create DriverWalletTransaction
+    await tx.driverWalletTransaction.create({
+      data: {
+        tripId: trip.tripId,
+        driverId: Number(driverId),
+        credit: driverShare.toFixed(2),
+        debit: null,
+        note: `Payout for Trip #${trip.tripId}`
+      }
+    });
+
+    // 4. Audit
+    await recordAuditLog(tx, {
+      actorId: driverId,
+      actorType: 'DRIVER',
+      action: 'TRIP_CLOSED',
+      entityType: 'TRIP',
+      entityId: trip.tripId,
+      oldValue: { tripStatus: 'ONGOING' },
+      newValue: { tripStatus: 'CLOSED', driverShare: driverShare.toFixed(2) },
+      ipAddress
+    });
+
+    return {
+      trip_id: trip.tripId,
+      status: 'CLOSED',
+      closed_at: closedAt.toISOString()
+    };
+  });
+}
+
