@@ -127,7 +127,7 @@ export async function partnerLogin(req, res, next) {
 
 export async function driverLogin(req, res, next) {
   try {
-    const phoneNo = req.body.phone_no || req.body.phoneNo;
+    const phoneNo = req.body.phone_no || req.body.phoneNo || req.body.phone;
     const password = req.body.password;
 
     const result = await loginUser({
@@ -295,5 +295,81 @@ export async function setupDriverPassword(req, res) {
       status: 'error',
       message: err.message
     });
+  }
+}
+
+/**
+ * Unified login endpoint supporting B2B portal, Driver mobile app, and Admin web portal.
+ * Handles POST /auth/login and POST /api/v1/auth/login with { email/phone, password, user_type }
+ */
+export async function unifiedLogin(req, res, next) {
+  try {
+    const rawUserType = req.body.user_type || req.body.userType || '';
+    let userType = rawUserType.toUpperCase();
+
+    // Auto-detect role if not explicitly provided
+    if (!userType) {
+      if (req.body.phone || req.body.phone_no || req.body.phoneNo) {
+        userType = 'DRIVER';
+      } else {
+        userType = 'PARTNER';
+      }
+    }
+
+    const identifier = userType === 'DRIVER'
+      ? (req.body.phone || req.body.phone_no || req.body.phoneNo)
+      : (req.body.email || req.body.email_id);
+    const password = req.body.password;
+
+    const result = await loginUser({
+      identityType: userType,
+      identifier,
+      password,
+      ipAddress: req.ip
+    });
+
+    setRefreshTokenCookie(res, result.refresh_token || result.refreshToken);
+
+    const enhancedUser = {
+      ...result.user,
+      ...(userType === 'PARTNER' ? { company_id: result.user.companyId || result.user.user_id } : {}),
+      ...(userType === 'DRIVER' ? { driver_id: result.user.driverId || result.user.user_id } : {})
+    };
+
+    const responsePayload = {
+      success: true,
+      token: result.access_token,
+      access_token: result.access_token,
+      refresh_token: result.refresh_token,
+      token_type: result.token_type,
+      expires_in: result.expires_in,
+      user_type: result.user_type,
+      user: enhancedUser,
+      ...(userType === 'PARTNER' ? { company: enhancedUser } : {}),
+      ...(userType === 'DRIVER' ? { driver: enhancedUser } : {}),
+      data: {
+        access_token: result.access_token,
+        refresh_token: result.refresh_token,
+        token_type: result.token_type,
+        expires_in: result.expires_in,
+        user_type: result.user_type,
+        user: enhancedUser,
+        ...(userType === 'PARTNER' ? { company: enhancedUser } : {}),
+        ...(userType === 'DRIVER' ? { driver: enhancedUser } : {})
+      },
+      message: 'Login successful.'
+    };
+
+    return res.status(200).json(responsePayload);
+  } catch (err) {
+    if (isApiV1(req)) {
+      next(err);
+    } else {
+      const statusCode = err.statusCode || err.status || 500;
+      return res.status(statusCode).json({
+        status: 'error',
+        message: err.message || 'Authentication error.'
+      });
+    }
   }
 }

@@ -56,6 +56,16 @@ export async function loginUser({ identityType, identifier, password, ipAddress 
     user = await prisma.driver.findUnique({
       where: { phoneNo: phone }
     });
+    if (!user && !phone.startsWith('+')) {
+      user = await prisma.driver.findUnique({
+        where: { phoneNo: `+91${phone}` }
+      });
+    }
+    if (!user && phone.startsWith('+91')) {
+      user = await prisma.driver.findUnique({
+        where: { phoneNo: phone.slice(3) }
+      });
+    }
     idField = 'driverId';
   } else {
     throw new AppError(400, 'BAD_REQUEST', 'Invalid identity type.');

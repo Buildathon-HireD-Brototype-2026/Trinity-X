@@ -3,6 +3,7 @@ import {
   adminLogin,
   partnerLogin,
   driverLogin,
+  unifiedLogin,
   refreshToken,
   logout,
   getMe,
@@ -15,6 +16,7 @@ import { authenticate } from '../middlewares/auth.middleware.js';
 const router = Router();
 
 // Core authentication routes
+router.post('/login', unifiedLogin);
 router.post('/admin/login', adminLogin);
 router.post('/partner/login', partnerLogin);
 router.post('/driver/login', driverLogin);
