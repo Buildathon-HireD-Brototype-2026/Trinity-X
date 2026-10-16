@@ -6,7 +6,9 @@ abstract class TripRepository {
   Stream<List<TripModel>> watchTrips();
   Future<void> startTrip(String tripId);
   Future<void> completeTrip(String tripId);
+  Future<void> cancelTrip(String tripId);
   Future<void> addExpense(String tripId, String description, double amount);
+  Future<void> deleteExpense(String tripId, int expenseId);
   Future<bool> closeTripWithOtp(String tripId, String enteredOtp);
 }
 
@@ -55,7 +57,7 @@ class MockTripRepository implements TripRepository {
       tripId: '8421',
       orderId: 1042,
       status: 'ASSIGNED',
-      companyName: 'Wipro Enterprises',
+      companyName: 'Apex Logistics Ltd.',
       pickupSpot: 'Tech Park Gate 2, Electronic City, Bengaluru',
       dropoffSpot: 'Kempegowda International Airport (BLR), Terminal 2',
       pickupTime: _calcKolkataUtc(0, 13, 0), // Today 1:00 PM IST
@@ -165,6 +167,20 @@ class MockTripRepository implements TripRepository {
   }
 
   @override
+  Future<void> cancelTrip(String tripId) async {
+    _mockTrips = _mockTrips.map((t) {
+      if (t.tripId == tripId) {
+        return t.copyWith(
+          status: 'CANCELLED',
+          closedAt: DateTime.now().toUtc(),
+        );
+      }
+      return t;
+    }).toList();
+    _controller.add(List.unmodifiable(_mockTrips));
+  }
+
+  @override
   Future<void> addExpense(String tripId, String description, double amount) async {
     _mockTrips = _mockTrips.map((t) {
       if (t.tripId == tripId) {
@@ -185,13 +201,32 @@ class MockTripRepository implements TripRepository {
   }
 
   @override
+  Future<void> deleteExpense(String tripId, int expenseId) async {
+    _mockTrips = _mockTrips.map((t) {
+      if (t.tripId == tripId) {
+        final remaining = t.expenses.where((e) => e.expenseId != expenseId).toList();
+        return t.copyWith(
+          expenses: remaining,
+          expensesConfirmed: remaining.isNotEmpty,
+        );
+      }
+      return t;
+    }).toList();
+    _controller.add(List.unmodifiable(_mockTrips));
+  }
+
+  @override
   Future<bool> closeTripWithOtp(String tripId, String enteredOtp) async {
     final trip = _mockTrips.firstWhere((t) => t.tripId == tripId);
+    // Security lockout: Block verification if maximum attempts (3) exceeded
+    if (trip.otpAttempts >= 3) {
+      return false;
+    }
     if (trip.otp == enteredOtp.trim()) {
       await completeTrip(tripId);
       return true;
     }
-    // Increment OTP attempts
+    // Increment OTP attempts on failure
     _mockTrips = _mockTrips.map((t) {
       if (t.tripId == tripId) {
         return t.copyWith(otpAttempts: t.otpAttempts + 1);

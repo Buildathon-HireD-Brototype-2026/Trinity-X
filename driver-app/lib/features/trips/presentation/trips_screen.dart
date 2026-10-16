@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import '../../../core/routing/app_router.dart';
 import '../../../core/routing/route_names.dart';
 import '../../../core/theme/app_theme_colors.dart';
 import '../../../core/widgets/app_loading_indicator.dart';
@@ -65,7 +66,32 @@ class _TripsScreenState extends ConsumerState<TripsScreen> {
             color: themeColors.textPrimary,
             size: 20,
           ),
-          onPressed: () => context.pop(),
+          tooltip: 'Back',
+          onPressed: () {
+            try {
+              if (context.canPop()) {
+                context.pop();
+                return;
+              }
+            } catch (_) {}
+
+            try {
+              final navState = rootNavigatorKey.currentState;
+              if (navState != null && navState.canPop()) {
+                navState.pop();
+                return;
+              }
+            } catch (_) {}
+
+            try {
+              if (Navigator.of(context).canPop()) {
+                Navigator.of(context).pop();
+                return;
+              }
+            } catch (_) {}
+
+            context.go(RouteNames.home);
+          },
         ),
         title: Text(
           'Assigned Trips',
@@ -230,7 +256,7 @@ class _TripsScreenState extends ConsumerState<TripsScreen> {
           borderRadius: BorderRadius.circular(18),
           onTap: () {
             ref.read(selectedTripIdProvider.notifier).select(trip.tripId);
-            context.push(RouteNames.tripDetails);
+            context.push(RouteNames.tripDetails, extra: trip.tripId);
           },
           child: Container(
             decoration: BoxDecoration(
@@ -271,13 +297,17 @@ class _TripsScreenState extends ConsumerState<TripsScreen> {
                           Icon(
                             Icons.access_time_filled_rounded,
                             size: 14,
-                            color: trip.isOngoing ? Colors.white : themeColors.purpleAccent,
+                            color: isDark
+                                ? Colors.white
+                                : (trip.isOngoing ? Colors.white : themeColors.purpleAccent),
                           ),
                           const SizedBox(width: 5),
                           Text(
                             _formatTime(trip.pickupTime),
                             style: TextStyle(
-                              color: trip.isOngoing ? Colors.white : themeColors.purpleAccent,
+                              color: isDark
+                                  ? Colors.white
+                                  : (trip.isOngoing ? Colors.white : themeColors.purpleAccent),
                               fontSize: 12.5,
                               fontWeight: FontWeight.w700,
                             ),
@@ -287,15 +317,29 @@ class _TripsScreenState extends ConsumerState<TripsScreen> {
                     ),
                     const SizedBox(width: 10),
                     Expanded(
-                      child: Text(
-                        trip.companyName,
-                        style: TextStyle(
-                          color: themeColors.textPrimary,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w700,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            trip.companyName,
+                            style: TextStyle(
+                              color: themeColors.textPrimary,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 1),
+                          Text(
+                            'Order #${trip.orderId} • ${_formatTime(trip.pickupTime)}',
+                            style: TextStyle(
+                              color: themeColors.textMuted,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                     const SizedBox(width: 8),
@@ -379,48 +423,32 @@ class _TripsScreenState extends ConsumerState<TripsScreen> {
                 Divider(height: 1, color: themeColors.divider),
                 const SizedBox(height: 12),
 
-                // Bottom row: Passenger Name, Payout & Arrow
+                // Bottom row: Passenger Name & Arrow (no money)
                 Row(
                   children: [
+                    Icon(
+                      Icons.person_outline_rounded,
+                      size: 16,
+                      color: isDark ? const Color(0xFF94A3B8) : themeColors.textMuted,
+                    ),
+                    const SizedBox(width: 8),
                     Expanded(
-                      child: Row(
-                        children: [
-                          Icon(Icons.person_outline_rounded, size: 16, color: themeColors.textMuted),
-                          const SizedBox(width: 6),
-                          Expanded(
-                            child: Text(
-                              trip.contactName,
-                              style: TextStyle(
-                                color: themeColors.textSecondary,
-                                fontSize: 12,
-                                fontWeight: FontWeight.w500,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        ],
+                      child: Text(
+                        trip.contactName,
+                        style: TextStyle(
+                          color: isDark ? Colors.white : themeColors.textPrimary,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
                     const SizedBox(width: 8),
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          '₹${trip.driverShare.toStringAsFixed(0)}',
-                          style: TextStyle(
-                            color: themeColors.purpleAccent,
-                            fontSize: 15,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                        const SizedBox(width: 4),
-                        Icon(
-                          Icons.arrow_forward_ios_rounded,
-                          size: 13,
-                          color: themeColors.textMuted,
-                        ),
-                      ],
+                    Icon(
+                      Icons.arrow_forward_ios_rounded,
+                      size: 13,
+                      color: isDark ? const Color(0xFF94A3B8) : themeColors.textMuted,
                     ),
                   ],
                 ),

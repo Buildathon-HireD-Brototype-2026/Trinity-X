@@ -10,7 +10,9 @@ import '../../auth/presentation/controllers/auth_controller.dart';
 import '../../auth/presentation/controllers/driver_profile_controller.dart';
 import '../../profile/presentation/controllers/driver_documents_provider.dart';
 import '../../trips/domain/trip_model.dart';
+import '../../trips/data/trip_native_bridge.dart';
 import '../../trips/presentation/controllers/current_trip_provider.dart';
+import '../../trips/presentation/controllers/trip_mini_overlay_controller.dart';
 
 /// Driver Dashboard screen styled identically to the reference design (ui.jpeg),
 /// displaying the active duty controls, the two-trip map container, quick actions,
@@ -24,6 +26,19 @@ class HomeDashboardScreen extends ConsumerStatefulWidget {
 
 class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
   int _selectedNavIndex = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      try {
+        final hasPerm = await ref.read(tripNativeBridgeProvider).checkOverlayPermission();
+        if (!hasPerm && mounted) {
+          await ref.read(tripNativeBridgeProvider).requestOverlayPermission();
+        }
+      } catch (_) {}
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -77,6 +92,13 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
                 ),
               );
             }
+
+            // Main dashboard content has successfully loaded
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted) {
+                ref.read(tripMiniOverlayControllerProvider.notifier).setMainPageLoaded(true);
+              }
+            });
 
             final isOnline = driver.isOnline;
             final driverName = driver.name.isNotEmpty ? driver.name : 'Amal';
@@ -242,9 +264,27 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
     final isPending = status.toUpperCase() == 'PENDING';
     final themeColors = context.appColors;
 
-    final Color dutyBtnColor = isOnline ? const Color(0xFF10B981) : const Color(0xFF64748B);
-    final IconData dutyBtnIcon = Icons.power_settings_new_rounded;
-    final String dutyBtnText = isOnline ? 'Now online' : 'Offline';
+    final isOfflineScheduled = ref.watch(isOfflineAfterTripProvider);
+    final isTripOngoing = ref.watch(tripMiniOverlayControllerProvider.select((s) => s.isTripOngoing));
+
+    // When trip is ongoing, account MUST be online! It cannot be offline.
+    final effectiveIsOnline = isTripOngoing ? true : isOnline;
+
+    if (isTripOngoing && !isOnline) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        ref.read(driverProfileProvider.notifier).setOnline(true);
+      });
+    }
+
+    final Color dutyBtnColor = isOfflineScheduled
+        ? const Color(0xFFD97706)
+        : (effectiveIsOnline ? const Color(0xFF10B981) : const Color(0xFF64748B));
+    final IconData dutyBtnIcon = isOfflineScheduled
+        ? Icons.schedule_rounded
+        : Icons.power_settings_new_rounded;
+    final String dutyBtnText = isOfflineScheduled
+        ? 'Off after drop'
+        : (effectiveIsOnline ? 'Now online' : 'Offline');
 
     return Row(
       children: [
@@ -368,7 +408,12 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
           child: InkWell(
             key: const Key('duty_status_switch'),
             onTap: () {
-              if (!isOnline) {
+              if (isTripOngoing) {
+                // Trip is ongoing: Account MUST be online! It CANNOT be offline!
+                _showOngoingTripOfflineDialog(context, ref);
+              } else if (isOfflineScheduled) {
+                _showCancelScheduledOfflineDialog(context, ref);
+              } else if (!isOnline) {
                 ref.read(driverProfileProvider.notifier).toggleDuty();
               } else {
                 _showGoOfflineDialog(context, ref);
@@ -528,7 +573,12 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
                           key: const Key('confirm_go_offline_button'),
                           onTap: () {
                             Navigator.of(dialogContext).pop();
-                            ref.read(driverProfileProvider.notifier).toggleDuty();
+                            final isTripOngoing = ref.read(tripMiniOverlayControllerProvider).isTripOngoing;
+                            if (isTripOngoing) {
+                              _showOngoingTripOfflineDialog(context, ref);
+                            } else {
+                              ref.read(driverProfileProvider.notifier).toggleDuty();
+                            }
                           },
                           borderRadius: BorderRadius.circular(14),
                           child: Container(
@@ -572,8 +622,7 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
   // Preserved for connection after Trip module development completes.
   // ===========================================================================
 
-  /// Recommendation 2 dialog: shown when driver attempts to go offline during an ongoing trip.
-  // ignore: unused_element
+  /// Corporate safety dialog: shown when driver attempts to go offline during an ongoing trip.
   void _showOngoingTripOfflineDialog(BuildContext context, WidgetRef ref) {
     final themeColors = context.appColors;
     final isDark = context.isDarkMode;
@@ -738,7 +787,6 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
   }
 
   /// Dialog shown if driver taps the Amber "Offline after drop" duty button to cancel or manage it.
-  // ignore: unused_element
   void _showCancelScheduledOfflineDialog(BuildContext context, WidgetRef ref) {
     final themeColors = context.appColors;
     final isDark = context.isDarkMode;
@@ -1066,10 +1114,22 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
           ),
         ],
       ),
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(24),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(24),
+          onTap: hasTrip
+              ? () {
+                  ref.read(selectedTripIdProvider.notifier).select(selectedTrip.tripId);
+                  context.push(RouteNames.tripDetails, extra: selectedTrip.tripId);
+                }
+              : null,
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
           // Header: Single row showing pin icon + pickup spot + pickup time with short fade under 200ms
           AnimatedSwitcher(
             duration: const Duration(milliseconds: 180),
@@ -1101,7 +1161,7 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
                       Text(
                         _formatPickupTime(selectedTrip.pickupTime),
                         style: TextStyle(
-                          color: themeColors.textSecondary,
+                          color: isDark ? Colors.white : themeColors.textSecondary,
                           fontSize: 12,
                           fontWeight: FontWeight.w500,
                         ),
@@ -1204,7 +1264,10 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
           ),
         ],
       ),
-    );
+    ),
+  ),
+),
+);
   }
 
   // ===========================================================================
@@ -1344,7 +1407,10 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
           borderRadius: BorderRadius.circular(20),
           child: InkWell(
             borderRadius: BorderRadius.circular(20),
-            onTap: () => context.push(RouteNames.trips),
+            onTap: () {
+              ref.read(selectedTripIdProvider.notifier).select(selectedTrip.tripId);
+              context.push(RouteNames.tripDetails, extra: selectedTrip.tripId);
+            },
             child: Padding(
               padding: const EdgeInsets.all(18),
               child: Column(
@@ -1428,7 +1494,7 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
                                   Text(
                                     'Pickup Time: $formattedTime',
                                     style: TextStyle(
-                                      color: themeColors.textSecondary,
+                                      color: isDark ? Colors.white : themeColors.textSecondary,
                                       fontSize: 12,
                                       fontWeight: FontWeight.w500,
                                     ),
@@ -1729,7 +1795,7 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
                                     Text(
                                       'Pickup: ${_formatPickupTime(trip.pickupTime)}  •  Est: ${trip.estimatedReachMinutes} mins',
                                       style: TextStyle(
-                                        color: themeColors.textSecondary,
+                                        color: isDark ? Colors.white : themeColors.textSecondary,
                                         fontSize: 12,
                                         fontWeight: FontWeight.w500,
                                       ),
