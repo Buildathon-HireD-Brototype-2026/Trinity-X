@@ -88,6 +88,7 @@ class TripForegroundService : Service() {
                 instance?.let { s ->
                     s.showOverlayRequested = visible
                     if (visible) {
+                        if (force) isOverlayDismissedByUser = false
                         if (!isOverlayDismissedByUser) {
                             s.showOverlay()
                         }

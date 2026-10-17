@@ -133,7 +133,8 @@ void main() {
       expect(find.text('Beta Spot 2'), findsOneWidget);
       expect(find.text('Beta Terminal'), findsOneWidget);
       expect(find.text('Bob Beta'), findsOneWidget);
-      expect(find.text('+91 88888 22222'), findsOneWidget);
+      // Phone number removed from page per Section 1
+      expect(find.text('+91 88888 22222'), findsNothing);
       expect(find.text('₹750.00'), findsOneWidget);
 
       // Must NOT show Company Alpha details
@@ -349,16 +350,15 @@ void main() {
       await tester.drag(find.byType(SingleChildScrollView), const Offset(0, -400));
       await tester.pumpAndSettle();
 
-      expect(find.text('FINANCIAL SUMMARY & PAYOUT'), findsOneWidget);
-      expect(find.text('TRIP EXPENSES'), findsOneWidget);
+      expect(find.text('EARNINGS'), findsOneWidget);
+      expect(find.text('EXPENSES'), findsOneWidget);
       expect(find.text('Add Expense'), findsOneWidget);
 
       // Drag down further to reveal action buttons
       await tester.drag(find.byType(SingleChildScrollView), const Offset(0, -400));
       await tester.pumpAndSettle();
 
-      expect(find.text('Complete & Close Trip (OTP)'), findsOneWidget);
-      expect(find.text('Cancel Ongoing Trip'), findsOneWidget);
+      expect(find.text('Complete Trip'), findsOneWidget);
 
       // Verify top timing badge is NOT present in AppBar
       expect(find.byIcon(Icons.timer_outlined), findsNothing);

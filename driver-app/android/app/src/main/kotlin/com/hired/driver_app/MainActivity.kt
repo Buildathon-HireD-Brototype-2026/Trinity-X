@@ -71,32 +71,39 @@ class MainActivity : FlutterActivity() {
         notifyFlutterOpenTripDetails()
     }
 
+    private fun showOverlayOnLeave() {
+        isNavigatingToTripDetails = false
+        if (isTripRunning || TripForegroundService.isServiceRunning) {
+            TripForegroundService.resetOverlayDismissedByUser()
+            if (TripForegroundService.instance != null) {
+                TripForegroundService.setInstanceOverlayVisible(true, force = true)
+            } else {
+                try {
+                    val intent = Intent(this, TripForegroundService::class.java).apply {
+                        action = TripForegroundService.ACTION_SET_OVERLAY_VISIBLE
+                        putExtra(TripForegroundService.EXTRA_OVERLAY_VISIBLE, true)
+                    }
+                    ContextCompat.startForegroundService(this, intent)
+                } catch (_: Exception) {}
+            }
+        }
+    }
+
     override fun onPause() {
         super.onPause()
         isAppInForeground = false
-        // When leaving app (Recent apps, Home, back exit) during an ongoing trip, show floating overlay if not dismissed by user
-        if (isTripRunning || TripForegroundService.isServiceRunning) {
-            isNavigatingToTripDetails = false
-            TripForegroundService.setInstanceOverlayVisible(true)
-        }
+        showOverlayOnLeave()
     }
 
     override fun onStop() {
         super.onStop()
         isAppInForeground = false
-        if (isTripRunning || TripForegroundService.isServiceRunning) {
-            isNavigatingToTripDetails = false
-            TripForegroundService.setInstanceOverlayVisible(true)
-        }
+        showOverlayOnLeave()
     }
 
     override fun onUserLeaveHint() {
         super.onUserLeaveHint()
-        // Driver pressed Home or Recent apps: show floating overlay if not dismissed by user
-        if (isTripRunning || TripForegroundService.isServiceRunning) {
-            isNavigatingToTripDetails = false
-            TripForegroundService.setInstanceOverlayVisible(true)
-        }
+        showOverlayOnLeave()
     }
 
     override fun popSystemNavigator(): Boolean {
@@ -229,14 +236,7 @@ class MainActivity : FlutterActivity() {
                     "setOverlayVisible" -> {
                         val requestedVisible = call.arguments as? Boolean ?: true
                         val visible = if (isAppInForeground) false else requestedVisible
-                        if (visible) {
-                            if (isNavigatingToTripDetails || pendingOpenTripDetails) {
-                                result.success(true)
-                                return@setMethodCallHandler
-                            }
-                        } else {
-                            isNavigatingToTripDetails = true
-                        }
+                        isNavigatingToTripDetails = false
                         if (TripForegroundService.instance != null) {
                             runOnUiThread {
                                 TripForegroundService.setInstanceOverlayVisible(visible, force = visible)
@@ -310,9 +310,7 @@ class MainActivity : FlutterActivity() {
                     }
 
                     "sendToBackgroundWithMini" -> {
-                        if (isTripRunning) {
-                            TripForegroundService.setInstanceOverlayVisible(true, force = true)
-                        }
+                        showOverlayOnLeave()
                         moveTaskToBack(true)
                         result.success(true)
                     }

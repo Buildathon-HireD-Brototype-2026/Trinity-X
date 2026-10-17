@@ -4,15 +4,17 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
-import 'package:url_launcher/url_launcher.dart';
-import '../../../core/routing/app_router.dart';
 import '../../../core/routing/route_names.dart';
 import '../../../core/theme/app_theme_colors.dart';
 import '../../../core/widgets/app_loading_indicator.dart';
 import '../domain/trip_model.dart';
 import '../application/navigation_launcher_service.dart';
-import 'widgets/route_card_map_preview.dart';
-import 'widgets/trip_navigate_button.dart';
+import 'widgets/sections/route_section.dart';
+import 'widgets/sections/trip_info_section.dart';
+import 'widgets/sections/passenger_section.dart';
+import 'widgets/sections/earnings_section.dart';
+import 'widgets/sections/expenses_section.dart';
+import 'widgets/contact_bottom_sheet.dart';
 import 'controllers/current_trip_provider.dart';
 import 'controllers/trip_mini_overlay_controller.dart';
 
@@ -29,6 +31,8 @@ class TripDetailsScreen extends ConsumerStatefulWidget {
 
 class _TripDetailsScreenState extends ConsumerState<TripDetailsScreen> {
   final _otpController = TextEditingController();
+  bool _isContactSheetOpen = false;
+  DateTime? _lastContactTapTime;
 
   @override
   void initState() {
@@ -44,7 +48,44 @@ class _TripDetailsScreenState extends ConsumerState<TripDetailsScreen> {
   @override
   void dispose() {
     _otpController.dispose();
+    if (_isContactSheetOpen) {
+      _closeContactSheet();
+    }
     super.dispose();
+  }
+
+  void _openContactSheet(BuildContext context, TripModel trip) {
+    final now = DateTime.now();
+    if (_lastContactTapTime != null &&
+        now.difference(_lastContactTapTime!) < const Duration(milliseconds: 600)) {
+      return;
+    }
+    _lastContactTapTime = now;
+
+    if (_isContactSheetOpen) return;
+    _isContactSheetOpen = true;
+
+    ContactBottomSheet.show(
+      context: context,
+      personName: trip.contactName,
+      companyName: trip.companyName,
+      phoneNumber: trip.contactPhone,
+      onClosed: () {
+        if (mounted) {
+          setState(() {
+            _isContactSheetOpen = false;
+          });
+        } else {
+          _isContactSheetOpen = false;
+        }
+      },
+    );
+  }
+
+  void _closeContactSheet() {
+    if (!_isContactSheetOpen) return;
+    _isContactSheetOpen = false;
+    ContactBottomSheet.close();
   }
 
   String _formatTime(DateTime utcTime) {
@@ -57,11 +98,23 @@ class _TripDetailsScreenState extends ConsumerState<TripDetailsScreen> {
     return DateFormat('EEE, d MMM yyyy').format(kolkata);
   }
 
+  bool _canPop() {
+    try {
+      if (GoRouter.maybeOf(context)?.canPop() == true) return true;
+    } catch (_) {}
+    try {
+      final nav = Navigator.maybeOf(context);
+      if (nav != null && nav.canPop()) return true;
+    } catch (_) {}
+    return false;
+  }
+
   void _handleBack() {
     ref.read(tripMiniOverlayControllerProvider.notifier).setTripPageForeground(false);
     try {
-      if (GoRouter.of(context).canPop()) {
-        GoRouter.of(context).pop();
+      final router = GoRouter.maybeOf(context);
+      if (router != null && router.canPop()) {
+        router.pop();
         return;
       }
     } catch (_) {}
@@ -73,19 +126,13 @@ class _TripDetailsScreenState extends ConsumerState<TripDetailsScreen> {
       }
     } catch (_) {}
     try {
-      final rootNav = rootNavigatorKey.currentState;
-      if (rootNav != null && rootNav.canPop()) {
-        rootNav.pop();
-        return;
-      }
+      context.go(RouteNames.home);
     } catch (_) {}
-    context.go(RouteNames.home);
   }
 
   @override
   Widget build(BuildContext context) {
     final themeColors = context.appColors;
-    final isDark = context.isDarkMode;
     final allTripsAsync = ref.watch(allTripsProvider);
     final allTrips = allTripsAsync.valueOrNull ?? [];
 
@@ -110,11 +157,15 @@ class _TripDetailsScreenState extends ConsumerState<TripDetailsScreen> {
       trip = allTrips.where((t) => t.isOngoing).firstOrNull ?? allTrips.firstOrNull;
     }
 
+    final canPopRoute = _canPop();
     return PopScope(
-      canPop: false,
+      canPop: canPopRoute,
       onPopInvokedWithResult: (didPop, result) {
+        ref.read(tripMiniOverlayControllerProvider.notifier).setTripPageForeground(false);
         if (didPop) return;
-        _handleBack();
+        try {
+          context.go(RouteNames.home);
+        } catch (_) {}
       },
       child: Scaffold(
         backgroundColor: themeColors.pageBackground,
@@ -140,39 +191,6 @@ class _TripDetailsScreenState extends ConsumerState<TripDetailsScreen> {
             letterSpacing: -0.3,
           ),
         ),
-        actions: [
-          if (trip != null)
-            Padding(
-              padding: const EdgeInsets.only(right: 16.0),
-              child: Center(
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                      decoration: BoxDecoration(
-                        color: trip.isOngoing
-                            ? (isDark ? const Color(0xFF1E3A8A) : const Color(0xFFDBEAFE))
-                            : (isDark ? const Color(0xFF78350F) : const Color(0xFFFEF3C7)),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Text(
-                        trip.status.toUpperCase(),
-                        style: TextStyle(
-                          color: trip.isOngoing
-                              ? (isDark ? const Color(0xFF60A5FA) : const Color(0xFF1D4ED8))
-                              : (isDark ? const Color(0xFFFBBF24) : const Color(0xFFB45309)),
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 0.3,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-        ],
       ),
       body: SafeArea(
         child: allTripsAsync.when(
@@ -206,31 +224,68 @@ class _TripDetailsScreenState extends ConsumerState<TripDetailsScreen> {
               return _buildTripNotFoundState(context, widget.tripId);
             }
 
-            return SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 16.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  // Card 1: B2B Order & Partner Company Info
-                  _buildOrderOverviewCard(context, currentTrip),
-                  const SizedBox(height: 16),
+            // If the trip ended or was cancelled while the contact sheet is open, close it immediately
+            if (_isContactSheetOpen && !currentTrip.isOngoing) {
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (mounted && _isContactSheetOpen) {
+                  _closeContactSheet();
+                }
+              });
+            }
 
-                  // Card 2: Pickup, Dropoff & Route Schedule
-                  _buildRouteScheduleCard(context, currentTrip),
-                  const SizedBox(height: 16),
+            return RefreshIndicator(
+              onRefresh: () async {
+                ref.invalidate(allTripsProvider);
+              },
+              color: themeColors.purpleAccent,
+              backgroundColor: themeColors.cardBackground,
+              child: SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // Top Header Section: Order ID, Status chip, Date & Time
+                    _buildTopHeaderSection(context, currentTrip),
+                    const SizedBox(height: 14),
 
-                  // Card 3: Payout & Commission Breakdown
-                  _buildFinancialCard(context, currentTrip),
-                  const SizedBox(height: 16),
+                    // Section 1: Route (pickup -> drop, map preview, addresses)
+                    RouteSection(
+                      trip: currentTrip,
+                      showNavigateButton: false,
+                    ),
+                    const SizedBox(height: 14),
 
-                  // Card 4: Trip Expenses (PRD D-08)
-                  _buildExpensesCard(context, currentTrip),
-                  const SizedBox(height: 24),
+                    // Section 2: Trip Info (start time, end time, duration, distance)
+                    TripInfoSection(trip: currentTrip),
+                    const SizedBox(height: 14),
 
-                  // Action Button(s) based on Trip Status
-                  _buildActionControls(context, currentTrip),
-                  const SizedBox(height: 24),
-                ],
+                    // Section 3: Passenger / Client (name, company, phone, call action)
+                    PassengerSection(trip: currentTrip),
+                    const SizedBox(height: 14),
+
+                    // Section 4: Earnings (driver earning, hidden on cancelled)
+                    EarningsSection(trip: currentTrip),
+                    const SizedBox(height: 14),
+
+                    // Section 5: Expenses (total, count, tap to view list, quick chips, add expense)
+                    ExpensesSection(
+                      trip: currentTrip,
+                      onAddExpense: () => _showAddExpenseDialog(context, currentTrip!),
+                      onQuickExpense: (category) => _showAddExpenseDialog(
+                        context,
+                        currentTrip!,
+                        prefilledCategory: category,
+                      ),
+                      onDeleteExpense: (expense) => _confirmDeleteExpense(context, currentTrip!, expense),
+                    ),
+                    const SizedBox(height: 20),
+
+                    // Action Button(s) based on Trip Status
+                    _buildActionControls(context, currentTrip),
+                    const SizedBox(height: 24),
+                  ],
+                ),
               ),
             );
           },
@@ -240,668 +295,142 @@ class _TripDetailsScreenState extends ConsumerState<TripDetailsScreen> {
   );
   }
 
-  /// Card 1: B2B Partner Order & Contact Person
-  Widget _buildOrderOverviewCard(BuildContext context, TripModel trip) {
+  /// Top Header Section: Order ID (primary, largest), Status chip, Date & Time
+  Widget _buildTopHeaderSection(BuildContext context, TripModel trip) {
     final themeColors = context.appColors;
     final isDark = context.isDarkMode;
 
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: themeColors.cardBackground,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: themeColors.border),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: isDark ? 0.25 : 0.04),
-            blurRadius: 10,
-            offset: const Offset(0, 3),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Order Header Row
-          Row(
-            children: [
-              Container(
-                width: 38,
-                height: 38,
-                decoration: BoxDecoration(
-                  color: themeColors.purpleTint,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(
-                  Icons.business_rounded,
-                  color: themeColors.purpleAccent,
-                  size: 20,
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      trip.companyName,
-                      style: TextStyle(
-                        color: themeColors.textPrimary,
-                        fontSize: 15,
-                        fontWeight: FontWeight.w700,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      'Order ORD-${trip.orderId} • ${_formatDate(trip.pickupTime)}',
-                      style: TextStyle(
-                        color: themeColors.textSecondary,
-                        fontSize: 11.5,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
-                ),
-              ),
-              IconButton(
-                icon: Icon(Icons.copy_rounded, color: themeColors.textMuted, size: 18),
-                tooltip: 'Copy Order ID',
-                onPressed: () {
-                  Clipboard.setData(ClipboardData(text: 'ORD-${trip.orderId}'));
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Order ID copied to clipboard'),
-                      duration: Duration(seconds: 1),
-                      behavior: SnackBarBehavior.floating,
-                    ),
-                  );
-                },
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Divider(color: themeColors.divider, height: 1),
-          const SizedBox(height: 16),
+    final isOngoing = trip.isOngoing;
+    final isClosed = trip.isClosed;
+    final isCancelled = trip.status.toUpperCase() == 'CANCELLED';
 
-          // Client Contact Row
-          Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'PASSENGER / CONTACT',
-                      style: TextStyle(
-                        color: themeColors.textMuted,
-                        fontSize: 10.5,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 0.5,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      trip.contactName,
-                      style: TextStyle(
-                        color: themeColors.textPrimary,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      trip.contactPhone,
-                      style: TextStyle(
-                        color: themeColors.textSecondary,
-                        fontSize: 12.5,
-                        fontFamily: 'monospace',
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              // Call action button
-              IconButton(
-                style: IconButton.styleFrom(
-                  backgroundColor: const Color(0xFF10B981).withValues(alpha: 0.12),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-                icon: const Icon(Icons.phone_rounded, color: Color(0xFF10B981), size: 20),
-                tooltip: 'Call Passenger',
-                onPressed: () async {
-                  final phone = trip.contactPhone.replaceAll(RegExp(r'[^0-9+]'), '');
-                  final uri = Uri.parse('tel:$phone');
-                  if (await canLaunchUrl(uri)) {
-                    await launchUrl(uri);
-                  } else {
-                    if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text('Could not open phone dialer for $phone'),
-                          behavior: SnackBarBehavior.floating,
-                        ),
-                      );
-                    }
-                  }
-                },
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// Card 2: Pickup and Dropoff Timeline & Route
-  Widget _buildRouteScheduleCard(BuildContext context, TripModel trip) {
-    final themeColors = context.appColors;
-    final isDark = context.isDarkMode;
-
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: themeColors.cardBackground,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: themeColors.border),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: isDark ? 0.25 : 0.04),
-            blurRadius: 10,
-            offset: const Offset(0, 3),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'ROUTE & SCHEDULE',
-                style: TextStyle(
-                  color: themeColors.textMuted,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 0.5,
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: themeColors.purpleTint,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Text(
-                  _formatDate(trip.pickupTime),
-                  style: TextStyle(
-                    color: themeColors.purpleAccent,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
-
-          // 1. Static Map Preview Banner
-          RouteCardMapPreview(trip: trip),
-          const SizedBox(height: 14),
-
-          // Pickup Location Row
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Column(
-                children: [
-                  Container(
-                    width: 14,
-                    height: 14,
-                    decoration: const BoxDecoration(
-                      color: Color(0xFF10B981),
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                  Container(
-                    width: 2,
-                    height: 48,
-                    color: themeColors.border,
-                  ),
-                ],
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          'PICKUP SPOT',
-                          style: TextStyle(
-                            color: themeColors.textMuted,
-                            fontSize: 10,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                        Text(
-                          _formatTime(trip.pickupTime),
-                          style: TextStyle(
-                            color: isDark ? Colors.white : const Color(0xFF10B981),
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 3),
-                    Text(
-                      trip.pickupSpot,
-                      style: TextStyle(
-                        color: themeColors.textPrimary,
-                        fontSize: 13.5,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-
-          // Dropoff Location Row
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: 14,
-                height: 14,
-                decoration: const BoxDecoration(
-                  color: Color(0xFFEF4444),
-                  shape: BoxShape.circle,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          'DROPOFF SPOT',
-                          style: TextStyle(
-                            color: themeColors.textMuted,
-                            fontSize: 10,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                        Text(
-                          '~${trip.estimatedReachMinutes} mins ETA',
-                          style: TextStyle(
-                            color: themeColors.purpleAccent,
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 3),
-                    Text(
-                      trip.dropoffSpot,
-                      style: TextStyle(
-                        color: themeColors.textPrimary,
-                        fontSize: 13.5,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-
-          // Phase-Aware Navigate Button
-          TripNavigateButton(trip: trip),
-        ],
-      ),
-    );
-  }
-
-  /// Card 3: Payout and Billing Breakdown (PRD 5.4 / database.md `trip_payrolls`)
-  Widget _buildFinancialCard(BuildContext context, TripModel trip) {
-    final themeColors = context.appColors;
-    final isDark = context.isDarkMode;
-
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: themeColors.cardBackground,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: themeColors.border),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: isDark ? 0.25 : 0.04),
-            blurRadius: 10,
-            offset: const Offset(0, 3),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'FINANCIAL SUMMARY & PAYOUT',
-            style: TextStyle(
-              color: themeColors.textMuted,
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 0.5,
-            ),
-          ),
-          const SizedBox(height: 12),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Row(
-                children: [
-                  Container(
-                    width: 34,
-                    height: 34,
-                    decoration: BoxDecoration(
-                      color: themeColors.purpleTint,
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Icon(Icons.payments_rounded, color: themeColors.purpleAccent, size: 18),
-                  ),
-                  const SizedBox(width: 10),
-                  Text(
-                    'Your Earning',
-                    style: TextStyle(
-                      color: themeColors.textPrimary,
-                      fontSize: 15,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ],
-              ),
-              Text(
-                '₹${trip.driverShare.toStringAsFixed(2)}',
-                style: TextStyle(
-                  color: themeColors.purpleAccent,
-                  fontSize: 20,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// Card 4: Trip Expenses (PRD D-08)
-  Widget _buildExpensesCard(BuildContext context, TripModel trip) {
-    final themeColors = context.appColors;
-    final isDark = context.isDarkMode;
-    final totalExpenses = trip.expenses.fold<double>(0.0, (sum, e) => sum + e.amount);
-
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: themeColors.cardBackground,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: themeColors.border),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: isDark ? 0.25 : 0.04),
-            blurRadius: 10,
-            offset: const Offset(0, 3),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Row(
-                children: [
-                  Container(
-                    width: 34,
-                    height: 34,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF10B981).withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: const Icon(Icons.receipt_long_rounded, color: Color(0xFF10B981), size: 18),
-                  ),
-                  const SizedBox(width: 10),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'TRIP EXPENSES',
-                        style: TextStyle(
-                          color: themeColors.textMuted,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 0.5,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        '${trip.expenses.length} Logged • Total ₹${totalExpenses.toStringAsFixed(2)}',
-                        style: TextStyle(
-                          color: themeColors.textPrimary,
-                          fontSize: 12.5,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-              if (trip.isOngoing)
-                ElevatedButton.icon(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF10B981),
-                    foregroundColor: Colors.white,
-                    minimumSize: const Size(0, 36),
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                    elevation: 0,
-                  ),
-                  icon: const Icon(Icons.add_rounded, size: 16),
-                  label: const Text('Add Expense', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                  onPressed: () => _showAddExpenseDialog(context, trip),
-                ),
-            ],
-          ),
-
-          if (trip.isOngoing) ...[
-            const SizedBox(height: 14),
-            // Quick category tap chips for fast road entry (name only, no prices, no fasttag):
-            Wrap(
-              spacing: 8,
-              runSpacing: 6,
-              children: [
-                _buildQuickExpenseChip(context, trip, 'Toll', Icons.toll_rounded),
-                _buildQuickExpenseChip(context, trip, 'Parking', Icons.local_parking_rounded),
-                _buildQuickExpenseChip(context, trip, 'Fuel', Icons.local_gas_station_rounded),
-                _buildQuickExpenseChip(context, trip, 'Other', Icons.more_horiz_rounded),
-              ],
-            ),
-          ],
-
-          const SizedBox(height: 14),
-          Divider(color: themeColors.divider, height: 1),
-          const SizedBox(height: 12),
-
-          if (trip.expenses.isEmpty)
-            Container(
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              alignment: Alignment.center,
-              child: Column(
-                children: [
-                  Icon(Icons.receipt_outlined, color: themeColors.textMuted, size: 28),
-                  const SizedBox(height: 6),
-                  Text(
-                    'No expenses logged yet.',
-                    style: TextStyle(color: themeColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w600),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    trip.isOngoing
-                        ? 'Tap a category above to log Toll, Parking, or Fuel.'
-                        : 'No expenses were logged for this trip.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: themeColors.textSecondary, fontSize: 11.5),
-                  ),
-                ],
-              ),
-            )
-          else
-            ...trip.expenses.map((expense) {
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 8.0),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                  decoration: BoxDecoration(
-                    color: themeColors.innerBox,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: themeColors.border),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Expanded(
-                        child: Row(
-                          children: [
-                            _getExpenseCategoryIcon(expense.description, themeColors),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    expense.description,
-                                    style: TextStyle(
-                                      color: themeColors.textPrimary,
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                  if (expense.createdAt != null)
-                                    Text(
-                                      _formatTime(expense.createdAt!),
-                                      style: TextStyle(
-                                        color: themeColors.textMuted,
-                                        fontSize: 11,
-                                      ),
-                                    ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      Row(
-                        children: [
-                          Text(
-                            '₹${expense.amount.toStringAsFixed(2)}',
-                            style: TextStyle(
-                              color: themeColors.textPrimary,
-                              fontSize: 14,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                          if (trip.isOngoing && expense.expenseId != null) ...[
-                            const SizedBox(width: 6),
-                            IconButton(
-                              icon: const Icon(Icons.delete_outline_rounded, color: Color(0xFFEF4444), size: 18),
-                              tooltip: 'Delete Expense',
-                              padding: EdgeInsets.zero,
-                              constraints: const BoxConstraints(),
-                              onPressed: () => _confirmDeleteExpense(context, trip, expense),
-                            ),
-                          ],
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            }),
-        ],
-      ),
-    );
-  }
-
-  Widget _getExpenseCategoryIcon(String description, AppThemeColors themeColors) {
-    final descLower = description.toLowerCase();
-    IconData iconData = Icons.receipt_long_rounded;
-    Color iconColor = themeColors.purpleAccent;
-
-    if (descLower.contains('toll')) {
-      iconData = Icons.toll_rounded;
-      iconColor = const Color(0xFFF59E0B);
-    } else if (descLower.contains('parking')) {
-      iconData = Icons.local_parking_rounded;
-      iconColor = const Color(0xFF3B82F6);
-    } else if (descLower.contains('fuel') || descLower.contains('petrol') || descLower.contains('diesel')) {
-      iconData = Icons.local_gas_station_rounded;
-      iconColor = const Color(0xFFEF4444);
-    } else if (descLower.contains('fastag')) {
-      iconData = Icons.nfc_rounded;
-      iconColor = const Color(0xFF10B981);
+    Color chipBg;
+    Color chipText;
+    if (isOngoing) {
+      chipBg = isDark ? const Color(0xFF1E3A8A) : const Color(0xFFDBEAFE);
+      chipText = isDark ? const Color(0xFF60A5FA) : const Color(0xFF1D4ED8);
+    } else if (isClosed) {
+      chipBg = isDark ? const Color(0xFF064E3B) : const Color(0xFFD1FAE5);
+      chipText = isDark ? const Color(0xFF34D399) : const Color(0xFF059669);
+    } else if (isCancelled) {
+      chipBg = isDark ? const Color(0xFF450A0A) : const Color(0xFFFEE2E2);
+      chipText = isDark ? const Color(0xFFF87171) : const Color(0xFFDC2626);
+    } else {
+      // ASSIGNED
+      chipBg = isDark ? const Color(0xFF78350F) : const Color(0xFFFEF3C7);
+      chipText = isDark ? const Color(0xFFFBBF24) : const Color(0xFFB45309);
     }
 
     return Container(
-      width: 32,
-      height: 32,
+      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: iconColor.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(8),
+        color: themeColors.cardBackground,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: themeColors.border),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isDark ? 0.25 : 0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
       ),
-      child: Icon(iconData, color: iconColor, size: 17),
-    );
-  }
-
-  Widget _buildQuickExpenseChip(
-    BuildContext context,
-    TripModel trip,
-    String label,
-    IconData icon,
-  ) {
-    final themeColors = context.appColors;
-
-    return ActionChip(
-      avatar: Icon(icon, size: 14, color: const Color(0xFF10B981)),
-      label: Text(
-        label,
-        style: TextStyle(
-          fontSize: 12,
-          fontWeight: FontWeight.w600,
-          color: themeColors.textPrimary,
-        ),
-      ),
-      backgroundColor: themeColors.innerBox,
-      side: BorderSide(color: themeColors.border),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      onPressed: () => _showAddExpenseDialog(
-        context,
-        trip,
-        prefilledCategory: label,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Expanded(
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Flexible(
+                      child: Text(
+                        'ORD-${trip.orderId}',
+                        style: TextStyle(
+                          color: themeColors.textPrimary,
+                          fontSize: 22,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: -0.5,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    IconButton(
+                      icon: Icon(Icons.copy_rounded, color: themeColors.textMuted, size: 18),
+                      tooltip: 'Copy Order ID',
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                      onPressed: () {
+                        Clipboard.setData(ClipboardData(text: 'ORD-${trip.orderId}'));
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Order ID copied to clipboard'),
+                            duration: Duration(seconds: 1),
+                            behavior: SnackBarBehavior.floating,
+                          ),
+                        );
+                      },
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  if (isOngoing) ...[
+                    IconButton(
+                      key: const Key('header_contact_button'),
+                      icon: Icon(
+                        Icons.person_outline_rounded,
+                        color: themeColors.textMuted,
+                        size: 20,
+                      ),
+                      tooltip: 'Contact Details',
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
+                      onPressed: () => _openContactSheet(context, trip),
+                    ),
+                    const SizedBox(width: 4),
+                  ],
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: chipBg,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Text(
+                      trip.status.toUpperCase(),
+                      style: TextStyle(
+                        color: chipText,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.3,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            '${_formatDate(trip.pickupTime)} • ${_formatTime(trip.pickupTime)}',
+            style: TextStyle(
+              color: themeColors.textSecondary,
+              fontSize: 12.5,
+              fontWeight: FontWeight.w500,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
       ),
     );
   }
@@ -1107,7 +636,7 @@ class _TripDetailsScreenState extends ConsumerState<TripDetailsScreen> {
     TripModel trip, {
     String? prefilledCategory,
   }) {
-    String selectedCategory = prefilledCategory ?? 'Toll';
+    String selectedCategory = prefilledCategory ?? 'Other';
     final amountController = TextEditingController();
     final headingController = TextEditingController();
     final noteController = TextEditingController();
@@ -1159,6 +688,9 @@ class _TripDetailsScreenState extends ConsumerState<TripDetailsScreen> {
                     spacing: 8,
                     runSpacing: 6,
                     children: [
+                      _buildCategorySelectChip('Other', Icons.more_horiz_rounded, selectedCategory, (cat) {
+                        setDialogState(() => selectedCategory = cat);
+                      }),
                       _buildCategorySelectChip('Toll', Icons.toll_rounded, selectedCategory, (cat) {
                         setDialogState(() => selectedCategory = cat);
                       }),
@@ -1166,9 +698,6 @@ class _TripDetailsScreenState extends ConsumerState<TripDetailsScreen> {
                         setDialogState(() => selectedCategory = cat);
                       }),
                       _buildCategorySelectChip('Fuel', Icons.local_gas_station_rounded, selectedCategory, (cat) {
-                        setDialogState(() => selectedCategory = cat);
-                      }),
-                      _buildCategorySelectChip('Other', Icons.more_horiz_rounded, selectedCategory, (cat) {
                         setDialogState(() => selectedCategory = cat);
                       }),
                     ],

@@ -52,7 +52,24 @@ class TripMiniOverlayState {
   ///    OR it is currently performing the exit animation into the trip screen
   /// 4. The mini float is NOT dismissed (!miniDismissed)
   /// 5. The app is NOT currently in Android Picture-in-Picture mode
-  bool get shouldShowInAppMiniCard => false;
+  bool get shouldShowInAppMiniCard {
+    if (!hasMainPageLoaded) return false;
+    if (!isTripOngoing) return false;
+    if (isOnTripPage && !isExitingToTripPage) return false;
+    if (miniDismissed) return false;
+    if (isInPiPMode) return false;
+
+    // Explicitly forbidden on splash, login, or trip-details
+    final isBlockedRoute = currentRoute == RouteNames.splash ||
+        currentRoute == '/splash' ||
+        currentRoute == RouteNames.login ||
+        currentRoute == '/login' ||
+        currentRoute == RouteNames.tripDetails ||
+        currentRoute == '/trip-details';
+    if (isBlockedRoute) return false;
+
+    return true;
+  }
 
   /// External mini UI (PiP or Overlay) should show when:
   /// 1. Trip is currently ongoing
