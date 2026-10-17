@@ -6,6 +6,7 @@ import 'package:driver_app/features/trips/data/trip_repository.dart';
 import 'package:driver_app/features/trips/domain/trip_model.dart';
 import 'package:driver_app/features/trips/presentation/controllers/current_trip_provider.dart';
 import 'package:driver_app/features/trips/presentation/controllers/trip_mini_overlay_controller.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -232,7 +233,7 @@ void main() {
       expect(state2.formattedTime, equals('01:01:05'));
     });
 
-    test('8. When mini screen is closed by user, visiting /trip-details resets visibility and reappears when leaving', () async {
+    test('8. When mini screen is closed by user, visiting /trip-details and leaving keeps it closed (when close once it close not again)', () async {
       final trips = await mockRepo.getTrips();
       await mockRepo.startTrip(trips.first.tripId);
       await Future<void>.delayed(const Duration(milliseconds: 30));
@@ -253,22 +254,20 @@ void main() {
       notifier.updateCurrentRoute('/trip-details');
 
       state = container.read(tripMiniOverlayControllerProvider);
-      // Visibility flags are reset to true
-      expect(state.isInAppVisible, isTrue);
-      expect(state.isOutsideOverlayVisible, isTrue);
-      // But hidden while on /trip-details
+      // Stays dismissed - does not resurrect automatically
+      expect(state.miniDismissed, isTrue);
       expect(state.shouldShowInAppMiniCard, isFalse);
 
       // Now user leaves the trip details screen (e.g. back to /home)
       notifier.updateCurrentRoute('/home');
 
       state = container.read(tripMiniOverlayControllerProvider);
-      // Mini screen reappears!
-      expect(state.shouldShowInAppMiniCard, isTrue);
-      expect(state.isOutsideOverlayVisible, isTrue);
+      // Mini screen stays closed!
+      expect(state.shouldShowInAppMiniCard, isFalse);
+      expect(state.miniDismissed, isTrue);
     });
 
-    test('9. Full dismiss & re-show cycle: close mini -> trip & service keep running -> return to trip screen -> leave -> mini reappears', () async {
+    test('9. Full dismiss cycle: close mini -> trip & service keep running -> close app and come in -> stays closed', () async {
       final trips = await mockRepo.getTrips();
       await mockRepo.startTrip(trips.first.tripId);
       await Future<void>.delayed(const Duration(milliseconds: 30));
@@ -293,14 +292,16 @@ void main() {
       expect(fakeBridge.serviceStopped, isFalse);
       expect(fakeBridge.serviceStarted, isTrue);
 
-      // Driver returns to trip screen (via Recents, notification, or menu)
+      // Driver closes app and comes in (or returns to trip screen)
+      notifier.handleLifecycleChange(AppLifecycleState.paused);
+      notifier.handleLifecycleChange(AppLifecycleState.resumed);
       notifier.updateCurrentRoute('/trip-details');
-      // miniDismissed must be reset to false!
-      expect(container.read(tripMiniOverlayControllerProvider).miniDismissed, isFalse);
+      // miniDismissed must remain true!
+      expect(container.read(tripMiniOverlayControllerProvider).miniDismissed, isTrue);
 
-      // Driver leaves again (back button or navigating away): mini pops up again!
+      // Driver leaves again (back button or navigating away): mini remains closed!
       notifier.updateCurrentRoute('/trips');
-      expect(container.read(tripMiniOverlayControllerProvider).shouldShowInAppMiniCard, isTrue);
+      expect(container.read(tripMiniOverlayControllerProvider).shouldShowInAppMiniCard, isFalse);
     });
 
     test('10. Auto-PiP state synchronization: enabled when trip running, disabled when dismissed or ended', () async {
@@ -317,8 +318,8 @@ void main() {
       notifier.dismissInAppCard();
       expect(fakeBridge.autoPiPEnabled, isFalse);
 
-      // When user reopens trip details screen, auto PiP is re-enabled
-      notifier.updateCurrentRoute('/trip-details');
+      // Explicit re-enabling restores auto PiP
+      notifier.showInAppCard();
       expect(fakeBridge.autoPiPEnabled, isTrue);
 
       // When trip ends, auto PiP is disabled and service stops
@@ -328,7 +329,7 @@ void main() {
       expect(fakeBridge.serviceStopped, isTrue);
     });
 
-    test('11. In-app navigation while dismissed: stays hidden across other screens until trip page is visited', () async {
+    test('11. In-app navigation while dismissed: stays hidden across all screens including trip page', () async {
       final trips = await mockRepo.getTrips();
       await mockRepo.startTrip(trips.first.tripId);
       await Future<void>.delayed(const Duration(milliseconds: 30));
@@ -354,52 +355,39 @@ void main() {
       expect(container.read(tripMiniOverlayControllerProvider).miniDismissed, isTrue);
       expect(container.read(tripMiniOverlayControllerProvider).shouldShowInAppMiniCard, isFalse);
 
-      // Now open Ongoing Trip page: triggers exit animation, then completes to hide
+      // Now open Ongoing Trip page: stays hidden and dismissed
       notifier.updateCurrentRoute('/trip-details');
-      expect(container.read(tripMiniOverlayControllerProvider).miniDismissed, isFalse);
+      expect(container.read(tripMiniOverlayControllerProvider).miniDismissed, isTrue);
       expect(container.read(tripMiniOverlayControllerProvider).isOnTripPage, isTrue);
-      // While exiting animation plays, it's completing to false:
       notifier.completeExitToTripPage();
       expect(container.read(tripMiniOverlayControllerProvider).shouldShowInAppMiniCard, isFalse);
 
-      // Driver presses back: returns to /home -> mini float reappears!
+      // Driver presses back: returns to /home -> mini float stays closed!
       notifier.updateCurrentRoute('/home');
       expect(container.read(tripMiniOverlayControllerProvider).isOnTripPage, isFalse);
-      expect(container.read(tripMiniOverlayControllerProvider).miniDismissed, isFalse);
-      expect(container.read(tripMiniOverlayControllerProvider).shouldShowInAppMiniCard, isTrue);
+      expect(container.read(tripMiniOverlayControllerProvider).miniDismissed, isTrue);
+      expect(container.read(tripMiniOverlayControllerProvider).shouldShowInAppMiniCard, isFalse);
     });
 
-    test('12. Repeat close -> open trip page -> back cycle 5 times cleanly with no duplicates', () async {
+    test('12. Explicit re-enabling: mini float can be manually restored via showInAppCard', () async {
       final trips = await mockRepo.getTrips();
       await mockRepo.startTrip(trips.first.tripId);
       await Future<void>.delayed(const Duration(milliseconds: 30));
 
       final notifier = container.read(tripMiniOverlayControllerProvider.notifier);
 
-      for (int i = 1; i <= 5; i++) {
-        // Step A: Driver is outside trip page, mini is visible
-        notifier.updateCurrentRoute('/home');
-        expect(container.read(tripMiniOverlayControllerProvider).shouldShowInAppMiniCard, isTrue,
-            reason: 'Iteration $i: mini should be visible on /home');
+      notifier.updateCurrentRoute('/home');
+      expect(container.read(tripMiniOverlayControllerProvider).shouldShowInAppMiniCard, isTrue);
 
-        // Step B: Driver dismisses mini
-        notifier.dismissInAppCard();
-        expect(container.read(tripMiniOverlayControllerProvider).shouldShowInAppMiniCard, isFalse,
-            reason: 'Iteration $i: mini should be hidden after dismiss');
+      // Driver dismisses mini
+      notifier.dismissInAppCard();
+      expect(container.read(tripMiniOverlayControllerProvider).shouldShowInAppMiniCard, isFalse);
+      expect(container.read(tripMiniOverlayControllerProvider).miniDismissed, isTrue);
 
-        // Step C: Driver opens Ongoing Trip page
-        notifier.setTripPageForeground(true);
-        expect(container.read(tripMiniOverlayControllerProvider).miniDismissed, isFalse,
-            reason: 'Iteration $i: miniDismissed must reset to false on trip page');
-        notifier.completeExitToTripPage();
-        expect(container.read(tripMiniOverlayControllerProvider).shouldShowInAppMiniCard, isFalse,
-            reason: 'Iteration $i: mini must be hidden on trip page');
-
-        // Step D: Driver presses back
-        notifier.setTripPageForeground(false);
-        expect(container.read(tripMiniOverlayControllerProvider).shouldShowInAppMiniCard, isTrue,
-            reason: 'Iteration $i: mini must reappear on back');
-      }
+      // Explicit user action to re-show mini float
+      notifier.showInAppCard();
+      expect(container.read(tripMiniOverlayControllerProvider).miniDismissed, isFalse);
+      expect(container.read(tripMiniOverlayControllerProvider).shouldShowInAppMiniCard, isTrue);
     });
 
     test('13. Trip ends while on the trip page: no mini on back', () async {
@@ -492,7 +480,7 @@ void main() {
       // Should not play exit animation because it was already dismissed
       expect(container.read(tripMiniOverlayControllerProvider).isExitingToTripPage, isFalse);
       expect(container.read(tripMiniOverlayControllerProvider).isOnTripPage, isTrue);
-      expect(container.read(tripMiniOverlayControllerProvider).miniDismissed, isFalse);
+      expect(container.read(tripMiniOverlayControllerProvider).miniDismissed, isTrue);
       expect(container.read(tripMiniOverlayControllerProvider).shouldShowInAppMiniCard, isFalse);
     });
 

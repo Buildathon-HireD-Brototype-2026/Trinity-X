@@ -34,7 +34,6 @@ class _TripDetailsScreenState extends ConsumerState<TripDetailsScreen> {
       if (widget.tripId != null) {
         ref.read(selectedTripIdProvider.notifier).select(widget.tripId!);
       }
-      ref.read(tripMiniOverlayControllerProvider.notifier).resetDismissedState();
       ref.read(tripMiniOverlayControllerProvider.notifier).setTripPageForeground(true);
     });
   }

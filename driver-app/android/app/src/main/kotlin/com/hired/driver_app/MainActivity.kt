@@ -63,22 +63,22 @@ class MainActivity : FlutterActivity() {
 
     override fun onPause() {
         super.onPause()
-        if (isTripRunning) {
+        if (isTripRunning && !isMiniDismissed && !TripForegroundService.isOverlayDismissedByUser) {
             TripForegroundService.setInstanceOverlayVisible(true)
         }
     }
 
     override fun onStop() {
         super.onStop()
-        if (isTripRunning) {
+        if (isTripRunning && !isMiniDismissed && !TripForegroundService.isOverlayDismissedByUser) {
             TripForegroundService.setInstanceOverlayVisible(true)
         }
     }
 
     override fun onUserLeaveHint() {
         super.onUserLeaveHint()
-        // If an ongoing trip is running, always show the floating overlay when leaving app
-        if (isTripRunning) {
+        // If an ongoing trip is running, show the floating overlay when leaving app only if not dismissed by user
+        if (isTripRunning && !isMiniDismissed && !TripForegroundService.isOverlayDismissedByUser) {
             TripForegroundService.setInstanceOverlayVisible(true)
         }
     }
@@ -145,6 +145,8 @@ class MainActivity : FlutterActivity() {
                     }
 
                     "startTripService" -> {
+                        isMiniDismissed = false
+                        TripForegroundService.resetOverlayDismissedByUser()
                         val args = call.arguments as? Map<*, *> ?: emptyMap<String, Any>()
                         val rawTripId = args["trip_id"]?.toString() ?: ""
                         val safeTripId = rawTripId.filter { it.isLetterOrDigit() || it == '-' || it == '_' }.take(64)
@@ -282,13 +284,10 @@ class MainActivity : FlutterActivity() {
                     }
 
                     "sendToBackgroundWithMini" -> {
-                        if (isTripRunning) {
-                            isMiniDismissed = false
+                        if (isTripRunning && !isMiniDismissed && !TripForegroundService.isOverlayDismissedByUser) {
                             TripForegroundService.setInstanceOverlayVisible(true)
-                            moveTaskToBack(true)
-                        } else {
-                            moveTaskToBack(true)
                         }
+                        moveTaskToBack(true)
                         result.success(true)
                     }
 
@@ -304,6 +303,7 @@ class MainActivity : FlutterActivity() {
 
         TripForegroundService.overlayCloseListener = {
             runOnUiThread {
+                isMiniDismissed = true
                 methodChannel?.invokeMethod("onOverlayClosedByUser", null)
             }
         }

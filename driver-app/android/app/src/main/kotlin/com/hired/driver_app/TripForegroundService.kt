@@ -58,10 +58,16 @@ class TripForegroundService : Service() {
             private set
         var isOverlayViewAdded = false
             private set
+        var isOverlayDismissedByUser = false
+            private set
         var overlayCloseListener: (() -> Unit)? = null
 
         var instance: TripForegroundService? = null
             private set
+
+        fun resetOverlayDismissedByUser() {
+            isOverlayDismissedByUser = false
+        }
 
         fun updateInstanceData(status: String?, pickup: String?, dropoff: String?, etaMins: Int?, passengerPhone: String? = null, isDark: Boolean? = null) {
             instance?.let { s ->
@@ -76,11 +82,16 @@ class TripForegroundService : Service() {
             }
         }
 
-        fun setInstanceOverlayVisible(visible: Boolean) {
+        fun setInstanceOverlayVisible(visible: Boolean, force: Boolean = false) {
+            if (force && visible) {
+                isOverlayDismissedByUser = false
+            }
             instance?.let { s ->
                 s.showOverlayRequested = visible
                 if (visible) {
-                    s.showOverlay()
+                    if (!isOverlayDismissedByUser) {
+                        s.showOverlay()
+                    }
                 } else {
                     s.hideOverlay()
                 }
@@ -149,9 +160,10 @@ class TripForegroundService : Service() {
 
         when (intent.action) {
             ACTION_START -> {
+                isOverlayDismissedByUser = false
                 extractData(intent)
                 startForeground(NOTIFICATION_ID, buildNotification())
-                if (showOverlayRequested) {
+                if (showOverlayRequested && !isOverlayDismissedByUser) {
                     showOverlay()
                 }
             }
@@ -159,7 +171,7 @@ class TripForegroundService : Service() {
                 extractData(intent)
                 updateOverlayUI()
                 updateNotification()
-                if (showOverlayRequested && !isOverlayViewAdded) {
+                if (showOverlayRequested && !isOverlayViewAdded && !isOverlayDismissedByUser) {
                     showOverlay()
                 }
             }
@@ -167,12 +179,15 @@ class TripForegroundService : Service() {
                 val visible = intent.getBooleanExtra(EXTRA_OVERLAY_VISIBLE, true)
                 showOverlayRequested = visible
                 if (visible) {
-                    showOverlay()
+                    if (!isOverlayDismissedByUser) {
+                        showOverlay()
+                    }
                 } else {
                     hideOverlay()
                 }
             }
             ACTION_STOP -> {
+                isOverlayDismissedByUser = false
                 stopTripTracking()
                 return START_NOT_STICKY
             }
@@ -297,6 +312,7 @@ class TripForegroundService : Service() {
     }
 
     private fun showOverlay() {
+        if (isOverlayDismissedByUser) return
         if (overlayView != null && isOverlayViewAdded) return
 
         // Verify overlay permission (Display over other apps e.g. Google Maps)
@@ -436,6 +452,8 @@ class TripForegroundService : Service() {
             isClickable = true
             isFocusable = false
             setOnClickListener {
+                isOverlayDismissedByUser = true
+                showOverlayRequested = false
                 hideOverlay()
                 overlayCloseListener?.invoke()
             }
@@ -794,8 +812,8 @@ class TripForegroundService : Service() {
 
     override fun onTaskRemoved(rootIntent: Intent?) {
         super.onTaskRemoved(rootIntent)
-        // If trip is running and status is ONGOING, ensure floating overlay remains active
-        if (isServiceRunning && status == "ONGOING") {
+        // If trip is running and status is ONGOING, ensure floating overlay remains active unless dismissed by user
+        if (isServiceRunning && status == "ONGOING" && !isOverlayDismissedByUser) {
             showOverlayRequested = true
             showOverlay()
         }
