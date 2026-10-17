@@ -52,6 +52,10 @@ class MockTripRepository implements TripRepository {
       ],
       assignedAt: _calcKolkataUtc(0, 8, 15),
       startedAt: _calcKolkataUtc(0, 9, 5),
+      pickupLat: 12.9784,
+      pickupLng: 77.6408,
+      dropoffLat: 12.9492,
+      dropoffLng: 77.6489,
     ),
     TripModel(
       tripId: '8421',
@@ -78,6 +82,10 @@ class MockTripRepository implements TripRepository {
         ),
       ],
       assignedAt: _calcKolkataUtc(0, 10, 0),
+      pickupLat: 12.8452,
+      pickupLng: 77.6602,
+      dropoffLat: 13.2007,
+      dropoffLng: 77.7088,
     ),
     TripModel(
       tripId: '8422',
@@ -98,6 +106,10 @@ class MockTripRepository implements TripRepository {
       expensesConfirmed: false,
       expenses: const [],
       assignedAt: _calcKolkataUtc(0, 16, 0),
+      pickupLat: 13.2185,
+      pickupLng: 77.7126,
+      dropoffLat: 12.9719,
+      dropoffLng: 77.5958,
     ),
     TripModel(
       tripId: '8423',
@@ -118,6 +130,10 @@ class MockTripRepository implements TripRepository {
       expensesConfirmed: false,
       expenses: const [],
       assignedAt: _calcKolkataUtc(0, 17, 30),
+      pickupLat: 12.8398,
+      pickupLng: 77.6770,
+      dropoffLat: 12.9678,
+      dropoffLng: 77.5989,
     ),
   ];
 

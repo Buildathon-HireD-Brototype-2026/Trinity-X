@@ -10,6 +10,7 @@ import '../../auth/presentation/controllers/auth_controller.dart';
 import '../../auth/presentation/controllers/driver_profile_controller.dart';
 import '../../profile/presentation/controllers/driver_documents_provider.dart';
 import '../../trips/domain/trip_model.dart';
+import '../../trips/application/navigation_launcher_service.dart';
 import '../../trips/presentation/controllers/current_trip_provider.dart';
 import '../../trips/presentation/controllers/trip_mini_overlay_controller.dart';
 
@@ -1932,6 +1933,8 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
                           onTap: isSelfieUploaded
                               ? () async {
                                   await ref.read(tripRepositoryProvider).startTrip(trip.tripId);
+                                  final startedTrip = trip.copyWith(status: 'ONGOING');
+                                  ref.read(navigationLauncherServiceProvider).handleTripStarted(startedTrip);
                                   if (sheetContext.mounted) {
                                     Navigator.of(sheetContext).pop();
                                   }

@@ -23,6 +23,7 @@ dependencies:
   # Storage & Caching
   flutter_secure_storage: ^9.2.4
   shared_preferences: ^2.5.3
+  path_provider: ^2.1.5
 
   # UI, Icons & Assets
   flutter_svg: ^2.0.17

@@ -8,6 +8,7 @@ import '../../../../core/storage/local_cache_service.dart';
 import '../../../auth/presentation/controllers/driver_profile_controller.dart';
 import '../../../trips/data/trip_native_bridge.dart';
 import '../../../trips/domain/trip_model.dart';
+import '../../application/navigation_launcher_service.dart';
 import 'current_trip_provider.dart';
 
 class TripMiniOverlayState {
@@ -223,6 +224,8 @@ class TripMiniOverlayNotifier extends StateNotifier<TripMiniOverlayState> {
     }
   }
 
+  bool _hasInitialTripsLoaded = false;
+
   void _handleTripsUpdate(List<TripModel> trips) {
     // Find if any trip is ONGOING
     final ongoing = trips.where((t) => t.isOngoing).firstOrNull;
@@ -230,6 +233,9 @@ class TripMiniOverlayNotifier extends StateNotifier<TripMiniOverlayState> {
     if (ongoing != null) {
       // Rule: Ongoing trip automatically links duty to Online
       _ref.read(driverProfileProvider.notifier).setOnline(true);
+
+      final isFirstLoad = !_hasInitialTripsLoaded;
+      _hasInitialTripsLoaded = true;
 
       final wasOngoing = state.isTripOngoing;
       final isNewTrip = state.ongoingTrip?.tripId != ongoing.tripId;
@@ -261,6 +267,13 @@ class TripMiniOverlayNotifier extends StateNotifier<TripMiniOverlayState> {
           overlayVisible: false,
         );
         _syncNativeTripState();
+
+        // Auto-open navigation only on live transition observed while app is active
+        if (isFirstLoad) {
+          _ref.read(navigationLauncherServiceProvider).markAutoOpenedForTrip(ongoing.tripId);
+        } else {
+          _ref.read(navigationLauncherServiceProvider).handleTripStarted(ongoing);
+        }
       } else {
         // Update ongoing trip details
         state = state.copyWith(ongoingTrip: ongoing);

@@ -64,6 +64,11 @@ class TripModel {
   final DateTime? assignedAt;
   final DateTime? startedAt;
   final DateTime? closedAt;
+  final double? pickupLat;
+  final double? pickupLng;
+  final double? dropoffLat;
+  final double? dropoffLng;
+  final String? routePolyline;
 
   const TripModel({
     required this.tripId,
@@ -86,11 +91,25 @@ class TripModel {
     this.assignedAt,
     this.startedAt,
     this.closedAt,
+    this.pickupLat = 12.9716,
+    this.pickupLng = 77.5946,
+    this.dropoffLat = 13.1986,
+    this.dropoffLng = 77.7066,
+    this.routePolyline,
   });
 
   bool get isAssigned => status.toUpperCase() == 'ASSIGNED';
   bool get isOngoing => status.toUpperCase() == 'ONGOING';
   bool get isClosed => status.toUpperCase() == 'CLOSED' || status.toUpperCase() == 'COMPLETED';
+  bool get hasValidCoordinates =>
+      pickupLat != null &&
+      pickupLng != null &&
+      dropoffLat != null &&
+      dropoffLng != null &&
+      pickupLat != 0.0 &&
+      pickupLng != 0.0 &&
+      dropoffLat != 0.0 &&
+      dropoffLng != 0.0;
 
   TripModel copyWith({
     String? tripId,
@@ -113,6 +132,11 @@ class TripModel {
     DateTime? assignedAt,
     DateTime? startedAt,
     DateTime? closedAt,
+    double? pickupLat,
+    double? pickupLng,
+    double? dropoffLat,
+    double? dropoffLng,
+    String? routePolyline,
   }) {
     return TripModel(
       tripId: tripId ?? this.tripId,
@@ -135,6 +159,11 @@ class TripModel {
       assignedAt: assignedAt ?? this.assignedAt,
       startedAt: startedAt ?? this.startedAt,
       closedAt: closedAt ?? this.closedAt,
+      pickupLat: pickupLat ?? this.pickupLat,
+      pickupLng: pickupLng ?? this.pickupLng,
+      dropoffLat: dropoffLat ?? this.dropoffLat,
+      dropoffLng: dropoffLng ?? this.dropoffLng,
+      routePolyline: routePolyline ?? this.routePolyline,
     );
   }
 
@@ -159,6 +188,11 @@ class TripModel {
     if (assignedAt != null) 'assigned_at': assignedAt!.toIso8601String(),
     if (startedAt != null) 'started_at': startedAt!.toIso8601String(),
     if (closedAt != null) 'closed_at': closedAt!.toIso8601String(),
+    if (pickupLat != null) 'pickup_lat': pickupLat,
+    if (pickupLng != null) 'pickup_lng': pickupLng,
+    if (dropoffLat != null) 'dropoff_lat': dropoffLat,
+    if (dropoffLng != null) 'dropoff_lng': dropoffLng,
+    if (routePolyline != null) 'route_polyline': routePolyline,
   };
 
   factory TripModel.fromJson(Map<String, dynamic> json) {
@@ -188,6 +222,11 @@ class TripModel {
       assignedAt: json['assigned_at'] != null ? DateTime.tryParse(json['assigned_at'].toString()) : null,
       startedAt: json['started_at'] != null ? DateTime.tryParse(json['started_at'].toString()) : null,
       closedAt: json['closed_at'] != null ? DateTime.tryParse(json['closed_at'].toString()) : null,
+      pickupLat: (json['pickup_lat'] as num?)?.toDouble() ?? 12.9716,
+      pickupLng: (json['pickup_lng'] as num?)?.toDouble() ?? 77.5946,
+      dropoffLat: (json['dropoff_lat'] as num?)?.toDouble() ?? 13.1986,
+      dropoffLng: (json['dropoff_lng'] as num?)?.toDouble() ?? 77.7066,
+      routePolyline: json['route_polyline']?.toString(),
     );
   }
 }

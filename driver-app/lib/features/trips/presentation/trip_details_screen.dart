@@ -10,6 +10,9 @@ import '../../../core/routing/route_names.dart';
 import '../../../core/theme/app_theme_colors.dart';
 import '../../../core/widgets/app_loading_indicator.dart';
 import '../domain/trip_model.dart';
+import '../application/navigation_launcher_service.dart';
+import 'widgets/route_card_map_preview.dart';
+import 'widgets/trip_navigate_button.dart';
 import 'controllers/current_trip_provider.dart';
 import 'controllers/trip_mini_overlay_controller.dart';
 
@@ -128,30 +131,14 @@ class _TripDetailsScreenState extends ConsumerState<TripDetailsScreen> {
           tooltip: 'Back',
           onPressed: _handleBack,
         ),
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Trip Details',
-              style: TextStyle(
-                color: themeColors.textPrimary,
-                fontSize: 17,
-                fontWeight: FontWeight.w700,
-                letterSpacing: -0.3,
-              ),
-            ),
-            if (trip != null && trip.companyName.isNotEmpty)
-              Text(
-                trip.companyName,
-                style: TextStyle(
-                  color: themeColors.textSecondary,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w500,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-          ],
+        title: Text(
+          'Trip Details',
+          style: TextStyle(
+            color: themeColors.textPrimary,
+            fontSize: 18,
+            fontWeight: FontWeight.w700,
+            letterSpacing: -0.3,
+          ),
         ),
         actions: [
           if (trip != null)
@@ -459,7 +446,11 @@ class _TripDetailsScreenState extends ConsumerState<TripDetailsScreen> {
               ),
             ],
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 14),
+
+          // 1. Static Map Preview Banner
+          RouteCardMapPreview(trip: trip),
+          const SizedBox(height: 14),
 
           // Pickup Location Row
           Row(
@@ -575,6 +566,9 @@ class _TripDetailsScreenState extends ConsumerState<TripDetailsScreen> {
               ),
             ],
           ),
+
+          // Phase-Aware Navigate Button
+          TripNavigateButton(trip: trip),
         ],
       ),
     );
@@ -1562,6 +1556,8 @@ class _TripDetailsScreenState extends ConsumerState<TripDetailsScreen> {
                             setSheetState(() => isStarting = true);
                             try {
                               await ref.read(tripRepositoryProvider).startTrip(trip.tripId);
+                              final startedTrip = trip.copyWith(status: 'ONGOING');
+                              ref.read(navigationLauncherServiceProvider).handleTripStarted(startedTrip);
                               if (sheetCtx.mounted) Navigator.of(sheetCtx).pop();
                               if (context.mounted) {
                                 ScaffoldMessenger.of(context).showSnackBar(
