@@ -116,6 +116,7 @@ export default function Sidebar({
           return (
             <button
               key={item.id}
+              id={`nav-${item.id}`}
               type="button"
               className={`sidebar-nav-item ${isActive ? 'active' : ''}`}
               onClick={() => onSelectView(item.id)}
@@ -155,6 +156,7 @@ export default function Sidebar({
 
         <button
           type="button"
+          id="sidebar-logout-btn"
           className="sidebar-logout-btn"
           onClick={logout}
           title="Sign out of console"

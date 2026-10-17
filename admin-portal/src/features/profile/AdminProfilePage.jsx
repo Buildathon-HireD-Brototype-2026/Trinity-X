@@ -83,16 +83,22 @@ export default function AdminProfilePage({ onNavigate }) {
     const errors = {};
     if (!formData.name.trim() || formData.name.trim().length < 2) {
       errors.name = 'Full name is required (minimum 2 characters)';
+    } else if (formData.name.trim().length > 50) {
+      errors.name = 'Full name cannot exceed 50 characters';
     }
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!formData.email.trim() || !emailRegex.test(formData.email.trim())) {
       errors.email = 'Please enter a valid email address';
+    } else if (formData.email.trim().length > 50) {
+      errors.email = 'Email cannot exceed 50 characters';
     }
 
     const digitsOnly = formData.phone.replace(/\D/g, '');
     if (!formData.phone.trim() || digitsOnly.length < 10) {
       errors.phone = 'Please enter a valid phone number (minimum 10 digits)';
+    } else if (formData.phone.trim().length > 20) {
+      errors.phone = 'Phone number cannot exceed 20 characters';
     }
 
     return errors;
@@ -320,6 +326,7 @@ export default function AdminProfilePage({ onNavigate }) {
                 <input
                   id="admin-name-input"
                   type="text"
+                  maxLength={50}
                   className={`profile-form-input ${formErrors.name ? 'has-error' : ''}`}
                   value={formData.name}
                   onChange={(e) => {
@@ -346,6 +353,7 @@ export default function AdminProfilePage({ onNavigate }) {
                 <input
                   id="admin-phone-input"
                   type="tel"
+                  maxLength={20}
                   className={`profile-form-input ${formErrors.phone ? 'has-error' : ''}`}
                   value={formData.phone}
                   onChange={(e) => {
@@ -371,6 +379,7 @@ export default function AdminProfilePage({ onNavigate }) {
                 <input
                   id="admin-email-input"
                   type="email"
+                  maxLength={50}
                   className={`profile-form-input ${formErrors.email ? 'has-error' : ''}`}
                   value={formData.email}
                   onChange={(e) => {
