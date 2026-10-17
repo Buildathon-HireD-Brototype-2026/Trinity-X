@@ -75,7 +75,7 @@ class MainActivity : FlutterActivity() {
         super.onPause()
         isAppInForeground = false
         // When leaving app (Recent apps, Home, back exit) during an ongoing trip, show floating overlay if not dismissed by user
-        if (isTripRunning) {
+        if (isTripRunning || TripForegroundService.isServiceRunning) {
             isNavigatingToTripDetails = false
             TripForegroundService.setInstanceOverlayVisible(true)
         }
@@ -84,7 +84,7 @@ class MainActivity : FlutterActivity() {
     override fun onStop() {
         super.onStop()
         isAppInForeground = false
-        if (isTripRunning) {
+        if (isTripRunning || TripForegroundService.isServiceRunning) {
             isNavigatingToTripDetails = false
             TripForegroundService.setInstanceOverlayVisible(true)
         }
@@ -93,10 +93,20 @@ class MainActivity : FlutterActivity() {
     override fun onUserLeaveHint() {
         super.onUserLeaveHint()
         // Driver pressed Home or Recent apps: show floating overlay if not dismissed by user
-        if (isTripRunning) {
+        if (isTripRunning || TripForegroundService.isServiceRunning) {
             isNavigatingToTripDetails = false
             TripForegroundService.setInstanceOverlayVisible(true)
         }
+    }
+
+    override fun popSystemNavigator(): Boolean {
+        moveTaskToBack(true)
+        return true
+    }
+
+    @Deprecated("Deprecated in Java")
+    override fun onBackPressed() {
+        moveTaskToBack(true)
     }
 
     override fun onPictureInPictureModeChanged(isInPictureInPictureMode: Boolean, newConfig: Configuration) {
@@ -147,6 +157,7 @@ class MainActivity : FlutterActivity() {
                     }
 
                     "startTripService" -> {
+                        isTripRunning = true
                         isMiniDismissed = false
                         TripForegroundService.resetOverlayDismissedByUser()
                         val args = call.arguments as? Map<*, *> ?: emptyMap<String, Any>()
@@ -243,6 +254,7 @@ class MainActivity : FlutterActivity() {
                     }
 
                     "stopTripService" -> {
+                        isTripRunning = false
                         try {
                             val intent = Intent(this@MainActivity, TripForegroundService::class.java).apply {
                                 action = TripForegroundService.ACTION_STOP

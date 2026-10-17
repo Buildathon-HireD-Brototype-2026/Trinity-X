@@ -108,9 +108,10 @@ class _TripDetailsScreenState extends ConsumerState<TripDetailsScreen> {
     }
 
     return PopScope(
-      canPop: true,
+      canPop: false,
       onPopInvokedWithResult: (didPop, result) {
-        ref.read(tripMiniOverlayControllerProvider.notifier).setTripPageForeground(false);
+        if (didPop) return;
+        _handleBack();
       },
       child: Scaffold(
         backgroundColor: themeColors.pageBackground,
