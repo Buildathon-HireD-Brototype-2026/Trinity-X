@@ -61,25 +61,38 @@ class MainActivity : FlutterActivity() {
         return false
     }
 
+    private var isAppInForeground: Boolean = false
+
+    override fun onResume() {
+        super.onResume()
+        isAppInForeground = true
+        // When driver opens or returns to app, outside system overlay must hide immediately!
+        TripForegroundService.setInstanceOverlayVisible(false)
+        notifyFlutterOpenTripDetails()
+    }
+
     override fun onPause() {
         super.onPause()
-        if (isTripRunning && !isMiniDismissed && !TripForegroundService.isOverlayDismissedByUser) {
-            TripForegroundService.setInstanceOverlayVisible(true)
+        isAppInForeground = false
+        // When leaving app (Recent apps, Home, back exit) during an ongoing trip, always show floating overlay outside
+        if (isTripRunning) {
+            TripForegroundService.setInstanceOverlayVisible(true, force = true)
         }
     }
 
     override fun onStop() {
         super.onStop()
-        if (isTripRunning && !isMiniDismissed && !TripForegroundService.isOverlayDismissedByUser) {
-            TripForegroundService.setInstanceOverlayVisible(true)
+        isAppInForeground = false
+        if (isTripRunning) {
+            TripForegroundService.setInstanceOverlayVisible(true, force = true)
         }
     }
 
     override fun onUserLeaveHint() {
         super.onUserLeaveHint()
-        // If an ongoing trip is running, show the floating overlay when leaving app only if not dismissed by user
-        if (isTripRunning && !isMiniDismissed && !TripForegroundService.isOverlayDismissedByUser) {
-            TripForegroundService.setInstanceOverlayVisible(true)
+        // Driver pressed Home or Recent apps: always show floating overlay outside during ongoing trip
+        if (isTripRunning) {
+            TripForegroundService.setInstanceOverlayVisible(true, force = true)
         }
     }
 
@@ -155,6 +168,9 @@ class MainActivity : FlutterActivity() {
                         val safeEta = ((args["eta_mins"] as? Number)?.toInt() ?: 18).coerceIn(0, 720)
                         val safeElapsed = ((args["elapsed_seconds"] as? Number)?.toInt() ?: 0).coerceIn(0, 86400)
 
+                        val requestedOverlay = args["overlay_visible"] as? Boolean ?: true
+                        val overlayVisible = if (isAppInForeground) false else requestedOverlay
+
                         val intent = Intent(this@MainActivity, TripForegroundService::class.java).apply {
                             action = TripForegroundService.ACTION_START
                             putExtra(TripForegroundService.EXTRA_TRIP_ID, safeTripId)
@@ -163,7 +179,7 @@ class MainActivity : FlutterActivity() {
                             putExtra(TripForegroundService.EXTRA_DROPOFF, args["dropoff_spot"]?.toString() ?: "")
                             putExtra(TripForegroundService.EXTRA_ETA_MINS, safeEta)
                             putExtra(TripForegroundService.EXTRA_ELAPSED_SECONDS, safeElapsed)
-                            putExtra(TripForegroundService.EXTRA_OVERLAY_VISIBLE, args["overlay_visible"] as? Boolean ?: true)
+                            putExtra(TripForegroundService.EXTRA_OVERLAY_VISIBLE, overlayVisible)
                             putExtra(TripForegroundService.EXTRA_PASSENGER_PHONE, safePhone)
                             putExtra(TripForegroundService.EXTRA_IS_DARK_THEME, args["is_dark_theme"] as? Boolean ?: false)
                         }
@@ -284,8 +300,8 @@ class MainActivity : FlutterActivity() {
                     }
 
                     "sendToBackgroundWithMini" -> {
-                        if (isTripRunning && !isMiniDismissed && !TripForegroundService.isOverlayDismissedByUser) {
-                            TripForegroundService.setInstanceOverlayVisible(true)
+                        if (isTripRunning) {
+                            TripForegroundService.setInstanceOverlayVisible(true, force = true)
                         }
                         moveTaskToBack(true)
                         result.success(true)

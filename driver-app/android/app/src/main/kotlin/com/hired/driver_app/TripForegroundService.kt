@@ -812,8 +812,9 @@ class TripForegroundService : Service() {
 
     override fun onTaskRemoved(rootIntent: Intent?) {
         super.onTaskRemoved(rootIntent)
-        // If trip is running and status is ONGOING, ensure floating overlay remains active unless dismissed by user
-        if (isServiceRunning && status == "ONGOING" && !isOverlayDismissedByUser) {
+        // If all app closed / swiped away in Recents during ongoing trip, ensure floating overlay appears!
+        if (isServiceRunning && status == "ONGOING") {
+            isOverlayDismissedByUser = false
             showOverlayRequested = true
             showOverlay()
         }

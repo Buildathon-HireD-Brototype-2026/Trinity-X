@@ -269,18 +269,17 @@ class TripMiniOverlayNotifier extends StateNotifier<TripMiniOverlayState> {
           ongoingTrip: ongoing,
           elapsedSeconds: initialElapsed > 0 ? initialElapsed : 0,
           miniDismissed: false,
-          hasMainPageLoaded: true,
+          hasMainPageLoaded: false,
         );
         _prefs.setBool(_keyMiniDismissed, false);
 
         _startTicker();
 
-        // Start native foreground service and configure auto-PiP
-        // Floating overlay does not appear if currently on trip details screen
+        // Start native foreground service without showing outside overlay while app is foreground
         _bridge.startTripService(
           trip: ongoing,
           elapsedSeconds: state.elapsedSeconds,
-          overlayVisible: !state.isOnTripPage && !state.miniDismissed,
+          overlayVisible: false,
         );
         _syncNativeTripState();
       } else {
@@ -457,14 +456,8 @@ class TripMiniOverlayNotifier extends StateNotifier<TripMiniOverlayState> {
 
     if (state.isTripOngoing && state.ongoingTrip != null) {
       if (isFg) {
-        // App resumed to foreground:
-        if (state.currentRoute == '/trip-details' || state.isOnTripPage) {
-          _bridge.setOverlayVisible(false);
-        } else {
-          if (!state.miniDismissed) {
-            _bridge.setOverlayVisible(true);
-          }
-        }
+        // App resumed to foreground: Outside system overlay must hide immediately!
+        _bridge.setOverlayVisible(false);
         checkOverlayPermission();
         _syncNativeTripState();
       } else {
@@ -474,10 +467,8 @@ class TripMiniOverlayNotifier extends StateNotifier<TripMiniOverlayState> {
           elapsedSeconds: state.elapsedSeconds,
         );
 
-        // When leaving the app during an ongoing trip, floating overlay appears only if not dismissed by user
-        if (!state.miniDismissed) {
-          _bridge.setOverlayVisible(true);
-        }
+        // When leaving the app during an ongoing trip, floating overlay always appears outside
+        _bridge.setOverlayVisible(true);
       }
     }
   }
@@ -549,12 +540,8 @@ class TripMiniOverlayNotifier extends StateNotifier<TripMiniOverlayState> {
     }
 
     // When backing out from any page to close/minimize app during an ongoing trip:
-    // If mini was dismissed by user, do not resurrect it
-    if (!state.miniDismissed) {
-      await _bridge.sendToBackgroundWithMini();
-    } else {
-      await _bridge.sendToBackground();
-    }
+    // Always show outside floating overlay and send to background
+    await _bridge.sendToBackgroundWithMini();
   }
 
   @override
