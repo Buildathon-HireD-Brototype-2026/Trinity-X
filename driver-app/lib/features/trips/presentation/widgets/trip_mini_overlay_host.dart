@@ -5,10 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/routing/app_router.dart';
 import '../../../../core/routing/route_names.dart';
-import '../../../auth/presentation/controllers/auth_controller.dart';
-import '../controllers/current_trip_provider.dart';
 import '../controllers/trip_mini_overlay_controller.dart';
-import 'trip_mini_floating_card.dart';
 import 'trip_pip_view.dart';
 
 /// Wraps the root MaterialApp.router to inject the In-App Floating Mini Card
@@ -36,62 +33,10 @@ class _TripMiniOverlayHostState extends ConsumerState<TripMiniOverlayHost>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
 
-    _openSub = ref.read(tripNativeBridgeProvider).onOpenTripDetailsFromOverlay.listen((tripId) {
-      if (!mounted) return;
+    _openSub = ref.read(tripNativeBridgeProvider).onOpenTripDetailsFromOverlay.listen((_) {});
 
-      // Security check: Only navigate if user is not explicitly unauthenticated
-      final authStatus = ref.read(authControllerProvider).status;
-      if (authStatus == AuthStatus.unauthenticated) {
-        return;
-      }
-
-      // Security check: Validate tripId against driver's available trips
-      if (tripId != null) {
-        final allTrips = ref.read(allTripsProvider).valueOrNull ?? [];
-        if (allTrips.isNotEmpty) {
-          final matchingTrip = allTrips.where((t) => t.tripId == tripId).firstOrNull;
-          if (matchingTrip != null) {
-            ref.read(selectedTripIdProvider.notifier).select(tripId);
-          } else {
-            // Unverified tripId passed from outside intent: fall back to active trip if any
-            final ongoing = allTrips.where((t) => t.isOngoing).firstOrNull;
-            if (ongoing != null) {
-              ref.read(selectedTripIdProvider.notifier).select(ongoing.tripId);
-            }
-          }
-        } else {
-          ref.read(selectedTripIdProvider.notifier).select(tripId);
-        }
-      }
-
-      try {
-        final currentLoc = GoRouter.of(context).routeInformationProvider.value.uri.path;
-        if (currentLoc == RouteNames.tripDetails || currentLoc == '/trip-details') {
-          return;
-        }
-      } catch (_) {}
-      context.push(RouteNames.tripDetails, extra: tripId);
-    });
-
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
       _checkRoute();
-      // Cold-start fallback: Check if user tapped floating overlay or notification to open trip
-      final pending = await ref.read(tripNativeBridgeProvider).checkPendingOpenTrip();
-      if (!mounted) return;
-      if (pending['should_open'] == true) {
-        final tId = pending['trip_id'] as String?;
-        if (tId != null) {
-          ref.read(selectedTripIdProvider.notifier).select(tId);
-        }
-        try {
-          final currentLoc = GoRouter.of(context).routeInformationProvider.value.uri.path;
-          if (currentLoc != RouteNames.tripDetails && currentLoc != '/trip-details') {
-            context.push(RouteNames.tripDetails, extra: tId);
-          }
-        } catch (_) {
-          context.push(RouteNames.tripDetails, extra: tId);
-        }
-      }
     });
   }
 
@@ -104,6 +49,8 @@ class _TripMiniOverlayHostState extends ConsumerState<TripMiniOverlayHost>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (!mounted) return;
+    if (state == AppLifecycleState.detached) return;
     ref.read(tripMiniOverlayControllerProvider.notifier).handleLifecycleChange(state);
   }
 
@@ -173,10 +120,6 @@ class _TripMiniOverlayHostState extends ConsumerState<TripMiniOverlayHost>
     if (isInPiP) {
       return const TripPiPView();
     }
-
-    final shouldShow = ref.watch(
-      tripMiniOverlayControllerProvider.select((s) => s.shouldShowInAppMiniCard),
-    );
 
     // Single source of truth: back interception is active ONLY while a trip is running
     final isTripRunning = ref.watch(

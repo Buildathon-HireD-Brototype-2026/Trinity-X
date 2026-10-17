@@ -51,24 +51,7 @@ class TripMiniOverlayState {
   ///    OR it is currently performing the exit animation into the trip screen
   /// 4. The mini float is NOT dismissed (!miniDismissed)
   /// 5. The app is NOT currently in Android Picture-in-Picture mode
-  bool get shouldShowInAppMiniCard {
-    if (!hasMainPageLoaded) return false;
-    if (!isTripOngoing) return false;
-    if (isOnTripPage && !isExitingToTripPage) return false;
-    if (miniDismissed) return false;
-    if (isInPiPMode) return false;
-
-    // Explicitly forbidden on splash, login, or trip-details
-    final isBlockedRoute = currentRoute == RouteNames.splash ||
-        currentRoute == '/splash' ||
-        currentRoute == RouteNames.login ||
-        currentRoute == '/login' ||
-        currentRoute == RouteNames.tripDetails ||
-        currentRoute == '/trip-details';
-    if (isBlockedRoute) return false;
-
-    return true;
-  }
+  bool get shouldShowInAppMiniCard => false;
 
   /// External mini UI (PiP or Overlay) should show when:
   /// 1. Trip is currently ongoing
@@ -180,12 +163,8 @@ class TripMiniOverlayNotifier extends StateNotifier<TripMiniOverlayState> {
       dismissInAppCard();
     });
 
-    // Listen to tap on overlay or notification requesting to open trip screen
-    _openTripDetailsSub = _bridge.onOpenTripDetailsFromOverlay.listen((tripId) {
-      if (tripId != null) {
-        _ref.read(selectedTripIdProvider.notifier).select(tripId);
-      }
-    });
+    // Listen to tap on overlay or notification requesting to bring app to front
+    _openTripDetailsSub = _bridge.onOpenTripDetailsFromOverlay.listen((_) {});
 
     // Listen to Picture-in-Picture mode transitions
     _pipModeSub = _bridge.onPictureInPictureModeChanged.listen((inPiP) {
@@ -403,9 +382,9 @@ class TripMiniOverlayNotifier extends StateNotifier<TripMiniOverlayState> {
         hasMainPageLoaded: true,
       );
       _prefs.setBool(_keyIsOnTripPage, false);
-      _syncNativeTripState();
-      // Floating overlay appears when leaving Ongoing Trip Details screen only if not dismissed
-      if (state.isTripOngoing && !state.miniDismissed) {
+      // Floating overlay stays hidden while app is open in foreground.
+      // It only appears outside the app when in background.
+      if (!state.isForeground && state.isTripOngoing && !state.miniDismissed) {
         _bridge.setOverlayVisible(true);
       }
     }
@@ -451,12 +430,13 @@ class TripMiniOverlayNotifier extends StateNotifier<TripMiniOverlayState> {
 
   /// Called on AppLifecycleState changes (foreground/background transitions).
   void handleLifecycleChange(AppLifecycleState lifecycle) {
+    if (!mounted || lifecycle == AppLifecycleState.detached) return;
     final isFg = lifecycle == AppLifecycleState.resumed;
     state = state.copyWith(isForeground: isFg);
 
     if (state.isTripOngoing && state.ongoingTrip != null) {
       if (isFg) {
-        // App resumed to foreground: Outside system overlay must hide immediately!
+        // When app is open / foreground: mini float must disappear!
         _bridge.setOverlayVisible(false);
         checkOverlayPermission();
         _syncNativeTripState();
@@ -467,8 +447,10 @@ class TripMiniOverlayNotifier extends StateNotifier<TripMiniOverlayState> {
           elapsedSeconds: state.elapsedSeconds,
         );
 
-        // When leaving the app during an ongoing trip, floating overlay always appears outside
-        _bridge.setOverlayVisible(true);
+        // When leaving the app during an ongoing trip, floating overlay appears outside unless dismissed by user
+        if (!state.miniDismissed) {
+          _bridge.setOverlayVisible(true);
+        }
       }
     }
   }

@@ -10,7 +10,6 @@ import '../../auth/presentation/controllers/auth_controller.dart';
 import '../../auth/presentation/controllers/driver_profile_controller.dart';
 import '../../profile/presentation/controllers/driver_documents_provider.dart';
 import '../../trips/domain/trip_model.dart';
-import '../../trips/data/trip_native_bridge.dart';
 import '../../trips/presentation/controllers/current_trip_provider.dart';
 import '../../trips/presentation/controllers/trip_mini_overlay_controller.dart';
 

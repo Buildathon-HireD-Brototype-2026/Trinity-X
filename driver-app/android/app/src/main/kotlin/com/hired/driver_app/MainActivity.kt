@@ -26,6 +26,7 @@ class MainActivity : FlutterActivity() {
     private var methodChannel: MethodChannel? = null
     private var pendingOpenTripDetails: Boolean = false
     private var pendingTripId: String? = null
+    private var isNavigatingToTripDetails: Boolean = false
 
     private var isTripRunning: Boolean = false
     private var isMiniDismissed: Boolean = false
@@ -66,7 +67,6 @@ class MainActivity : FlutterActivity() {
     override fun onResume() {
         super.onResume()
         isAppInForeground = true
-        // When driver opens or returns to app, outside system overlay must hide immediately!
         TripForegroundService.setInstanceOverlayVisible(false)
         notifyFlutterOpenTripDetails()
     }
@@ -74,9 +74,10 @@ class MainActivity : FlutterActivity() {
     override fun onPause() {
         super.onPause()
         isAppInForeground = false
-        // When leaving app (Recent apps, Home, back exit) during an ongoing trip, always show floating overlay outside
+        // When leaving app (Recent apps, Home, back exit) during an ongoing trip, show floating overlay if not dismissed by user
         if (isTripRunning) {
-            TripForegroundService.setInstanceOverlayVisible(true, force = true)
+            isNavigatingToTripDetails = false
+            TripForegroundService.setInstanceOverlayVisible(true)
         }
     }
 
@@ -84,15 +85,17 @@ class MainActivity : FlutterActivity() {
         super.onStop()
         isAppInForeground = false
         if (isTripRunning) {
-            TripForegroundService.setInstanceOverlayVisible(true, force = true)
+            isNavigatingToTripDetails = false
+            TripForegroundService.setInstanceOverlayVisible(true)
         }
     }
 
     override fun onUserLeaveHint() {
         super.onUserLeaveHint()
-        // Driver pressed Home or Recent apps: always show floating overlay outside during ongoing trip
+        // Driver pressed Home or Recent apps: show floating overlay if not dismissed by user
         if (isTripRunning) {
-            TripForegroundService.setInstanceOverlayVisible(true, force = true)
+            isNavigatingToTripDetails = false
+            TripForegroundService.setInstanceOverlayVisible(true)
         }
     }
 
@@ -106,24 +109,10 @@ class MainActivity : FlutterActivity() {
 
     private fun handleIntent(intent: Intent?) {
         if (intent == null) return
-        if (intent.getBooleanExtra("open_trip_details", false)) {
-            pendingOpenTripDetails = true
-            pendingTripId = intent.getStringExtra("trip_id")
-            intent.removeExtra("open_trip_details")
-            intent.removeExtra("trip_id")
-            // Immediate overlay hide when launched to open trip details
-            TripForegroundService.setInstanceOverlayVisible(false)
-            notifyFlutterOpenTripDetails()
-        }
+        TripForegroundService.setInstanceOverlayVisible(false)
     }
 
-    private fun notifyFlutterOpenTripDetails() {
-        if (pendingOpenTripDetails && methodChannel != null) {
-            methodChannel?.invokeMethod("onOpenTripDetailsFromOverlay", mapOf("trip_id" to pendingTripId))
-            pendingOpenTripDetails = false
-            pendingTripId = null
-        }
-    }
+    private fun notifyFlutterOpenTripDetails() {}
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -227,10 +216,19 @@ class MainActivity : FlutterActivity() {
                     }
 
                     "setOverlayVisible" -> {
-                        val visible = call.arguments as? Boolean ?: true
+                        val requestedVisible = call.arguments as? Boolean ?: true
+                        val visible = if (isAppInForeground) false else requestedVisible
+                        if (visible) {
+                            if (isNavigatingToTripDetails || pendingOpenTripDetails) {
+                                result.success(true)
+                                return@setMethodCallHandler
+                            }
+                        } else {
+                            isNavigatingToTripDetails = true
+                        }
                         if (TripForegroundService.instance != null) {
                             runOnUiThread {
-                                TripForegroundService.setInstanceOverlayVisible(visible)
+                                TripForegroundService.setInstanceOverlayVisible(visible, force = visible)
                             }
                         } else if (TripForegroundService.isServiceRunning) {
                             try {

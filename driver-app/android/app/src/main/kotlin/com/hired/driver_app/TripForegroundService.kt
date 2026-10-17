@@ -83,17 +83,17 @@ class TripForegroundService : Service() {
         }
 
         fun setInstanceOverlayVisible(visible: Boolean, force: Boolean = false) {
-            if (force && visible) {
-                isOverlayDismissedByUser = false
-            }
-            instance?.let { s ->
-                s.showOverlayRequested = visible
-                if (visible) {
-                    if (!isOverlayDismissedByUser) {
-                        s.showOverlay()
+            val handler = Handler(Looper.getMainLooper())
+            handler.post {
+                instance?.let { s ->
+                    s.showOverlayRequested = visible
+                    if (visible) {
+                        if (!isOverlayDismissedByUser) {
+                            s.showOverlay()
+                        }
+                    } else {
+                        s.hideOverlay()
                     }
-                } else {
-                    s.hideOverlay()
                 }
             }
         }
@@ -247,8 +247,6 @@ class TripForegroundService : Service() {
     private fun buildNotification(): Notification {
         val launchIntent = (packageManager.getLaunchIntentForPackage(packageName) ?: Intent(this, MainActivity::class.java)).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT or Intent.FLAG_ACTIVITY_SINGLE_TOP
-            putExtra("open_trip_details", true)
-            putExtra("trip_id", tripId)
         }
         val pendingIntent = PendingIntent.getActivity(
             this,
@@ -312,84 +310,92 @@ class TripForegroundService : Service() {
     }
 
     private fun showOverlay() {
-        if (isOverlayDismissedByUser) return
-        if (overlayView != null && isOverlayViewAdded) return
+        val handler = Handler(Looper.getMainLooper())
+        handler.post {
+            if (isOverlayDismissedByUser) return@post
+            if (overlayView != null && isOverlayViewAdded) return@post
 
-        // Verify overlay permission (Display over other apps e.g. Google Maps)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this)) {
-            return
-        }
-
-        try {
-            val wm = windowManager ?: return
-            val layout = createOverlayLayout()
-
-            val overlayType = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
-            } else {
-                @Suppress("DEPRECATION")
-                WindowManager.LayoutParams.TYPE_PHONE
+            // Verify overlay permission (Display over other apps e.g. Google Maps)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this)) {
+                return@post
             }
 
-            val metrics = DisplayMetrics()
-            wm.defaultDisplay.getMetrics(metrics)
+            try {
+                val wm = windowManager ?: (getSystemService(Context.WINDOW_SERVICE) as? WindowManager) ?: return@post
+                windowManager = wm
+                val layout = createOverlayLayout()
 
-            val cardWidthPx = dpToPx(135f)
-            val cardHeightPx = dpToPx(240f)
+                val overlayType = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+                } else {
+                    @Suppress("DEPRECATION")
+                    WindowManager.LayoutParams.TYPE_PHONE
+                }
 
-            // Restore last remembered position or use default
-            val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            val defaultX = metrics.widthPixels - cardWidthPx - dpToPx(12f)
-            val defaultY = dpToPx(100f)
-            val initialX = prefs.getInt(KEY_POS_X, defaultX).coerceIn(dpToPx(8f), metrics.widthPixels - cardWidthPx - dpToPx(8f))
-            val initialY = prefs.getInt(KEY_POS_Y, defaultY).coerceIn(dpToPx(24f), metrics.heightPixels - cardHeightPx - dpToPx(24f))
+                val metrics = DisplayMetrics()
+                wm.defaultDisplay.getMetrics(metrics)
 
-            layoutParams = WindowManager.LayoutParams(
-                cardWidthPx,
-                cardHeightPx,
-                overlayType,
-                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                        WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
-                PixelFormat.TRANSLUCENT
-            ).apply {
-                gravity = Gravity.TOP or Gravity.START
-                x = initialX
-                y = initialY
+                val cardWidthPx = dpToPx(135f)
+                val cardHeightPx = dpToPx(240f)
+
+                // Restore last remembered position or use default
+                val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                val defaultX = metrics.widthPixels - cardWidthPx - dpToPx(12f)
+                val defaultY = dpToPx(100f)
+                val initialX = prefs.getInt(KEY_POS_X, defaultX).coerceIn(dpToPx(8f), metrics.widthPixels - cardWidthPx - dpToPx(8f))
+                val initialY = prefs.getInt(KEY_POS_Y, defaultY).coerceIn(dpToPx(24f), metrics.heightPixels - cardHeightPx - dpToPx(24f))
+
+                layoutParams = WindowManager.LayoutParams(
+                    cardWidthPx,
+                    cardHeightPx,
+                    overlayType,
+                    WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                            WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+                    PixelFormat.TRANSLUCENT
+                ).apply {
+                    gravity = Gravity.TOP or Gravity.START
+                    x = initialX
+                    y = initialY
+                }
+
+                attachTouchListener(layout, layoutParams!!, wm, metrics.widthPixels, cardWidthPx)
+
+                // Smooth scale and fade-in animation
+                layout.alpha = 0f
+                layout.scaleX = 0.85f
+                layout.scaleY = 0.85f
+
+                wm.addView(layout, layoutParams)
+                overlayView = layout
+                isOverlayViewAdded = true
+                updateOverlayUI()
+
+                layout.animate()
+                    .alpha(1f)
+                    .scaleX(1f)
+                    .scaleY(1f)
+                    .setDuration(220)
+                    .setInterpolator(android.view.animation.DecelerateInterpolator())
+                    .start()
+            } catch (e: Exception) {
+                e.printStackTrace()
             }
-
-            attachTouchListener(layout, layoutParams!!, wm, metrics.widthPixels, cardWidthPx)
-
-            // Smooth scale and fade-in animation
-            layout.alpha = 0f
-            layout.scaleX = 0.85f
-            layout.scaleY = 0.85f
-
-            wm.addView(layout, layoutParams)
-            overlayView = layout
-            isOverlayViewAdded = true
-            updateOverlayUI()
-
-            layout.animate()
-                .alpha(1f)
-                .scaleX(1f)
-                .scaleY(1f)
-                .setDuration(220)
-                .setInterpolator(android.view.animation.DecelerateInterpolator())
-                .start()
-        } catch (e: Exception) {
-            e.printStackTrace()
         }
     }
 
     private fun hideOverlay() {
-        if (overlayView != null && isOverlayViewAdded) {
-            try {
-                windowManager?.removeView(overlayView)
-            } catch (e: Exception) {
-                e.printStackTrace()
-            } finally {
-                overlayView = null
-                isOverlayViewAdded = false
+        val handler = Handler(Looper.getMainLooper())
+        handler.post {
+            if (overlayView != null && isOverlayViewAdded) {
+                try {
+                    overlayView?.animate()?.cancel()
+                    windowManager?.removeView(overlayView)
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                } finally {
+                    overlayView = null
+                    isOverlayViewAdded = false
+                }
             }
         }
     }
@@ -762,8 +768,8 @@ class TripForegroundService : Service() {
                     val deltaY = Math.abs(event.rawY - initialTouchY)
 
                     if (deltaX < touchSlop && deltaY < touchSlop) {
-                        // Click / Tap: Bring app to ongoing trip page
-                        openAppToTripDetails()
+                        // Click / Tap: Bring app to front
+                        openApp()
                     } else {
                         // Drag completed: snap to nearest screen edge (left or right)
                         val snapMargin = dpToPx(12f)
@@ -789,11 +795,11 @@ class TripForegroundService : Service() {
         }
     }
 
-    private fun openAppToTripDetails() {
+    private fun openApp() {
+        showOverlayRequested = false
+        hideOverlay()
         val intent = (packageManager.getLaunchIntentForPackage(packageName) ?: Intent(this, MainActivity::class.java)).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT or Intent.FLAG_ACTIVITY_SINGLE_TOP
-            putExtra("open_trip_details", true)
-            putExtra("trip_id", tripId)
         }
         startActivity(intent)
     }
@@ -814,9 +820,10 @@ class TripForegroundService : Service() {
         super.onTaskRemoved(rootIntent)
         // If all app closed / swiped away in Recents during ongoing trip, ensure floating overlay appears!
         if (isServiceRunning && status == "ONGOING") {
-            isOverlayDismissedByUser = false
-            showOverlayRequested = true
-            showOverlay()
+            if (!isOverlayDismissedByUser) {
+                showOverlayRequested = true
+                showOverlay()
+            }
         }
     }
 

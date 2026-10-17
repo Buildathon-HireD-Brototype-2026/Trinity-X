@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../../core/routing/app_router.dart';
 import '../../../core/routing/route_names.dart';
 import '../../../core/theme/app_theme_colors.dart';
@@ -25,7 +26,6 @@ class TripDetailsScreen extends ConsumerStatefulWidget {
 
 class _TripDetailsScreenState extends ConsumerState<TripDetailsScreen> {
   final _otpController = TextEditingController();
-  bool _isSubmitting = false;
 
   @override
   void initState() {
@@ -139,9 +139,9 @@ class _TripDetailsScreenState extends ConsumerState<TripDetailsScreen> {
                 letterSpacing: -0.3,
               ),
             ),
-            if (trip != null)
+            if (trip != null && trip.companyName.isNotEmpty)
               Text(
-                '${trip.tripId} • ORD-${trip.orderId} • ${trip.companyName}',
+                trip.companyName,
                 style: TextStyle(
                   color: themeColors.textSecondary,
                   fontSize: 11,
@@ -382,30 +382,22 @@ class _TripDetailsScreenState extends ConsumerState<TripDetailsScreen> {
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
                 icon: const Icon(Icons.phone_rounded, color: Color(0xFF10B981), size: 20),
-                onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Calling client ${trip.contactName} (${trip.contactPhone})...'),
-                      behavior: SnackBarBehavior.floating,
-                    ),
-                  );
-                },
-              ),
-              const SizedBox(width: 8),
-              // Message action button
-              IconButton(
-                style: IconButton.styleFrom(
-                  backgroundColor: themeColors.purpleTint,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-                icon: Icon(Icons.chat_bubble_outline_rounded, color: themeColors.purpleAccent, size: 20),
-                onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Messaging client ${trip.contactName}...'),
-                      behavior: SnackBarBehavior.floating,
-                    ),
-                  );
+                tooltip: 'Call Passenger',
+                onPressed: () async {
+                  final phone = trip.contactPhone.replaceAll(RegExp(r'[^0-9+]'), '');
+                  final uri = Uri.parse('tel:$phone');
+                  if (await canLaunchUrl(uri)) {
+                    await launchUrl(uri);
+                  } else {
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Could not open phone dialer for $phone'),
+                          behavior: SnackBarBehavior.floating,
+                        ),
+                      );
+                    }
+                  }
                 },
               ),
             ],
@@ -1009,34 +1001,12 @@ class _TripDetailsScreenState extends ConsumerState<TripDetailsScreen> {
             ),
           ],
 
-          // In-Trip Expense Logging button (PRD D-08)
-          SizedBox(
-            height: 48,
-            child: OutlinedButton.icon(
-              icon: const Icon(Icons.receipt_long_rounded, color: Color(0xFF10B981), size: 20),
-              label: const Text(
-                'Add In-Trip Expense (Toll / Fuel / Parking)',
-                style: TextStyle(
-                  fontSize: 14.5,
-                  fontWeight: FontWeight.w600,
-                  color: Color(0xFF10B981),
-                ),
-              ),
-              style: OutlinedButton.styleFrom(
-                side: const BorderSide(color: Color(0xFF10B981), width: 1.5),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-              ),
-              onPressed: () => _showAddExpenseDialog(context, trip),
-            ),
-          ),
-          const SizedBox(height: 12),
-
           SizedBox(
             height: 52,
             child: ElevatedButton.icon(
               icon: const Icon(Icons.check_circle_outline_rounded, color: Colors.white, size: 22),
               label: const Text(
-                'Complete & Close Trip (OTP)',
+                'Complete Trip',
                 style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
               ),
               style: ElevatedButton.styleFrom(
@@ -1046,29 +1016,6 @@ class _TripDetailsScreenState extends ConsumerState<TripDetailsScreen> {
               ),
               onPressed: () => _showCloseTripModal(context, trip),
             ),
-          ),
-          const SizedBox(height: 10),
-          Center(
-            child: Text(
-              'Trip completion requires 6-digit OTP from passenger',
-              style: TextStyle(color: themeColors.textMuted, fontSize: 11),
-            ),
-          ),
-          const SizedBox(height: 16),
-
-          // Explicit Cancel Trip Button (Requirement 3)
-          OutlinedButton.icon(
-            icon: const Icon(Icons.cancel_outlined, color: Color(0xFFEF4444), size: 18),
-            label: const Text(
-              'Cancel Ongoing Trip',
-              style: TextStyle(color: Color(0xFFEF4444), fontWeight: FontWeight.w600, fontSize: 13.5),
-            ),
-            style: OutlinedButton.styleFrom(
-              side: const BorderSide(color: Color(0x66EF4444)),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              padding: const EdgeInsets.symmetric(vertical: 12),
-            ),
-            onPressed: () => _showCancelTripDialog(context, trip),
           ),
         ],
       );
@@ -1101,41 +1048,6 @@ class _TripDetailsScreenState extends ConsumerState<TripDetailsScreen> {
           'Trip Completed & Closed',
           style: TextStyle(color: Color(0xFF10B981), fontWeight: FontWeight.w700),
         ),
-      ),
-    );
-  }
-
-  void _showCancelTripDialog(BuildContext context, TripModel trip) {
-    showDialog(
-      context: context,
-      builder: (dialogCtx) => AlertDialog(
-        title: const Text('Cancel Ongoing Trip?'),
-        content: const Text(
-          'Are you sure you want to cancel this trip? This will stop tracking, dismiss the floating overlay, and notify operations.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogCtx).pop(),
-            child: const Text('Keep Trip'),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFEF4444)),
-            onPressed: () async {
-              Navigator.of(dialogCtx).pop();
-              await ref.read(tripRepositoryProvider).cancelTrip(trip.tripId);
-              if (context.mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Trip cancelled.'),
-                    backgroundColor: Color(0xFFEF4444),
-                    behavior: SnackBarBehavior.floating,
-                  ),
-                );
-              }
-            },
-            child: const Text('Cancel Trip', style: TextStyle(color: Colors.white)),
-          ),
-        ],
       ),
     );
   }
@@ -1202,7 +1114,8 @@ class _TripDetailsScreenState extends ConsumerState<TripDetailsScreen> {
   }) {
     String selectedCategory = prefilledCategory ?? 'Toll';
     final amountController = TextEditingController();
-    final otherNoteController = TextEditingController();
+    final headingController = TextEditingController();
+    final noteController = TextEditingController();
     final themeColors = context.appColors;
 
     showDialog(
@@ -1292,10 +1205,21 @@ class _TripDetailsScreenState extends ConsumerState<TripDetailsScreen> {
                   if (selectedCategory == 'Other') ...[
                     const SizedBox(height: 12),
                     TextField(
-                      controller: otherNoteController,
+                      controller: headingController,
+                      decoration: InputDecoration(
+                        labelText: 'Heading * (Required)',
+                        hintText: 'e.g. Repair, Wash, Tea',
+                        filled: true,
+                        fillColor: themeColors.innerBox,
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    TextField(
+                      controller: noteController,
                       decoration: InputDecoration(
                         labelText: 'Note (Optional)',
-                        hintText: 'e.g. Wash / Repair',
+                        hintText: 'Additional details (optional)',
                         filled: true,
                         fillColor: themeColors.innerBox,
                         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
@@ -1329,8 +1253,20 @@ class _TripDetailsScreenState extends ConsumerState<TripDetailsScreen> {
                     return;
                   }
 
-                  final desc = selectedCategory == 'Other' && otherNoteController.text.trim().isNotEmpty
-                      ? otherNoteController.text.trim()
+                  if (selectedCategory == 'Other' && headingController.text.trim().isEmpty) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Heading is compulsory when Other is selected.'),
+                        behavior: SnackBarBehavior.floating,
+                      ),
+                    );
+                    return;
+                  }
+
+                  final heading = headingController.text.trim();
+                  final note = noteController.text.trim();
+                  final desc = selectedCategory == 'Other'
+                      ? (note.isNotEmpty ? '$heading ($note)' : heading)
                       : selectedCategory;
 
                   Navigator.of(dialogCtx).pop();
@@ -1705,11 +1641,6 @@ class _TripDetailsScreenState extends ConsumerState<TripDetailsScreen> {
                     fontSize: 18,
                     fontWeight: FontWeight.w700,
                   ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'Ask passenger ${trip.contactName} for their 6-digit trip completion OTP code.',
-                  style: TextStyle(color: themeColors.textSecondary, fontSize: 12.5),
                 ),
                 const SizedBox(height: 16),
 
