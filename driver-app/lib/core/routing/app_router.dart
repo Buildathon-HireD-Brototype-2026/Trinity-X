@@ -10,6 +10,7 @@ import '../../features/profile/presentation/documents_screen.dart';
 import '../../features/profile/presentation/profile_screen.dart';
 import '../../features/trips/presentation/trip_details_screen.dart';
 import '../../features/trips/presentation/trips_screen.dart';
+import '../../features/wallet/presentation/wallet_screen.dart';
 import 'route_names.dart';
 import 'trip_route_observer.dart';
 
@@ -106,6 +107,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           final tripId = state.extra as String? ?? state.uri.queryParameters['tripId'];
           return TripDetailsScreen(tripId: tripId);
         },
+      ),
+      GoRoute(
+        path: RouteNames.wallet,
+        builder: (context, state) => const WalletScreen(),
       ),
     ],
   );

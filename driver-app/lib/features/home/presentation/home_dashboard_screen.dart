@@ -1294,7 +1294,7 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
             icon: Icons.account_balance_wallet_outlined,
             title: 'Wallet',
             subtitle: 'Check balance ›',
-            onTap: () => setState(() => _selectedNavIndex = 2),
+            onTap: () => context.push(RouteNames.wallet),
           ),
         ),
         const SizedBox(width: 10),
@@ -2267,6 +2267,10 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
     void handleTap() {
       if (index == 1) {
         context.push(RouteNames.trips);
+        return;
+      }
+      if (index == 2) {
+        context.push(RouteNames.wallet);
         return;
       }
       setState(() => _selectedNavIndex = index);

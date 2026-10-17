@@ -8,4 +8,5 @@ class RouteNames {
   static const String documents = '/documents';
   static const String trips = '/trips';
   static const String tripDetails = '/trip-details';
+  static const String wallet = '/wallet';
 }

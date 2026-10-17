@@ -648,11 +648,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               icon: Icons.account_balance_wallet_outlined,
               label: 'Wallet',
               onTap: () {
-                if (context.canPop()) {
-                  context.pop();
-                } else {
-                  context.go(RouteNames.home);
-                }
+                context.push(RouteNames.wallet);
               },
             ),
           ],
@@ -770,6 +766,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     label: 'Earnings & Wallet',
                     onTap: () {
                       Navigator.of(context).pop();
+                      context.push(RouteNames.wallet);
                     },
                   ),
                   _buildDrawerItem(

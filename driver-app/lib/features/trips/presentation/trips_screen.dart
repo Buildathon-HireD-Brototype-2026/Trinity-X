@@ -348,15 +348,23 @@ class _TripsScreenState extends ConsumerState<TripsScreen> {
                       decoration: BoxDecoration(
                         color: trip.isOngoing
                             ? (isDark ? const Color(0xFF1E3A8A) : const Color(0xFFDBEAFE))
-                            : (isDark ? const Color(0xFF78350F) : const Color(0xFFFEF3C7)),
+                            : trip.isClosed
+                                ? (isDark ? const Color(0xFF064E3B) : const Color(0xFFD1FAE5))
+                                : (isDark ? const Color(0xFF78350F) : const Color(0xFFFEF3C7)),
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Text(
-                        trip.isOngoing ? 'ONGOING' : 'ASSIGNED',
+                        trip.isOngoing
+                            ? 'ONGOING'
+                            : trip.isClosed
+                                ? 'COMPLETED'
+                                : 'ASSIGNED',
                         style: TextStyle(
                           color: trip.isOngoing
                               ? (isDark ? const Color(0xFF60A5FA) : const Color(0xFF1D4ED8))
-                              : (isDark ? const Color(0xFFFBBF24) : const Color(0xFFB45309)),
+                              : trip.isClosed
+                                  ? (isDark ? const Color(0xFF34D399) : const Color(0xFF047857))
+                                  : (isDark ? const Color(0xFFFBBF24) : const Color(0xFFB45309)),
                           fontSize: 10.5,
                           fontWeight: FontWeight.w700,
                         ),
