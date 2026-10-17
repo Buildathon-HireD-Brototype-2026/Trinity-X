@@ -1,47 +1,71 @@
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 
 const AuthContext = createContext(null);
 
-// ---------------------------------------------------------------------------
-// TODO (SECURITY): This entire mock auth block MUST be replaced with a real
-// server-side API call (e.g. POST /api/auth/login returning a signed JWT)
-// before any production deployment. Credentials must never live in client code.
-//
-// Credentials are loaded from environment variables defined in .env.local
-// (gitignored). Run: cp .env.example .env.local  and fill in the passwords.
-// ---------------------------------------------------------------------------
-function buildMockAdminList() {
-  const list = [];
-
-  const email1 = import.meta.env.VITE_DEV_ADMIN1_EMAIL;
-  const pass1 = import.meta.env.VITE_DEV_ADMIN1_PASSWORD;
-  if (email1 && pass1) {
-    list.push({ id: 'ADM-001', name: 'Admin One', email: email1, password: pass1, role: 'Admin', status: 'ACTIVE' });
-  }
-
-  const email2 = import.meta.env.VITE_DEV_ADMIN2_EMAIL;
-  const pass2 = import.meta.env.VITE_DEV_ADMIN2_PASSWORD;
-  if (email2 && pass2) {
-    list.push({ id: 'ADM-002', name: 'Admin Two', email: email2, password: pass2, role: 'Admin', status: 'ACTIVE' });
-  }
-
-  return list;
-}
-
-const MOCK_ADMINS = buildMockAdminList();
+const API_BASE = import.meta.env.VITE_API_URL || '';
 
 export function AuthProvider({ children }) {
+  // Safe non-sensitive profile state (restores tab visual state without storing raw secret tokens in localStorage)
   const [user, setUser] = useState(() => {
     try {
-      const saved = localStorage.getItem('hired_admin_user');
-      return saved ? JSON.parse(saved) : null;
+      const savedProfile = sessionStorage.getItem('hired_admin_profile');
+      return savedProfile ? JSON.parse(savedProfile) : null;
     } catch {
       return null;
     }
   });
 
+  const [accessToken, setAccessToken] = useState(null);
   const [loading, setLoading] = useState(false);
   const [failedAttempts, setFailedAttempts] = useState(0);
+
+  // Silent session hydration via httpOnly cookie on app mount / refresh
+  const refreshSession = useCallback(async () => {
+    try {
+      const res = await fetch(`${API_BASE}/api/v1/auth/refresh`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include', // Sends httpOnly refreshToken cookie
+      });
+
+      if (res.ok) {
+        const json = await res.json();
+        const data = json?.data || json;
+        const newToken = data?.access_token || data?.accessToken;
+        if (newToken) {
+          setAccessToken(newToken);
+          setUser((prev) => (prev ? { ...prev, token: newToken } : prev));
+        }
+      } else {
+        // Cookie expired or invalid
+        sessionStorage.removeItem('hired_admin_profile');
+        setUser(null);
+        setAccessToken(null);
+      }
+    } catch {
+      // Offline or network error
+    }
+  }, []);
+
+  useEffect(() => {
+    // Only attempt silent session hydration on mount if a session was previously active
+    if (sessionStorage.getItem('hired_admin_profile')) {
+      refreshSession();
+    }
+  }, [refreshSession]);
+
+  // Synchronize logout across multiple open admin tabs
+  useEffect(() => {
+    const handleStorageChange = (e) => {
+      if (e.key === 'hired_admin_logout_signal') {
+        sessionStorage.removeItem('hired_admin_profile');
+        setUser(null);
+        setAccessToken(null);
+      }
+    };
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, []);
 
   const login = async (email, password) => {
     setLoading(true);
@@ -51,9 +75,7 @@ export function AuthProvider({ children }) {
       throw new Error('Unable to connect to server. Please check your connection.');
     }
 
-    await new Promise((resolve) => setTimeout(resolve, 350));
-
-    // Check account lockout rate-limiting
+    // Client-side lockout check
     if (failedAttempts >= 5) {
       setLoading(false);
       throw new Error('Too many failed attempts. Please try again in 15 minutes.');
@@ -61,56 +83,96 @@ export function AuthProvider({ children }) {
 
     const normalizedEmail = (email || '').trim().toLowerCase();
 
-    if (MOCK_ADMINS.length === 0) {
-      setLoading(false);
-      throw new Error('Auth is not configured. Set VITE_DEV_ADMIN credentials in .env.local.');
-    }
+    try {
+      const res = await fetch(`${API_BASE}/api/v1/auth/admin/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include', // Receives httpOnly refreshToken cookie
+        body: JSON.stringify({
+          email_id: normalizedEmail,
+          password,
+        }),
+      });
 
-    const adminByEmail = MOCK_ADMINS.find((a) => a.email.toLowerCase() === normalizedEmail);
+      const json = await res.json().catch(() => null);
 
-    if (!adminByEmail || adminByEmail.password !== password) {
-      const nextFailures = failedAttempts + 1;
-      setFailedAttempts(nextFailures);
-      setLoading(false);
+      if (!res.ok) {
+        const nextFailures = failedAttempts + 1;
+        setFailedAttempts(nextFailures);
+        setLoading(false);
 
-      if (nextFailures >= 5) {
-        throw new Error('Too many failed attempts. Please try again in 15 minutes.');
+        if (nextFailures >= 5) {
+          throw new Error('Too many failed attempts. Please try again in 15 minutes.');
+        }
+
+        const msg = json?.message || 'Invalid email or password. Please try again.';
+        throw new Error(msg);
       }
-      throw new Error('Invalid email or password. Please try again.');
-    }
 
-    // Check deactivated account status
-    if (adminByEmail.status === 'INACTIVE') {
+      setFailedAttempts(0);
+      const data = json?.data || json;
+      const apiUser = data?.user || {};
+      const token = data?.access_token || data?.accessToken || null;
+
+      // Safe non-sensitive profile (safe for sessionStorage)
+      const safeProfile = {
+        id: apiUser.adminId || apiUser.id || 'ADM-001',
+        name: apiUser.adminName || apiUser.name || 'Admin',
+        email: apiUser.emailId || apiUser.email || normalizedEmail,
+        role: apiUser.userType || apiUser.role || 'Admin',
+      };
+
+      // Raw JWT token is kept strictly in React memory (prevents XSS extraction via localStorage)
+      const sessionUser = {
+        ...safeProfile,
+        token,
+      };
+
+      try {
+        sessionStorage.setItem('hired_admin_profile', JSON.stringify(safeProfile));
+        // Remove any legacy tokens from localStorage to prevent token exposure
+        localStorage.removeItem('hired_admin_token');
+        localStorage.removeItem('hired_admin_user');
+      } catch {
+        // Ignore storage quotas / disabled storage
+      }
+
+      setAccessToken(token);
+      setUser(sessionUser);
       setLoading(false);
-      throw new Error('Your account is deactivated. Please contact support.');
+      return sessionUser;
+    } catch (err) {
+      setLoading(false);
+      throw err;
     }
-
-    // Login success
-    setFailedAttempts(0);
-    const sessionUser = {
-      id: adminByEmail.id,
-      name: adminByEmail.name,
-      email: adminByEmail.email,
-      role: adminByEmail.role,
-      token: `hired_admin_token_${Date.now()}`,
-    };
-
-    localStorage.setItem('hired_admin_user', JSON.stringify(sessionUser));
-    setUser(sessionUser);
-    setLoading(false);
-    return sessionUser;
   };
 
-  const logout = () => {
-    localStorage.removeItem('hired_admin_user');
-    setUser(null);
+  const logout = async () => {
+    try {
+      await fetch(`${API_BASE}/api/v1/auth/logout`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+      });
+    } catch {
+      // Ignore network failure on logout
+    } finally {
+      sessionStorage.removeItem('hired_admin_profile');
+      localStorage.removeItem('hired_admin_token');
+      localStorage.removeItem('hired_admin_user');
+      setUser(null);
+      setAccessToken(null);
+    }
   };
 
   return (
     <AuthContext.Provider
       value={{
-        user,
+        user: user ? { ...user, token: accessToken || user.token } : null,
         isAuthenticated: !!user,
+        accessToken,
         login,
         logout,
         loading,

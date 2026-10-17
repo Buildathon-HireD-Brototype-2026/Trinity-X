@@ -31,6 +31,7 @@ export default function LoginPage() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (loading) return;
     setError('');
 
     if (!validate()) {
@@ -38,7 +39,7 @@ export default function LoginPage() {
     }
 
     try {
-      await login(email, password);
+      await login(email.trim(), password);
     } catch (err) {
       setError(err.message || 'Failed to authenticate. Please try again.');
       setPassword('');
@@ -84,6 +85,7 @@ export default function LoginPage() {
                   if (fieldErrors.email) setFieldErrors((prev) => ({ ...prev, email: '' }));
                 }}
                 disabled={loading}
+                autoComplete="username"
                 autoFocus
               />
             </div>
@@ -108,6 +110,7 @@ export default function LoginPage() {
                   if (fieldErrors.password) setFieldErrors((prev) => ({ ...prev, password: '' }));
                 }}
                 disabled={loading}
+                autoComplete="current-password"
               />
               <button
                 type="button"
