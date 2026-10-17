@@ -244,6 +244,23 @@ class TripNativeBridge {
     }
   }
 
+  /// Checks if MainActivity was launched with an outside overlay tap to open trip details.
+  Future<Map<String, dynamic>> checkPendingOpenTrip() async {
+    if (kIsWeb) return {'should_open': false, 'trip_id': null};
+    try {
+      final res = await _channel.invokeMethod<Map<dynamic, dynamic>>('checkPendingOpenTrip');
+      if (res != null) {
+        return {
+          'should_open': res['should_open'] as bool? ?? false,
+          'trip_id': res['trip_id'] as String?,
+        };
+      }
+    } catch (e) {
+      debugPrint('[TripNativeBridge] checkPendingOpenTrip error: $e');
+    }
+    return {'should_open': false, 'trip_id': null};
+  }
+
   void dispose() {
     _overlayClosedController.close();
     _openTripDetailsController.close();

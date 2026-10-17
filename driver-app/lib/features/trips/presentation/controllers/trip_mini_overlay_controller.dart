@@ -276,10 +276,11 @@ class TripMiniOverlayNotifier extends StateNotifier<TripMiniOverlayState> {
         _startTicker();
 
         // Start native foreground service and configure auto-PiP
+        // Floating overlay does not appear if currently on trip details screen
         _bridge.startTripService(
           trip: ongoing,
           elapsedSeconds: state.elapsedSeconds,
-          overlayVisible: !state.miniDismissed,
+          overlayVisible: !state.isOnTripPage && !state.miniDismissed,
         );
         _syncNativeTripState();
       } else {
@@ -387,8 +388,8 @@ class TripMiniOverlayNotifier extends StateNotifier<TripMiniOverlayState> {
   }
 
   /// Called when the Ongoing Trip page is pushed or popped.
-  /// On push: set isOnTripPage = true and miniDismissed = false.
-  /// On pop: set isOnTripPage = false; if tripRunning, the mini float animates in.
+  /// On push: set isOnTripPage = true and miniDismissed = false, hide floating overlay.
+  /// On pop: set isOnTripPage = false; if tripRunning, the mini float appears.
   void setTripPageForeground(bool inForeground) {
     if (inForeground) {
       state = state.copyWith(
@@ -399,6 +400,8 @@ class TripMiniOverlayNotifier extends StateNotifier<TripMiniOverlayState> {
       _prefs.setBool(_keyIsOnTripPage, true);
       _prefs.setBool(_keyMiniDismissed, false);
       _syncNativeTripState();
+      // Floating overlay is NOT needed while viewing full Ongoing Trip Details screen
+      _bridge.setOverlayVisible(false);
     } else {
       state = state.copyWith(
         isOnTripPage: false,
@@ -407,6 +410,10 @@ class TripMiniOverlayNotifier extends StateNotifier<TripMiniOverlayState> {
       );
       _prefs.setBool(_keyIsOnTripPage, false);
       _syncNativeTripState();
+      // Floating overlay appears when leaving Ongoing Trip Details screen
+      if (state.isTripOngoing && !state.miniDismissed) {
+        _bridge.setOverlayVisible(true);
+      }
     }
   }
 
@@ -421,6 +428,7 @@ class TripMiniOverlayNotifier extends StateNotifier<TripMiniOverlayState> {
     _prefs.setBool(_keyMiniDismissed, false);
     _prefs.setBool(_keyIsOnTripPage, true);
     _syncNativeTripState();
+    _bridge.setOverlayVisible(false);
   }
 
   /// Called whenever the GoRouter navigation changes.
@@ -461,6 +469,11 @@ class TripMiniOverlayNotifier extends StateNotifier<TripMiniOverlayState> {
         if (state.currentRoute == '/trip-details' || state.isOnTripPage) {
           state = state.copyWith(miniDismissed: false);
           _prefs.setBool(_keyMiniDismissed, false);
+          _bridge.setOverlayVisible(false);
+        } else {
+          if (!state.miniDismissed) {
+            _bridge.setOverlayVisible(true);
+          }
         }
         checkOverlayPermission();
         _syncNativeTripState();
@@ -471,12 +484,8 @@ class TripMiniOverlayNotifier extends StateNotifier<TripMiniOverlayState> {
           elapsedSeconds: state.elapsedSeconds,
         );
 
-        if (!state.miniDismissed) {
-          // If PiP is not active/supported or disabled, trigger draggable overlay fallback
-          if (!state.isInPiPMode && state.hasOverlayPermission) {
-            _bridge.setOverlayVisible(true);
-          }
-        }
+        // When leaving the app during an ongoing trip, floating overlay always appears outside
+        _bridge.setOverlayVisible(true);
       }
     }
   }
@@ -547,10 +556,11 @@ class TripMiniOverlayNotifier extends StateNotifier<TripMiniOverlayState> {
       return;
     }
 
-    if (state.miniDismissed) {
-      await _bridge.sendToBackground();
-      return;
-    }
+    // When backing out from any page to close/minimize app during an ongoing trip:
+    // Ensure the floating overlay appears!
+    state = state.copyWith(miniDismissed: false);
+    _prefs.setBool(_keyMiniDismissed, false);
+    _syncNativeTripState();
 
     await _bridge.sendToBackgroundWithMini();
   }

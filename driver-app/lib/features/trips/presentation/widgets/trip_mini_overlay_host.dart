@@ -73,8 +73,25 @@ class _TripMiniOverlayHostState extends ConsumerState<TripMiniOverlayHost>
       context.push(RouteNames.tripDetails, extra: tripId);
     });
 
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
       _checkRoute();
+      // Cold-start fallback: Check if user tapped floating overlay or notification to open trip
+      final pending = await ref.read(tripNativeBridgeProvider).checkPendingOpenTrip();
+      if (!mounted) return;
+      if (pending['should_open'] == true) {
+        final tId = pending['trip_id'] as String?;
+        if (tId != null) {
+          ref.read(selectedTripIdProvider.notifier).select(tId);
+        }
+        try {
+          final currentLoc = GoRouter.of(context).routeInformationProvider.value.uri.path;
+          if (currentLoc != RouteNames.tripDetails && currentLoc != '/trip-details') {
+            context.push(RouteNames.tripDetails, extra: tId);
+          }
+        } catch (_) {
+          context.push(RouteNames.tripDetails, extra: tId);
+        }
+      }
     });
   }
 

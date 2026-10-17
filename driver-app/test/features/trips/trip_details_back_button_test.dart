@@ -49,6 +49,8 @@ class _FakeBridge implements TripNativeBridge {
   @override
   Future<bool> isLowRamDevice() async => false;
   @override
+  Future<Map<String, dynamic>> checkPendingOpenTrip() async => {'should_open': false, 'trip_id': null};
+  @override
   void dispose() {}
 }
 

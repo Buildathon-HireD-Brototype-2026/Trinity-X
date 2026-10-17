@@ -61,10 +61,24 @@ class MainActivity : FlutterActivity() {
         return false
     }
 
+    override fun onPause() {
+        super.onPause()
+        if (isTripRunning) {
+            TripForegroundService.setInstanceOverlayVisible(true)
+        }
+    }
+
+    override fun onStop() {
+        super.onStop()
+        if (isTripRunning) {
+            TripForegroundService.setInstanceOverlayVisible(true)
+        }
+    }
+
     override fun onUserLeaveHint() {
         super.onUserLeaveHint()
-        // If trip is running and mini is NOT dismissed, show the top floating overlay
-        if (isTripRunning && !isMiniDismissed) {
+        // If an ongoing trip is running, always show the floating overlay when leaving app
+        if (isTripRunning) {
             TripForegroundService.setInstanceOverlayVisible(true)
         }
     }
@@ -84,6 +98,8 @@ class MainActivity : FlutterActivity() {
             pendingTripId = intent.getStringExtra("trip_id")
             intent.removeExtra("open_trip_details")
             intent.removeExtra("trip_id")
+            // Immediate overlay hide when launched to open trip details
+            TripForegroundService.setInstanceOverlayVisible(false)
             notifyFlutterOpenTripDetails()
         }
     }
@@ -147,6 +163,7 @@ class MainActivity : FlutterActivity() {
                             putExtra(TripForegroundService.EXTRA_ELAPSED_SECONDS, safeElapsed)
                             putExtra(TripForegroundService.EXTRA_OVERLAY_VISIBLE, args["overlay_visible"] as? Boolean ?: true)
                             putExtra(TripForegroundService.EXTRA_PASSENGER_PHONE, safePhone)
+                            putExtra(TripForegroundService.EXTRA_IS_DARK_THEME, args["is_dark_theme"] as? Boolean ?: false)
                         }
                         ContextCompat.startForegroundService(this@MainActivity, intent)
                         result.success(true)
@@ -165,7 +182,8 @@ class MainActivity : FlutterActivity() {
                                     pickup = args["pickup_spot"]?.toString(),
                                     dropoff = args["dropoff_spot"]?.toString(),
                                     etaMins = safeEta,
-                                    passengerPhone = safePhone
+                                    passengerPhone = safePhone,
+                                    isDark = args["is_dark_theme"] as? Boolean
                                 )
                             }
                         } else if (TripForegroundService.isServiceRunning) {
@@ -182,6 +200,7 @@ class MainActivity : FlutterActivity() {
                                     putExtra(TripForegroundService.EXTRA_DROPOFF, args["dropoff_spot"]?.toString() ?: "")
                                     putExtra(TripForegroundService.EXTRA_ETA_MINS, safeEta ?: 18)
                                     putExtra(TripForegroundService.EXTRA_ELAPSED_SECONDS, safeElapsed)
+                                    putExtra(TripForegroundService.EXTRA_IS_DARK_THEME, args["is_dark_theme"] as? Boolean ?: false)
                                 }
                                 ContextCompat.startForegroundService(this@MainActivity, intent)
                             } catch (_: Exception) {}
@@ -263,17 +282,10 @@ class MainActivity : FlutterActivity() {
                     }
 
                     "sendToBackgroundWithMini" -> {
-                        if (isTripRunning && !isMiniDismissed) {
-                            if (isPipAllowed()) {
-                                val entered = enterPipMode()
-                                if (!entered) {
-                                    TripForegroundService.setInstanceOverlayVisible(true)
-                                    moveTaskToBack(true)
-                                }
-                            } else {
-                                TripForegroundService.setInstanceOverlayVisible(true)
-                                moveTaskToBack(true)
-                            }
+                        if (isTripRunning) {
+                            isMiniDismissed = false
+                            TripForegroundService.setInstanceOverlayVisible(true)
+                            moveTaskToBack(true)
                         } else {
                             moveTaskToBack(true)
                         }

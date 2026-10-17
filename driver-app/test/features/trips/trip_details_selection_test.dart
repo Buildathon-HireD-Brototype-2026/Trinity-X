@@ -51,6 +51,8 @@ class FakeTripNativeBridge implements TripNativeBridge {
   @override
   Future<bool> isLowRamDevice() async => false;
   @override
+  Future<Map<String, dynamic>> checkPendingOpenTrip() async => {'should_open': false, 'trip_id': null};
+  @override
   void dispose() {}
 }
 
@@ -132,7 +134,6 @@ void main() {
       expect(find.text('Beta Terminal'), findsOneWidget);
       expect(find.text('Bob Beta'), findsOneWidget);
       expect(find.text('+91 88888 22222'), findsOneWidget);
-      expect(find.text('₹2500.00'), findsOneWidget);
       expect(find.text('₹750.00'), findsOneWidget);
 
       // Must NOT show Company Alpha details
@@ -207,7 +208,6 @@ void main() {
       expect(find.text('Wipro Limited'), findsOneWidget);
       expect(find.text('Sarjapur Campus Gate 3'), findsOneWidget);
       expect(find.text('Sneha Patel'), findsOneWidget);
-      expect(find.text('₹1200.00'), findsOneWidget);
       expect(find.text('₹360.00'), findsOneWidget);
 
       // Must NOT show Tata Consultancy Services

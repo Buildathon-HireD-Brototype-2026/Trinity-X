@@ -411,36 +411,6 @@ class _TripDetailsScreenState extends ConsumerState<TripDetailsScreen> {
               ),
             ],
           ),
-
-          // Notes / Instructions callout if present
-          if (trip.notes != null && trip.notes!.isNotEmpty) ...[
-            const SizedBox(height: 14),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: themeColors.innerBox,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: themeColors.border),
-              ),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Icon(Icons.notes_rounded, color: themeColors.purpleAccent, size: 18),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      trip.notes!,
-                      style: TextStyle(
-                        color: themeColors.textSecondary,
-                        fontSize: 12,
-                        height: 1.4,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
         ],
       ),
     );
@@ -649,72 +619,41 @@ class _TripDetailsScreenState extends ConsumerState<TripDetailsScreen> {
               letterSpacing: 0.5,
             ),
           ),
-          const SizedBox(height: 14),
-
+          const SizedBox(height: 12),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                'Total Corporate Billing Fare',
-                style: TextStyle(color: themeColors.textSecondary, fontSize: 13),
-              ),
-              Text(
-                '₹${trip.amount.toStringAsFixed(2)}',
-                style: TextStyle(
-                  color: themeColors.textPrimary,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'Driver Payout (30% Split)',
-                style: TextStyle(
-                  color: themeColors.textPrimary,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
-                ),
+              Row(
+                children: [
+                  Container(
+                    width: 34,
+                    height: 34,
+                    decoration: BoxDecoration(
+                      color: themeColors.purpleTint,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Icon(Icons.payments_rounded, color: themeColors.purpleAccent, size: 18),
+                  ),
+                  const SizedBox(width: 10),
+                  Text(
+                    'Your Earning',
+                    style: TextStyle(
+                      color: themeColors.textPrimary,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
               ),
               Text(
                 '₹${trip.driverShare.toStringAsFixed(2)}',
                 style: TextStyle(
                   color: themeColors.purpleAccent,
-                  fontSize: 18,
+                  fontSize: 20,
                   fontWeight: FontWeight.w800,
                 ),
               ),
             ],
-          ),
-          const SizedBox(height: 12),
-
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: themeColors.purpleTint.withValues(alpha: isDark ? 0.35 : 0.6),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Row(
-              children: [
-                Icon(Icons.account_balance_wallet_rounded, color: themeColors.purpleAccent, size: 16),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'Automatically credited to your Driver Wallet upon OTP trip completion.',
-                    style: TextStyle(
-                      color: themeColors.purpleAccent,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ),
-              ],
-            ),
           ),
         ],
       ),
@@ -803,16 +742,15 @@ class _TripDetailsScreenState extends ConsumerState<TripDetailsScreen> {
 
           if (trip.isOngoing) ...[
             const SizedBox(height: 14),
-            // Quick preset category tap chips for fast road entry:
+            // Quick category tap chips for fast road entry (name only, no prices, no fasttag):
             Wrap(
               spacing: 8,
               runSpacing: 6,
               children: [
-                _buildQuickExpenseChip(context, trip, 'Toll', Icons.toll_rounded, 100),
-                _buildQuickExpenseChip(context, trip, 'Parking', Icons.local_parking_rounded, 80),
-                _buildQuickExpenseChip(context, trip, 'Fuel', Icons.local_gas_station_rounded, 500),
-                _buildQuickExpenseChip(context, trip, 'Fastag', Icons.nfc_rounded, 150),
-                _buildQuickExpenseChip(context, trip, 'Other', Icons.more_horiz_rounded, null),
+                _buildQuickExpenseChip(context, trip, 'Toll', Icons.toll_rounded),
+                _buildQuickExpenseChip(context, trip, 'Parking', Icons.local_parking_rounded),
+                _buildQuickExpenseChip(context, trip, 'Fuel', Icons.local_gas_station_rounded),
+                _buildQuickExpenseChip(context, trip, 'Other', Icons.more_horiz_rounded),
               ],
             ),
           ],
@@ -830,13 +768,13 @@ class _TripDetailsScreenState extends ConsumerState<TripDetailsScreen> {
                   Icon(Icons.receipt_outlined, color: themeColors.textMuted, size: 28),
                   const SizedBox(height: 6),
                   Text(
-                    'No trip expenses logged yet.',
+                    'No expenses logged yet.',
                     style: TextStyle(color: themeColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w600),
                   ),
                   const SizedBox(height: 2),
                   Text(
                     trip.isOngoing
-                        ? 'Tap a quick chip above or "Add Expense" to log tolls, fuel, or parking.'
+                        ? 'Tap a category above to log Toll, Parking, or Fuel.'
                         : 'No expenses were logged for this trip.',
                     textAlign: TextAlign.center,
                     style: TextStyle(color: themeColors.textSecondary, fontSize: 11.5),
@@ -958,16 +896,15 @@ class _TripDetailsScreenState extends ConsumerState<TripDetailsScreen> {
     TripModel trip,
     String label,
     IconData icon,
-    double? defaultAmount,
   ) {
     final themeColors = context.appColors;
 
     return ActionChip(
       avatar: Icon(icon, size: 14, color: const Color(0xFF10B981)),
       label: Text(
-        defaultAmount != null ? '$label (₹${defaultAmount.toInt()})' : label,
+        label,
         style: TextStyle(
-          fontSize: 11.5,
+          fontSize: 12,
           fontWeight: FontWeight.w600,
           color: themeColors.textPrimary,
         ),
@@ -979,7 +916,6 @@ class _TripDetailsScreenState extends ConsumerState<TripDetailsScreen> {
         context,
         trip,
         prefilledCategory: label,
-        prefilledAmount: defaultAmount,
       ),
     );
   }
@@ -1259,19 +1195,15 @@ class _TripDetailsScreenState extends ConsumerState<TripDetailsScreen> {
   }
 
   /// Add Expense Dialog (PRD D-08)
+  /// Add Expense Dialog (PRD D-08)
   void _showAddExpenseDialog(
     BuildContext context,
     TripModel trip, {
     String? prefilledCategory,
-    double? prefilledAmount,
   }) {
     String selectedCategory = prefilledCategory ?? 'Toll';
-    final descController = TextEditingController(
-      text: prefilledCategory != null ? '$prefilledCategory Expense' : 'Toll Expense',
-    );
-    final amountController = TextEditingController(
-      text: prefilledAmount != null ? prefilledAmount.toStringAsFixed(0) : '',
-    );
+    final amountController = TextEditingController();
+    final otherNoteController = TextEditingController();
     final themeColors = context.appColors;
 
     showDialog(
@@ -1295,7 +1227,7 @@ class _TripDetailsScreenState extends ConsumerState<TripDetailsScreen> {
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
-                    'Log In-Trip Expense',
+                    'Add Expense',
                     style: TextStyle(color: themeColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 16.5),
                   ),
                 ),
@@ -1307,7 +1239,7 @@ class _TripDetailsScreenState extends ConsumerState<TripDetailsScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'QUICK CATEGORY',
+                    'CATEGORY',
                     style: TextStyle(
                       color: themeColors.textMuted,
                       fontSize: 10.5,
@@ -1321,65 +1253,56 @@ class _TripDetailsScreenState extends ConsumerState<TripDetailsScreen> {
                     runSpacing: 6,
                     children: [
                       _buildCategorySelectChip('Toll', Icons.toll_rounded, selectedCategory, (cat) {
-                        setDialogState(() {
-                          selectedCategory = cat;
-                          descController.text = 'Toll Expense';
-                          if (amountController.text.isEmpty) amountController.text = '100';
-                        });
-                      }),
-                      _buildCategorySelectChip('Fastag', Icons.nfc_rounded, selectedCategory, (cat) {
-                        setDialogState(() {
-                          selectedCategory = cat;
-                          descController.text = 'Fastag Toll';
-                          if (amountController.text.isEmpty) amountController.text = '150';
-                        });
+                        setDialogState(() => selectedCategory = cat);
                       }),
                       _buildCategorySelectChip('Parking', Icons.local_parking_rounded, selectedCategory, (cat) {
-                        setDialogState(() {
-                          selectedCategory = cat;
-                          descController.text = 'Parking Fee';
-                          if (amountController.text.isEmpty) amountController.text = '80';
-                        });
+                        setDialogState(() => selectedCategory = cat);
                       }),
                       _buildCategorySelectChip('Fuel', Icons.local_gas_station_rounded, selectedCategory, (cat) {
-                        setDialogState(() {
-                          selectedCategory = cat;
-                          descController.text = 'Fuel / Petrol';
-                          if (amountController.text.isEmpty) amountController.text = '500';
-                        });
+                        setDialogState(() => selectedCategory = cat);
                       }),
                       _buildCategorySelectChip('Other', Icons.more_horiz_rounded, selectedCategory, (cat) {
-                        setDialogState(() {
-                          selectedCategory = cat;
-                          descController.text = '';
-                        });
+                        setDialogState(() => selectedCategory = cat);
                       }),
                     ],
                   ),
-                  const SizedBox(height: 16),
-                  TextField(
-                    controller: descController,
-                    decoration: InputDecoration(
-                      labelText: 'Expense Description',
-                      hintText: 'e.g. Airport Toll, Parking Plaza',
-                      filled: true,
-                      fillColor: themeColors.innerBox,
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                    ),
-                  ),
-                  const SizedBox(height: 14),
+                  const SizedBox(height: 18),
                   TextField(
                     controller: amountController,
+                    autofocus: true,
                     keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    style: TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                      color: themeColors.textPrimary,
+                    ),
                     decoration: InputDecoration(
                       labelText: 'Amount (₹)',
-                      hintText: '0.00',
+                      hintText: '0',
                       prefixText: '₹ ',
+                      prefixStyle: const TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF10B981),
+                      ),
                       filled: true,
                       fillColor: themeColors.innerBox,
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
                     ),
                   ),
+                  if (selectedCategory == 'Other') ...[
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: otherNoteController,
+                      decoration: InputDecoration(
+                        labelText: 'Note (Optional)',
+                        hintText: 'e.g. Wash / Repair',
+                        filled: true,
+                        fillColor: themeColors.innerBox,
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -1393,19 +1316,23 @@ class _TripDetailsScreenState extends ConsumerState<TripDetailsScreen> {
                   backgroundColor: const Color(0xFF10B981),
                   foregroundColor: Colors.white,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                 ),
                 onPressed: () async {
-                  final desc = descController.text.trim();
                   final amt = double.tryParse(amountController.text.trim());
-                  if (desc.isEmpty || amt == null || amt <= 0) {
+                  if (amt == null || amt <= 0) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
-                        content: Text('Please enter a valid expense description and positive amount.'),
+                        content: Text('Please enter a valid expense amount.'),
                         behavior: SnackBarBehavior.floating,
                       ),
                     );
                     return;
                   }
+
+                  final desc = selectedCategory == 'Other' && otherNoteController.text.trim().isNotEmpty
+                      ? otherNoteController.text.trim()
+                      : selectedCategory;
 
                   Navigator.of(dialogCtx).pop();
                   await ref.read(tripRepositoryProvider).addExpense(trip.tripId, desc, amt);
@@ -1413,7 +1340,7 @@ class _TripDetailsScreenState extends ConsumerState<TripDetailsScreen> {
                   if (context.mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
-                        content: Text('Added expense: $desc (₹${amt.toStringAsFixed(2)})'),
+                        content: Text('Added $desc: ₹${amt.toStringAsFixed(2)}'),
                         backgroundColor: const Color(0xFF10B981),
                         behavior: SnackBarBehavior.floating,
                       ),
