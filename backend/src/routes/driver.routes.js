@@ -1,42 +1,41 @@
-/**
- * =============================================================================
- * HIRED BACKEND - DRIVER ROUTES
- * =============================================================================
- * Route definitions for Driver Mobile App endpoints:
- * - GET    /api/v1/driver/trips/assigned   -> View trips assigned by admin
- * - PATCH  /api/v1/driver/trips/:id/start   -> Start assigned trip
- * - POST   /api/v1/driver/trips/:id/expenses -> Log trip expenses
- * - POST   /api/v1/driver/trips/:id/close    -> Complete trip with OTP
- *
- * Mapped to Prisma schema per `database.md` (`trips`, `orders`, `companies`).
- * =============================================================================
- */
-
 import { Router } from 'express';
+import multer from 'multer';
+import { authenticate, requireDriver } from '../middlewares/auth.middleware.js';
 import {
-  getAssignedTrips,
-  startTrip,
-  addTripExpense,
-  closeTripWithOtp
+  getOwnProfileHandler,
+  setOwnAvailabilityHandler,
+  listOwnDocumentsHandler,
+  uploadOwnDocumentHandler,
+  getOwnDocumentLinkHandler,
+  listOwnTripsHandler,
+  getOwnTripDetailHandler,
+  startOwnTripHandler,
+  closeOwnTripHandler
 } from '../modules/driver/driver.controller.js';
-
-// If auth middleware is active in backend, uncomment below:
-// import { authenticate } from '../middlewares/auth.middleware.js';
 
 const router = Router();
 
-// router.use(authenticate); // Require valid driver JWT bearer token
+// Configure memory upload with 5MB limit
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 }
+});
 
-// 1. Get assigned & active trips for the authenticated driver
-router.get('/trips/assigned', getAssignedTrips);
+// Protect all driver routes with Driver authentication
+router.use(authenticate, requireDriver);
 
-// 2. Start an assigned trip (sets trip_status = 'ONGOING')
-router.patch('/trips/:tripId/start', startTrip);
+router.get('/profile', getOwnProfileHandler);
+router.patch('/availability', setOwnAvailabilityHandler);
 
-// 3. Log an expense during the trip (fuel, toll, parking)
-router.post('/trips/:tripId/expenses', addTripExpense);
+// KYC Document upload and retrieval
+router.get('/documents', listOwnDocumentsHandler);
+router.post('/documents', upload.single('file'), uploadOwnDocumentHandler);
+router.get('/documents/:document_id/link', getOwnDocumentLinkHandler);
 
-// 4. Close trip with client 6-digit OTP code (credits driver wallet)
-router.post('/trips/:tripId/close', closeTripWithOtp);
+// Trip execution lifecycle
+router.get('/trips', listOwnTripsHandler);
+router.get('/trips/:trip_id', getOwnTripDetailHandler);
+router.post('/trips/:trip_id/start', startOwnTripHandler);
+router.post('/trips/:trip_id/close', closeOwnTripHandler);
 
 export default router;

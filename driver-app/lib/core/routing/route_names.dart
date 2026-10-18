@@ -9,4 +9,7 @@ class RouteNames {
   static const String trips = '/trips';
   static const String tripDetails = '/trip-details';
   static const String wallet = '/wallet';
+  static const String tripHistory = '/trip-history';
+  static const String availabilityCalendar = '/availability-calendar';
+  static const String performance = '/performance';
 }

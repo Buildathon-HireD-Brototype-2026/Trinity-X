@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import '../../../../core/routing/route_names.dart';
 import '../../../../core/theme/app_theme_colors.dart';
 import '../../domain/wallet_models.dart';
-import 'trip_details_bottom_sheet.dart';
-import 'wallet_trip_row.dart';
 
 /// Section showing the previous 2 months settlement records (PRD Section 5).
 /// Heading: "Previous Months"
@@ -10,7 +10,7 @@ import 'wallet_trip_row.dart';
 /// Each month row shows: month name, total driver earning of completed trips,
 /// number of trips, total expense, and settlement chip "Paid" or "Pending".
 /// A Pending month shows pending amount; Paid month shows amount paid & paid date.
-/// Tapping a month opens its list of completed trips (same row design).
+/// Tapping a month navigates to Trip History with that month preselected.
 class PreviousMonthsSection extends StatelessWidget {
   final List<MonthlySettlementRecord> previousMonths;
   final bool isLoading;
@@ -20,123 +20,6 @@ class PreviousMonthsSection extends StatelessWidget {
     required this.previousMonths,
     this.isLoading = false,
   });
-
-  void _showMonthCompletedTripsSheet(
-    BuildContext context,
-    MonthlySettlementRecord monthRecord,
-  ) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (sheetContext) {
-        final themeColors = sheetContext.appColors;
-        final isDark = sheetContext.isDarkMode;
-
-        return Container(
-          constraints: BoxConstraints(
-            maxHeight: MediaQuery.of(sheetContext).size.height * 0.8,
-          ),
-          decoration: BoxDecoration(
-            color: themeColors.cardBackground,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-            border: Border(
-              top: BorderSide(color: themeColors.border, width: 1),
-            ),
-          ),
-          child: SafeArea(
-            top: false,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Center(
-                  child: Container(
-                    margin: const EdgeInsets.only(top: 10, bottom: 8),
-                    width: 38,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1),
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 6, 20, 14),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            monthRecord.month,
-                            style: TextStyle(
-                              color: themeColors.textPrimary,
-                              fontSize: 17,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            '${monthRecord.tripCount} completed trips • ${IstDateTimeHelper.formatCurrency(monthRecord.totalDriverEarning)}',
-                            style: TextStyle(
-                              color: themeColors.textMuted,
-                              fontSize: 12.5,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ],
-                      ),
-                      IconButton(
-                        icon: Icon(
-                          Icons.close_rounded,
-                          color: themeColors.textMuted,
-                          size: 20,
-                        ),
-                        visualDensity: VisualDensity.compact,
-                        onPressed: () => Navigator.of(sheetContext).pop(),
-                      ),
-                    ],
-                  ),
-                ),
-                Divider(height: 1, color: themeColors.divider),
-                Flexible(
-                  child: monthRecord.trips.isEmpty
-                      ? Padding(
-                          padding: const EdgeInsets.all(28.0),
-                          child: Center(
-                            child: Text(
-                              'No trips',
-                              style: TextStyle(color: themeColors.textMuted),
-                            ),
-                          ),
-                        )
-                      : ListView.builder(
-                          shrinkWrap: true,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 20,
-                            vertical: 14,
-                          ),
-                          itemCount: monthRecord.trips.length,
-                          itemBuilder: (context, index) {
-                            final trip = monthRecord.trips[index];
-                            return WalletTripRow(
-                              trip: trip,
-                              onTap: () {
-                                TripDetailsBottomSheet.show(context, trip);
-                              },
-                            );
-                          },
-                        ),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -240,7 +123,15 @@ class PreviousMonthsSection extends StatelessWidget {
         color: Colors.transparent,
         child: InkWell(
           borderRadius: BorderRadius.circular(14),
-          onTap: () => _showMonthCompletedTripsSheet(context, month),
+          onTap: () {
+            context.push(
+              RouteNames.tripHistory,
+              extra: {
+                'year': month.monthDate.year,
+                'month': month.monthDate.month,
+              },
+            );
+          },
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             decoration: BoxDecoration(

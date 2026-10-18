@@ -16,6 +16,10 @@ migrate_working_dir/
 .env
 .env.*
 !.env.example
+android/secrets.properties
+!android/secrets.properties.example
+ios/Flutter/Secrets.xcconfig
+!ios/Flutter/Secrets.xcconfig.example
 
 # IntelliJ related
 *.iml

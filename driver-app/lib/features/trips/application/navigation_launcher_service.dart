@@ -1,30 +1,11 @@
 import 'dart:io';
-import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../../core/storage/local_cache_service.dart';
 import '../domain/trip_model.dart';
 import '../presentation/controllers/trip_mini_overlay_controller.dart';
-
-enum MapsAppType {
-  googleMaps,
-  waze,
-  appleMaps,
-  browser,
-}
-
-class MapsAppOption {
-  final MapsAppType type;
-  final String title;
-  final IconData icon;
-
-  const MapsAppOption({
-    required this.type,
-    required this.title,
-    required this.icon,
-  });
-}
 
 final navigationLauncherServiceProvider = Provider<NavigationLauncherService>((ref) {
   final prefs = ref.watch(sharedPreferencesProvider);
@@ -47,12 +28,10 @@ final autoOpenNavSettingProvider =
   return AutoOpenNavNotifier(service);
 });
 
-
 class NavigationLauncherService {
   final Ref _ref;
   final SharedPreferences _prefs;
 
-  static const _keyPreferredApp = 'preferred_maps_navigation_app';
   static const _keyAutoOpenNav = 'auto_open_navigation_setting';
   static const _navAutoOpenedPrefix = 'nav_auto_opened_';
 
@@ -68,99 +47,15 @@ class NavigationLauncherService {
     await _prefs.setBool(_keyAutoOpenNav, enabled);
   }
 
-  /// Stored preferred maps app type, if chosen previously by the driver.
-  MapsAppType? getPreferredApp() {
-    final raw = _prefs.getString(_keyPreferredApp);
-    if (raw == null) return null;
-    return MapsAppType.values.where((e) => e.name == raw).firstOrNull;
-  }
-
-  Future<void> setPreferredApp(MapsAppType type) async {
-    await _prefs.setString(_keyPreferredApp, type.name);
-  }
-
-  /// Detects installed maps apps using their URL schemes.
-  Future<List<MapsAppOption>> getInstalledMapsApps() async {
-    final list = <MapsAppOption>[];
-
-    // 1. Google Maps
-    final googleMapsUri = Platform.isIOS
-        ? Uri.parse('comgooglemaps://')
-        : Uri.parse('google.navigation:q=0,0&mode=d');
-    try {
-      if (await canLaunchUrl(googleMapsUri)) {
-        list.add(const MapsAppOption(
-          type: MapsAppType.googleMaps,
-          title: 'Google Maps',
-          icon: Icons.map_rounded,
-        ));
-      }
-    } catch (_) {}
-
-    // 2. Waze
-    final wazeUri = Uri.parse('waze://?ll=0,0&navigate=yes');
-    try {
-      if (await canLaunchUrl(wazeUri)) {
-        list.add(const MapsAppOption(
-          type: MapsAppType.waze,
-          title: 'Waze',
-          icon: Icons.navigation_rounded,
-        ));
-      }
-    } catch (_) {}
-
-    // 3. Apple Maps (iOS only)
-    if (Platform.isIOS) {
-      final appleMapsUri = Uri.parse('maps://?daddr=0,0&dirflg=d');
-      try {
-        if (await canLaunchUrl(appleMapsUri)) {
-          list.add(const MapsAppOption(
-            type: MapsAppType.appleMaps,
-            title: 'Apple Maps',
-            icon: Icons.explore_rounded,
-          ));
-        }
-      } catch (_) {}
-    }
-
-    return list;
-  }
-
-  /// Builds the launch URI for the given map app type and target lat/lng.
-  Uri buildLaunchUri({
-    required MapsAppType type,
-    required double lat,
-    required double lng,
-  }) {
-    switch (type) {
-      case MapsAppType.googleMaps:
-        if (Platform.isIOS) {
-          return Uri.parse('comgooglemaps://?daddr=$lat,$lng&directionsmode=driving');
-        }
-        return Uri.parse('google.navigation:q=$lat,$lng&mode=d');
-
-      case MapsAppType.waze:
-        return Uri.parse('waze://?ll=$lat,$lng&navigate=yes');
-
-      case MapsAppType.appleMaps:
-        return Uri.parse('maps://?daddr=$lat,$lng&dirflg=d');
-
-      case MapsAppType.browser:
-        return Uri.parse('https://www.google.com/maps/dir/?api=1&destination=$lat,$lng&travelmode=driving');
-    }
-  }
-
-  /// Browser fallback URI for directions
-  Uri getBrowserFallbackUri(double lat, double lng) {
-    return Uri.parse('https://www.google.com/maps/dir/?api=1&destination=$lat,$lng&travelmode=driving');
-  }
-
-  /// Launches navigation to the target coordinates using the driver's chosen or specified app.
-  /// Debounces rapid taps so only one launch happens.
+  /// Opens the platform's default turn-by-turn navigation app:
+  /// - Android: Google Maps with `google.navigation:q=LAT,LNG&mode=d`
+  ///   Fallback: Google Maps directions in the browser.
+  /// - iOS: Apple Maps with `https://maps.apple.com/?daddr=LAT,LNG&dirflg=d`
+  ///   Fallback: Google Maps directions in the browser.
+  /// Debounces rapid taps so only one launch occurs.
   Future<bool> launchNavigation({
     required double lat,
     required double lng,
-    MapsAppType? appType,
   }) async {
     final now = DateTime.now();
     if (_lastLaunchTime != null && now.difference(_lastLaunchTime!) < _debounceDuration) {
@@ -168,32 +63,52 @@ class NavigationLauncherService {
     }
     _lastLaunchTime = now;
 
-    var targetType = appType ?? getPreferredApp();
-
-    if (targetType == null) {
-      final installed = await getInstalledMapsApps();
-      if (installed.isEmpty) {
-        targetType = MapsAppType.browser;
-      } else {
-        targetType = installed.first.type;
+    if (!kIsWeb && Platform.isAndroid) {
+      final googleMapsNavUri = Uri.parse('google.navigation:q=$lat,$lng&mode=d');
+      try {
+        if (await canLaunchUrl(googleMapsNavUri)) {
+          final launched = await launchUrl(
+            googleMapsNavUri,
+            mode: LaunchMode.externalApplication,
+          );
+          if (launched) return true;
+        }
+      } catch (e) {
+        debugPrint('[NavigationLauncherService] Android native launch error: $e');
       }
+
+      // Android fallback: browser URL
+      return _launchBrowserFallback(lat, lng);
+    } else if (!kIsWeb && Platform.isIOS) {
+      final appleMapsUri = Uri.parse('https://maps.apple.com/?daddr=$lat,$lng&dirflg=d');
+      try {
+        final launched = await launchUrl(
+          appleMapsUri,
+          mode: LaunchMode.externalApplication,
+        );
+        if (launched) return true;
+      } catch (e) {
+        debugPrint('[NavigationLauncherService] iOS Apple Maps launch error: $e');
+      }
+
+      // iOS fallback: browser URL
+      return _launchBrowserFallback(lat, lng);
+    } else {
+      return _launchBrowserFallback(lat, lng);
     }
+  }
 
-    final uri = buildLaunchUri(type: targetType, lat: lat, lng: lng);
-
+  Future<bool> _launchBrowserFallback(double lat, double lng) async {
+    final fallbackUri = Uri.parse(
+      'https://www.google.com/maps/dir/?api=1&destination=$lat,$lng&travelmode=driving',
+    );
     try {
-      final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
-      if (launched) return true;
+      return await launchUrl(
+        fallbackUri,
+        mode: LaunchMode.externalApplication,
+      );
     } catch (e) {
-      debugPrint('[NavigationLauncherService] Failed to launch $uri: $e');
-    }
-
-    // Fallback: browser URL
-    try {
-      final fallbackUri = getBrowserFallbackUri(lat, lng);
-      return await launchUrl(fallbackUri, mode: LaunchMode.externalApplication);
-    } catch (e) {
-      debugPrint('[NavigationLauncherService] Fallback browser launch failed: $e');
+      debugPrint('[NavigationLauncherService] Browser fallback error: $e');
       return false;
     }
   }
@@ -213,7 +128,6 @@ class NavigationLauncherService {
   /// - Only if app is in foreground
   /// - Only once per trip id (navAutoOpened)
   /// - Target = DESTINATION (dropoff coordinates)
-  /// - If driver has not chosen an app, uses Google Maps if installed, else first installed app, else skips silently.
   Future<void> handleTripStarted(TripModel trip) async {
     if (!isAutoOpenEnabled) return;
     if (hasAutoOpenedForTrip(trip.tripId)) return;
@@ -232,24 +146,9 @@ class NavigationLauncherService {
     // Mark as handled immediately to guard against repeats
     await markAutoOpenedForTrip(trip.tripId);
 
-    // Determine target app
-    final preferred = getPreferredApp();
-    MapsAppType? targetApp = preferred;
-
-    if (targetApp == null) {
-      final installed = await getInstalledMapsApps();
-      if (installed.isEmpty) {
-        // Skips silently if no maps app installed (no sheet, no error)
-        return;
-      }
-      final hasGoogleMaps = installed.any((e) => e.type == MapsAppType.googleMaps);
-      targetApp = hasGoogleMaps ? MapsAppType.googleMaps : installed.first.type;
-    }
-
     await launchNavigation(
       lat: trip.dropoffLat!,
       lng: trip.dropoffLng!,
-      appType: targetApp,
     );
   }
 }

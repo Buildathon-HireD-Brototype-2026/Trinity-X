@@ -8,7 +8,6 @@ import 'package:driver_app/features/trips/domain/trip_model.dart';
 import 'package:driver_app/features/trips/presentation/controllers/trip_mini_overlay_controller.dart';
 import 'package:driver_app/features/trips/presentation/widgets/route_card_map_preview.dart';
 import 'package:driver_app/features/trips/presentation/widgets/trip_navigate_button.dart';
-import 'package:driver_app/features/trips/presentation/widgets/maps_app_picker_sheet.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -125,7 +124,7 @@ void main() {
       expect(elevatedButton.onPressed, isNull);
     });
 
-    testWidgets('5. RouteCardMapPreview displays map banner and "Open in Maps" pill', (tester) async {
+    testWidgets('5. RouteCardMapPreview displays map banner and "Open map" pill', (tester) async {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
@@ -140,8 +139,7 @@ void main() {
       );
 
       await tester.pumpAndSettle();
-      expect(find.text('Open in Maps'), findsOneWidget);
-      expect(find.byIcon(Icons.arrow_outward_rounded), findsOneWidget);
+      expect(find.text('Open map'), findsOneWidget);
     });
 
     testWidgets('6. Auto-open navigation flag prevents repeated auto-opens per trip', (tester) async {

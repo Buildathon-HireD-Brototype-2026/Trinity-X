@@ -114,13 +114,19 @@ class _TripsScreenState extends ConsumerState<TripsScreen> {
             ),
           ),
           data: (trips) {
-            if (trips.isEmpty) {
+            // Requirement 1: Assigned Trips shows only active assigned/ongoing trips.
+            // Completed trips move immediately to History; cancelled trips leave Assigned.
+            final assignedTrips = trips
+                .where((t) => (t.isAssigned || t.isOngoing) && !t.isClosed && !t.isCancelled)
+                .toList();
+
+            if (assignedTrips.isEmpty) {
               return _buildEmptyState(context);
             }
 
             // Filter trips
             final nowKolkata = DateTime.now().toUtc().add(const Duration(hours: 5, minutes: 30));
-            final filteredTrips = trips.where((t) {
+            final filteredTrips = assignedTrips.where((t) {
               final tripKolkata = t.pickupTime.add(const Duration(hours: 5, minutes: 30));
               final isToday = tripKolkata.year == nowKolkata.year &&
                   tripKolkata.month == nowKolkata.month &&
@@ -147,7 +153,7 @@ class _TripsScreenState extends ConsumerState<TripsScreen> {
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                   child: Row(
                     children: [
-                      _buildFilterChip(label: 'All (${trips.length})', index: 0),
+                      _buildFilterChip(label: 'All (${assignedTrips.length})', index: 0),
                       const SizedBox(width: 8),
                       _buildFilterChip(label: 'Today', index: 1),
                       const SizedBox(width: 8),
@@ -200,8 +206,8 @@ class _TripsScreenState extends ConsumerState<TripsScreen> {
                             ),
                           ),
 
-                          // Cards in this group
-                          ...groupTrips.map((trip) => _buildTripCard(context, trip)),
+                          // Cards in this group (fade animation on completion/removal)
+                          ...groupTrips.map((trip) => _buildAnimatedTripCard(context, trip)),
                           const SizedBox(height: 12),
                         ],
                       );
@@ -240,6 +246,24 @@ class _TripsScreenState extends ConsumerState<TripsScreen> {
             fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildAnimatedTripCard(BuildContext context, TripModel trip) {
+    final mediaQuery = MediaQuery.maybeOf(context);
+    final disableAnimations = mediaQuery?.disableAnimations ?? false;
+    final card = _buildTripCard(context, trip);
+    if (disableAnimations) return card;
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 300),
+      transitionBuilder: (child, animation) => FadeTransition(
+        opacity: animation,
+        child: child,
+      ),
+      child: KeyedSubtree(
+        key: ValueKey(trip.tripId),
+        child: card,
       ),
     );
   }

@@ -415,7 +415,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             context: context,
             icon: Icons.flight_takeoff_rounded,
             title: 'Apply for Leave',
-            onTap: () {},
+            onTap: () => context.push(RouteNames.availabilityCalendar),
           ),
           Divider(height: 24, color: themeColors.divider),
 
@@ -446,6 +446,15 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               ),
             ),
             onTap: () => context.push(RouteNames.documents),
+          ),
+          Divider(height: 24, color: themeColors.divider),
+
+          // 3. Trip History
+          _buildActionRow(
+            context: context,
+            icon: Icons.history_rounded,
+            title: 'Trip History',
+            onTap: () => context.push(RouteNames.tripHistory),
           ),
         ],
       ),

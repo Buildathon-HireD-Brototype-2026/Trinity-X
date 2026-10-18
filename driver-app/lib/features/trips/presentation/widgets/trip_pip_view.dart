@@ -5,6 +5,7 @@ import '../../../../core/routing/route_names.dart';
 import '../../../../core/theme/app_theme_colors.dart';
 import '../controllers/current_trip_provider.dart';
 import '../controllers/trip_mini_overlay_controller.dart';
+import 'trip_map_view.dart';
 
 /// Full-window Picture-in-Picture view displayed when Android enters PiP mode (16:9).
 /// Shows live ongoing trip status, short destination name, route, and ETA in real-time.
@@ -92,6 +93,23 @@ class TripPiPView extends ConsumerWidget {
                     ),
                   ),
                 ],
+              ),
+
+              // Live Driver Location Map at street level (zoom 16)
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4.0),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: TripMapView(
+                      mode: TripMapMode.driverLocation,
+                      driverLat: overlayState.currentDriverLat,
+                      driverLng: overlayState.currentDriverLng,
+                      isLiteMode: overlayState.isLiteMode,
+                      interactive: false,
+                    ),
+                  ),
+                ),
               ),
 
               // Row 2: Destination place prominent

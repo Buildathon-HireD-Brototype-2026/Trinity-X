@@ -95,6 +95,24 @@ class TripMiniOverlayState {
     return '${mins.toString().padLeft(2, '0')}:${secs.toString().padLeft(2, '0')}';
   }
 
+  /// Live estimated driver latitude along the trip route from foreground tracking
+  double? get currentDriverLat {
+    final trip = ongoingTrip;
+    if (trip == null || trip.pickupLat == null || trip.dropoffLat == null) return null;
+    final totalDuration = (trip.estimatedReachMinutes * 60).clamp(60, 3600);
+    final progress = (elapsedSeconds / totalDuration).clamp(0.0, 1.0);
+    return trip.pickupLat! + (trip.dropoffLat! - trip.pickupLat!) * progress;
+  }
+
+  /// Live estimated driver longitude along the trip route from foreground tracking
+  double? get currentDriverLng {
+    final trip = ongoingTrip;
+    if (trip == null || trip.pickupLng == null || trip.dropoffLng == null) return null;
+    final totalDuration = (trip.estimatedReachMinutes * 60).clamp(60, 3600);
+    final progress = (elapsedSeconds / totalDuration).clamp(0.0, 1.0);
+    return trip.pickupLng! + (trip.dropoffLng! - trip.pickupLng!) * progress;
+  }
+
   TripMiniOverlayState copyWith({
     bool? isTripOngoing,
     TripModel? ongoingTrip,
@@ -283,6 +301,12 @@ class TripMiniOverlayNotifier extends StateNotifier<TripMiniOverlayState> {
           elapsedSeconds: state.elapsedSeconds,
           overlayVisible: false,
         );
+        if (state.currentDriverLat != null && state.currentDriverLng != null) {
+          _bridge.updateDriverCoordinates(
+            lat: state.currentDriverLat!,
+            lng: state.currentDriverLng!,
+          );
+        }
         _syncNativeTripState();
 
         // Auto-open navigation only on live transition observed while app is active
@@ -298,6 +322,12 @@ class TripMiniOverlayNotifier extends StateNotifier<TripMiniOverlayState> {
           trip: ongoing,
           elapsedSeconds: state.elapsedSeconds,
         );
+        if (state.currentDriverLat != null && state.currentDriverLng != null) {
+          _bridge.updateDriverCoordinates(
+            lat: state.currentDriverLat!,
+            lng: state.currentDriverLng!,
+          );
+        }
       }
     } else {
       // No ongoing trip: If we were previously tracking, shut down cleanly
@@ -329,6 +359,12 @@ class TripMiniOverlayNotifier extends StateNotifier<TripMiniOverlayState> {
           trip: state.ongoingTrip!,
           elapsedSeconds: newSeconds,
         );
+        if (state.currentDriverLat != null && state.currentDriverLng != null) {
+          _bridge.updateDriverCoordinates(
+            lat: state.currentDriverLat!,
+            lng: state.currentDriverLng!,
+          );
+        }
       }
     });
   }
@@ -476,6 +512,12 @@ class TripMiniOverlayNotifier extends StateNotifier<TripMiniOverlayState> {
           trip: state.ongoingTrip!,
           elapsedSeconds: state.elapsedSeconds,
         );
+        if (state.currentDriverLat != null && state.currentDriverLng != null) {
+          _bridge.updateDriverCoordinates(
+            lat: state.currentDriverLat!,
+            lng: state.currentDriverLng!,
+          );
+        }
 
         // When leaving the app during an ongoing trip, floating overlay appears outside unless dismissed by user
         if (!state.miniDismissed) {

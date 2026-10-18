@@ -178,6 +178,9 @@ class MainActivity : FlutterActivity() {
                         val requestedOverlay = args["overlay_visible"] as? Boolean ?: true
                         val overlayVisible = if (isAppInForeground) false else requestedOverlay
 
+                        val driverLat = (args["driver_lat"] as? Number)?.toDouble()
+                        val driverLng = (args["driver_lng"] as? Number)?.toDouble()
+
                         val intent = Intent(this@MainActivity, TripForegroundService::class.java).apply {
                             action = TripForegroundService.ACTION_START
                             putExtra(TripForegroundService.EXTRA_TRIP_ID, safeTripId)
@@ -189,6 +192,8 @@ class MainActivity : FlutterActivity() {
                             putExtra(TripForegroundService.EXTRA_OVERLAY_VISIBLE, overlayVisible)
                             putExtra(TripForegroundService.EXTRA_PASSENGER_PHONE, safePhone)
                             putExtra(TripForegroundService.EXTRA_IS_DARK_THEME, args["is_dark_theme"] as? Boolean ?: false)
+                            if (driverLat != null) putExtra(TripForegroundService.EXTRA_DRIVER_LAT, driverLat)
+                            if (driverLng != null) putExtra(TripForegroundService.EXTRA_DRIVER_LNG, driverLng)
                         }
                         ContextCompat.startForegroundService(this@MainActivity, intent)
                         result.success(true)
@@ -199,6 +204,8 @@ class MainActivity : FlutterActivity() {
                         val rawPhone = args["passenger_phone"]?.toString()
                         val safePhone = rawPhone?.filter { it.isDigit() || it == '+' }?.take(16)
                         val safeEta = (args["eta_mins"] as? Number)?.toInt()?.coerceIn(0, 720)
+                        val driverLat = (args["driver_lat"] as? Number)?.toDouble()
+                        val driverLng = (args["driver_lng"] as? Number)?.toDouble()
 
                         if (TripForegroundService.instance != null) {
                             runOnUiThread {
@@ -208,7 +215,9 @@ class MainActivity : FlutterActivity() {
                                     dropoff = args["dropoff_spot"]?.toString(),
                                     etaMins = safeEta,
                                     passengerPhone = safePhone,
-                                    isDark = args["is_dark_theme"] as? Boolean
+                                    isDark = args["is_dark_theme"] as? Boolean,
+                                    driverLat = driverLat,
+                                    driverLng = driverLng
                                 )
                             }
                         } else if (TripForegroundService.isServiceRunning) {
@@ -226,6 +235,8 @@ class MainActivity : FlutterActivity() {
                                     putExtra(TripForegroundService.EXTRA_ETA_MINS, safeEta ?: 18)
                                     putExtra(TripForegroundService.EXTRA_ELAPSED_SECONDS, safeElapsed)
                                     putExtra(TripForegroundService.EXTRA_IS_DARK_THEME, args["is_dark_theme"] as? Boolean ?: false)
+                                    if (driverLat != null) putExtra(TripForegroundService.EXTRA_DRIVER_LAT, driverLat)
+                                    if (driverLng != null) putExtra(TripForegroundService.EXTRA_DRIVER_LNG, driverLng)
                                 }
                                 ContextCompat.startForegroundService(this@MainActivity, intent)
                             } catch (_: Exception) {}
@@ -266,6 +277,17 @@ class MainActivity : FlutterActivity() {
 
                     "isServiceRunning" -> {
                         result.success(TripForegroundService.isServiceRunning)
+                    }
+
+                    "checkMapsApiKeyValid" -> {
+                        try {
+                            val appInfo = packageManager.getApplicationInfo(packageName, android.content.pm.PackageManager.GET_META_DATA)
+                            val key = appInfo.metaData?.getString("com.google.android.geo.API_KEY")
+                            val isValid = !key.isNullOrBlank() && key != "YOUR_ANDROID_MAPS_API_KEY"
+                            result.success(isValid)
+                        } catch (e: Exception) {
+                            result.success(false)
+                        }
                     }
 
                     "checkPendingOpenTrip" -> {
@@ -317,6 +339,23 @@ class MainActivity : FlutterActivity() {
 
                     "sendToBackground" -> {
                         moveTaskToBack(true)
+                        result.success(true)
+                    }
+
+                    "updateDriverCoordinates" -> {
+                        val args = call.arguments as? Map<*, *>
+                        val lat = (args?.get("driver_lat") as? Number)?.toDouble()
+                        val lng = (args?.get("driver_lng") as? Number)?.toDouble()
+                        if (lat != null && lng != null) {
+                            TripForegroundService.updateInstanceData(
+                                status = null,
+                                pickup = null,
+                                dropoff = null,
+                                etaMins = null,
+                                driverLat = lat,
+                                driverLng = lng
+                            )
+                        }
                         result.success(true)
                     }
 

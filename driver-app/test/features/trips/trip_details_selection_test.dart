@@ -51,6 +51,8 @@ class FakeTripNativeBridge implements TripNativeBridge {
   @override
   Future<bool> isLowRamDevice() async => false;
   @override
+  Future<bool> updateDriverCoordinates({required double lat, required double lng}) async => true;
+  @override
   Future<Map<String, dynamic>> checkPendingOpenTrip() async => {'should_open': false, 'trip_id': null};
   @override
   void dispose() {}

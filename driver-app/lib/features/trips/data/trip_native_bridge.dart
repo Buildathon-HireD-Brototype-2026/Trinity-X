@@ -162,6 +162,8 @@ class TripNativeBridge {
         'passenger_phone': trip.contactPhone,
         'elapsed_seconds': elapsedSeconds,
         'overlay_visible': overlayVisible,
+        if (trip.pickupLat != null) 'driver_lat': trip.pickupLat,
+        if (trip.pickupLng != null) 'driver_lng': trip.pickupLng,
       });
       return res ?? false;
     } catch (e) {
@@ -185,10 +187,29 @@ class TripNativeBridge {
         'eta_mins': trip.estimatedReachMinutes,
         'passenger_phone': trip.contactPhone,
         'elapsed_seconds': elapsedSeconds,
+        if (trip.pickupLat != null) 'driver_lat': trip.pickupLat,
+        if (trip.pickupLng != null) 'driver_lng': trip.pickupLng,
       });
       return res ?? false;
     } catch (e) {
       debugPrint('[TripNativeBridge] updateTripService error: $e');
+      return false;
+    }
+  }
+
+  /// Updates live driver coordinates in the native overlay MapView.
+  Future<bool> updateDriverCoordinates({
+    required double lat,
+    required double lng,
+  }) async {
+    if (kIsWeb) return false;
+    try {
+      final res = await _channel.invokeMethod<bool>('updateDriverCoordinates', {
+        'driver_lat': lat,
+        'driver_lng': lng,
+      });
+      return res ?? false;
+    } catch (_) {
       return false;
     }
   }

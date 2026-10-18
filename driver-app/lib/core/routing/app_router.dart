@@ -10,6 +10,9 @@ import '../../features/profile/presentation/documents_screen.dart';
 import '../../features/profile/presentation/profile_screen.dart';
 import '../../features/trips/presentation/trip_details_screen.dart';
 import '../../features/trips/presentation/trips_screen.dart';
+import '../../features/history/presentation/trip_history_screen.dart';
+import '../../features/leaves/presentation/availability_calendar_screen.dart';
+import '../../features/performance/presentation/performance_screen.dart';
 import '../../features/wallet/presentation/wallet_screen.dart';
 import 'route_names.dart';
 import 'trip_route_observer.dart';
@@ -111,6 +114,33 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: RouteNames.wallet,
         builder: (context, state) => const WalletScreen(),
+      ),
+      GoRoute(
+        path: RouteNames.tripHistory,
+        builder: (context, state) {
+          int? initialYear;
+          int? initialMonth;
+          if (state.extra is Map<String, dynamic>) {
+            final map = state.extra as Map<String, dynamic>;
+            initialYear = map['year'] as int?;
+            initialMonth = map['month'] as int?;
+          } else if (state.uri.queryParameters.containsKey('year')) {
+            initialYear = int.tryParse(state.uri.queryParameters['year'] ?? '');
+            initialMonth = int.tryParse(state.uri.queryParameters['month'] ?? '');
+          }
+          return TripHistoryScreen(
+            initialYear: initialYear,
+            initialMonth: initialMonth,
+          );
+        },
+      ),
+      GoRoute(
+        path: RouteNames.availabilityCalendar,
+        builder: (context, state) => const AvailabilityCalendarScreen(),
+      ),
+      GoRoute(
+        path: RouteNames.performance,
+        builder: (context, state) => const PerformanceScreen(),
       ),
     ],
   );

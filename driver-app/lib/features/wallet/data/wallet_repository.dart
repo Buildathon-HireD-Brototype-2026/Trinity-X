@@ -108,110 +108,51 @@ class MockWalletRepository implements WalletRepository {
   @override
   Future<List<MonthlySettlementRecord>> getPreviousMonths([DateTime? referenceNow]) async {
     // PRD Section 5: "showing only the last 2 months before the current one (e.g. in October: September and August)"
-    // Anything older than 2 months is no longer shown.
+    // Unified trip source: derives from _tripRepository completed trips so History and Wallet match.
+    final allTrips = await _tripRepository.getTrips();
+    final completedTrips = allTrips
+        .where((t) => t.isClosed && !t.isCancelled)
+        .map((t) => WalletTripRecord.fromTripModel(t))
+        .toList();
+
+    // September 2026 trips (IST month 9, 2026)
+    final septTrips = completedTrips.where((t) {
+      final ist = IstDateTimeHelper.toIST(t.completedAt);
+      return ist.year == 2026 && ist.month == 9;
+    }).toList();
+    final septEarnings = septTrips.fold(0.0, (sum, t) => sum + t.driverEarning);
+    final septExpenses = septTrips.fold(0.0, (sum, t) => sum + t.totalExpense);
+
+    // August 2026 trips (IST month 8, 2026)
+    final augTrips = completedTrips.where((t) {
+      final ist = IstDateTimeHelper.toIST(t.completedAt);
+      return ist.year == 2026 && ist.month == 8;
+    }).toList();
+    final augEarnings = augTrips.fold(0.0, (sum, t) => sum + t.driverEarning);
+    final augExpenses = augTrips.fold(0.0, (sum, t) => sum + t.totalExpense);
+
     return [
       MonthlySettlementRecord(
         month: 'September 2026',
         monthDate: DateTime.utc(2026, 9, 1),
-        totalDriverEarning: 34250.00,
-        tripCount: 38,
-        totalExpense: 1420.00,
+        totalDriverEarning: septEarnings,
+        tripCount: septTrips.length,
+        totalExpense: septExpenses,
         status: SettlementStatus.paid,
-        paidAmount: 34250.00,
+        paidAmount: septEarnings,
         paidDate: DateTime.utc(2026, 10, 5, 11, 30),
-        trips: [
-          WalletTripRecord(
-            tripId: '8390',
-            orderId: 1022,
-            tripStartTime: DateTime.utc(2026, 9, 29, 9, 30),
-            tripEndTime: DateTime.utc(2026, 9, 29, 11, 15),
-            completedAt: DateTime.utc(2026, 9, 29, 11, 15),
-            driverEarning: 750.00,
-            status: 'COMPLETED',
-            totalExpense: 140.00,
-            expenses: [
-              WalletExpenseItem(
-                id: 480,
-                name: 'Toll',
-                amount: 140.00,
-                addedFor: 'Electronic City Flyover Toll',
-                addedAt: DateTime.utc(2026, 9, 29, 10, 15),
-              ),
-            ],
-          ),
-          WalletTripRecord(
-            tripId: '8385',
-            orderId: 1018,
-            tripStartTime: DateTime.utc(2026, 9, 25, 14, 0),
-            tripEndTime: DateTime.utc(2026, 9, 25, 15, 45),
-            completedAt: DateTime.utc(2026, 9, 25, 15, 45),
-            driverEarning: 920.00,
-            status: 'COMPLETED',
-            totalExpense: 60.00,
-            expenses: [
-              WalletExpenseItem(
-                id: 475,
-                name: 'Parking',
-                amount: 60.00,
-                addedFor: 'Mall Parking Gate 3',
-                addedAt: DateTime.utc(2026, 9, 25, 14, 30),
-              ),
-            ],
-          ),
-          WalletTripRecord(
-            tripId: '8380',
-            orderId: 1015,
-            tripStartTime: DateTime.utc(2026, 9, 20, 8, 0),
-            tripEndTime: DateTime.utc(2026, 9, 20, 9, 20),
-            completedAt: DateTime.utc(2026, 9, 20, 9, 20),
-            driverEarning: 580.00,
-            status: 'COMPLETED',
-            totalExpense: 0.0,
-            expenses: const [],
-          ),
-        ],
+        trips: septTrips,
       ),
       MonthlySettlementRecord(
         month: 'August 2026',
         monthDate: DateTime.utc(2026, 8, 1),
-        totalDriverEarning: 28900.00,
-        tripCount: 32,
-        totalExpense: 980.00,
+        totalDriverEarning: augEarnings,
+        tripCount: augTrips.length,
+        totalExpense: augExpenses,
         status: SettlementStatus.paid,
-        paidAmount: 28900.00,
+        paidAmount: augEarnings,
         paidDate: DateTime.utc(2026, 9, 4, 10, 0),
-        trips: [
-          WalletTripRecord(
-            tripId: '8340',
-            orderId: 980,
-            tripStartTime: DateTime.utc(2026, 8, 28, 11, 0),
-            tripEndTime: DateTime.utc(2026, 8, 28, 12, 40),
-            completedAt: DateTime.utc(2026, 8, 28, 12, 40),
-            driverEarning: 680.00,
-            status: 'COMPLETED',
-            totalExpense: 90.00,
-            expenses: [
-              WalletExpenseItem(
-                id: 450,
-                name: 'Toll',
-                amount: 90.00,
-                addedFor: 'Airport Expressway',
-                addedAt: DateTime.utc(2026, 8, 28, 11, 35),
-              ),
-            ],
-          ),
-          WalletTripRecord(
-            tripId: '8332',
-            orderId: 975,
-            tripStartTime: DateTime.utc(2026, 8, 21, 16, 30),
-            tripEndTime: DateTime.utc(2026, 8, 21, 18, 0),
-            completedAt: DateTime.utc(2026, 8, 21, 18, 0),
-            driverEarning: 840.00,
-            status: 'COMPLETED',
-            totalExpense: 0.0,
-            expenses: const [],
-          ),
-        ],
+        trips: augTrips,
       ),
     ];
   }

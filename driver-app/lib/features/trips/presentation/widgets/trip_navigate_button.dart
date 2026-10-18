@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/theme/app_theme_colors.dart';
 import '../controllers/trip_mini_overlay_controller.dart';
 import '../../domain/trip_model.dart';
-import 'maps_app_picker_sheet.dart';
+import '../../application/navigation_launcher_service.dart';
 
 class TripNavigateButton extends ConsumerWidget {
   final TripModel trip;
@@ -33,89 +33,49 @@ class TripNavigateButton extends ConsumerWidget {
 
     return Padding(
       padding: const EdgeInsets.only(top: 14.0),
-      child: Row(
-        children: [
-          Expanded(
-            child: SizedBox(
-              height: 48,
-              child: ElevatedButton.icon(
-                key: const Key('trip_navigate_primary_button'),
-                icon: const Icon(
-                  Icons.navigation_rounded,
-                  size: 19,
-                  color: Colors.white,
-                ),
-                label: AnimatedSwitcher(
-                  duration: isLiteMode ? const Duration(milliseconds: 150) : const Duration(milliseconds: 280),
-                  transitionBuilder: (child, animation) => FadeTransition(
-                    opacity: animation,
-                    child: child,
-                  ),
-                  child: Text(
-                    label,
-                    key: ValueKey<String>(label),
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 14.5,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 0.2,
-                    ),
-                  ),
-                ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: themeColors.primaryButton,
-                  disabledBackgroundColor: themeColors.primaryButton.withValues(alpha: 0.4),
-                  elevation: isLiteMode ? 0 : 2,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                ),
-                onPressed: !hasValidTarget
-                    ? null
-                    : () async {
-                        await MapsAppPickerSheet.show(
-                          context: context,
-                          ref: ref,
-                          targetLat: targetLat,
-                          targetLng: targetLng,
-                          forceShowSheet: false,
-                        );
-                      },
+      child: SizedBox(
+        height: 48,
+        width: double.infinity,
+        child: ElevatedButton.icon(
+          key: const Key('trip_navigate_primary_button'),
+          icon: const Icon(
+            Icons.navigation_rounded,
+            size: 19,
+            color: Colors.white,
+          ),
+          label: AnimatedSwitcher(
+            duration: isLiteMode ? const Duration(milliseconds: 150) : const Duration(milliseconds: 280),
+            transitionBuilder: (child, animation) => FadeTransition(
+              opacity: animation,
+              child: child,
+            ),
+            child: Text(
+              label,
+              key: ValueKey<String>(label),
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 14.5,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0.2,
               ),
             ),
           ),
-          if (hasValidTarget) ...[
-            const SizedBox(width: 8),
-            // Trailing "change app" icon button to re-open picker
-            Container(
-              height: 48,
-              width: 48,
-              decoration: BoxDecoration(
-                color: themeColors.innerBox,
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: themeColors.border),
-              ),
-              child: IconButton(
-                key: const Key('trip_navigate_change_app_button'),
-                icon: Icon(
-                  Icons.tune_rounded,
-                  size: 20,
-                  color: themeColors.textPrimary,
-                ),
-                tooltip: 'Change Navigation App',
-                onPressed: () async {
-                  await MapsAppPickerSheet.show(
-                    context: context,
-                    ref: ref,
-                    targetLat: targetLat,
-                    targetLng: targetLng,
-                    forceShowSheet: true,
-                  );
-                },
-              ),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: themeColors.primaryButton,
+            disabledBackgroundColor: themeColors.primaryButton.withValues(alpha: 0.4),
+            elevation: isLiteMode ? 0 : 2,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(14),
             ),
-          ],
-        ],
+          ),
+          onPressed: !hasValidTarget
+              ? null
+              : () async {
+                  await ref
+                      .read(navigationLauncherServiceProvider)
+                      .launchNavigation(lat: targetLat, lng: targetLng);
+                },
+        ),
       ),
     );
   }

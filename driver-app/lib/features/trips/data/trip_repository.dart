@@ -5,6 +5,8 @@ abstract class TripRepository {
   Future<List<TripModel>> getTrips();
   Stream<List<TripModel>> watchTrips();
   Future<void> startTrip(String tripId);
+  Future<void> markSpotReached(String tripId, {double? lat, double? lng});
+  Future<void> markDestinationReached(String tripId, {double? lat, double? lng});
   Future<void> completeTrip(String tripId);
   Future<void> cancelTrip(String tripId);
   Future<void> addExpense(String tripId, String description, double amount);
@@ -235,6 +237,116 @@ class MockTripRepository implements TripRepository {
       startedAt: null,
       closedAt: _calcKolkataUtc(-5, 14, 30),
     ),
+    // September 2026 Completed Trips (PRD D-10 & D-12)
+    TripModel(
+      tripId: '8390',
+      orderId: 1022,
+      status: 'CLOSED',
+      companyName: 'Wipro Technologies',
+      pickupSpot: 'Koramangala Sony World Signal, Bengaluru',
+      dropoffSpot: 'Electronic City Phase 1, Bengaluru',
+      pickupTime: DateTime.utc(2026, 9, 29, 4, 0),
+      assignedAt: DateTime.utc(2026, 9, 29, 3, 30),
+      startedAt: DateTime.utc(2026, 9, 29, 4, 5),
+      closedAt: DateTime.utc(2026, 9, 29, 5, 45), // 11:15 AM IST
+      amount: 2200.00,
+      driverShare: 750.00,
+      otp: '892014',
+      otpAttempts: 1,
+      expensesConfirmed: true,
+      expenses: const [
+        TripExpenseModel(
+          expenseId: 480,
+          description: 'Electronic City Flyover Toll',
+          amount: 140.00,
+        ),
+      ],
+    ),
+    TripModel(
+      tripId: '8385',
+      orderId: 1018,
+      status: 'CLOSED',
+      companyName: 'Infosys Technologies',
+      pickupSpot: 'Indiranagar 12th Main, Bengaluru',
+      dropoffSpot: 'Phoenix Marketcity, Whitefield, Bengaluru',
+      pickupTime: DateTime.utc(2026, 9, 25, 8, 30),
+      assignedAt: DateTime.utc(2026, 9, 25, 8, 0),
+      startedAt: DateTime.utc(2026, 9, 25, 8, 35),
+      closedAt: DateTime.utc(2026, 9, 25, 10, 15), // 3:45 PM IST
+      amount: 2800.00,
+      driverShare: 920.00,
+      otp: '671239',
+      otpAttempts: 1,
+      expensesConfirmed: true,
+      expenses: const [
+        TripExpenseModel(
+          expenseId: 475,
+          description: 'Mall Parking Gate 3',
+          amount: 60.00,
+        ),
+      ],
+    ),
+    TripModel(
+      tripId: '8380',
+      orderId: 1015,
+      status: 'CLOSED',
+      companyName: 'Apex Logistics Ltd.',
+      pickupSpot: 'Jayanagar 4th Block, Bengaluru',
+      dropoffSpot: 'Manyata Tech Park, Nagavara, Bengaluru',
+      pickupTime: DateTime.utc(2026, 9, 20, 2, 30),
+      assignedAt: DateTime.utc(2026, 9, 20, 2, 0),
+      startedAt: DateTime.utc(2026, 9, 20, 2, 35),
+      closedAt: DateTime.utc(2026, 9, 20, 3, 50), // 9:20 AM IST
+      amount: 1750.00,
+      driverShare: 580.00,
+      otp: '451290',
+      otpAttempts: 1,
+      expensesConfirmed: false,
+      expenses: const [],
+    ),
+    // August 2026 Completed Trips (PRD D-10 & D-12)
+    TripModel(
+      tripId: '8340',
+      orderId: 980,
+      status: 'CLOSED',
+      companyName: 'Tata Consultancy Services',
+      pickupSpot: 'MG Road Metro Station, Bengaluru',
+      dropoffSpot: 'Kempegowda International Airport (BLR), Terminal 1',
+      pickupTime: DateTime.utc(2026, 8, 28, 5, 30),
+      assignedAt: DateTime.utc(2026, 8, 28, 5, 0),
+      startedAt: DateTime.utc(2026, 8, 28, 5, 35),
+      closedAt: DateTime.utc(2026, 8, 28, 7, 10), // 12:40 PM IST
+      amount: 2100.00,
+      driverShare: 680.00,
+      otp: '189234',
+      otpAttempts: 1,
+      expensesConfirmed: true,
+      expenses: const [
+        TripExpenseModel(
+          expenseId: 450,
+          description: 'Airport Expressway Toll',
+          amount: 90.00,
+        ),
+      ],
+    ),
+    TripModel(
+      tripId: '8332',
+      orderId: 975,
+      status: 'CLOSED',
+      companyName: 'Flipkart Internet Pvt Ltd',
+      pickupSpot: 'HSR Layout Sector 2, Bengaluru',
+      dropoffSpot: 'RMZ Ecospace, Outer Ring Road, Bengaluru',
+      pickupTime: DateTime.utc(2026, 8, 21, 11, 0),
+      assignedAt: DateTime.utc(2026, 8, 21, 10, 30),
+      startedAt: DateTime.utc(2026, 8, 21, 11, 5),
+      closedAt: DateTime.utc(2026, 8, 21, 12, 30), // 6:00 PM IST
+      amount: 2500.00,
+      driverShare: 840.00,
+      otp: '912834',
+      otpAttempts: 1,
+      expensesConfirmed: false,
+      expenses: const [],
+    ),
   ];
 
   late List<TripModel> _mockTrips = List.from(_initialTrips);
@@ -255,12 +367,40 @@ class MockTripRepository implements TripRepository {
   }
 
   @override
-  Future<void> startTrip(String tripId) async {
+  Future<void> markSpotReached(String tripId, {double? lat, double? lng}) async {
     _mockTrips = _mockTrips.map((t) {
       if (t.tripId == tripId) {
         return t.copyWith(
+          spotReachedAt: DateTime.now().toUtc(),
+        );
+      }
+      return t;
+    }).toList();
+    _controller.add(List.unmodifiable(_mockTrips));
+  }
+
+  @override
+  Future<void> markDestinationReached(String tripId, {double? lat, double? lng}) async {
+    _mockTrips = _mockTrips.map((t) {
+      if (t.tripId == tripId) {
+        return t.copyWith(
+          destinationReachedAt: DateTime.now().toUtc(),
+        );
+      }
+      return t;
+    }).toList();
+    _controller.add(List.unmodifiable(_mockTrips));
+  }
+
+  @override
+  Future<void> startTrip(String tripId) async {
+    _mockTrips = _mockTrips.map((t) {
+      if (t.tripId == tripId) {
+        final now = DateTime.now().toUtc();
+        return t.copyWith(
           status: 'ONGOING',
-          startedAt: DateTime.now().toUtc(),
+          startedAt: now,
+          spotReachedAt: t.spotReachedAt ?? now,
         );
       }
       return t;
@@ -272,9 +412,13 @@ class MockTripRepository implements TripRepository {
   Future<void> completeTrip(String tripId) async {
     _mockTrips = _mockTrips.map((t) {
       if (t.tripId == tripId) {
+        final now = DateTime.now().toUtc();
         return t.copyWith(
           status: 'CLOSED',
-          closedAt: DateTime.now().toUtc(),
+          closedAt: now,
+          destinationReachedAt: t.destinationReachedAt ?? now,
+          spotReachedAt: t.spotReachedAt ?? now,
+          startedAt: t.startedAt ?? now,
         );
       }
       return t;

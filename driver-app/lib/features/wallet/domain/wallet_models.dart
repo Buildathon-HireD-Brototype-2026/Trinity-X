@@ -193,6 +193,8 @@ class WalletTripRecord {
   final String status; // 'COMPLETED', 'CLOSED'
   final List<WalletExpenseItem> expenses;
   final double totalExpense;
+  final String pickupSpot;
+  final String dropoffSpot;
 
   const WalletTripRecord({
     required this.tripId,
@@ -204,6 +206,8 @@ class WalletTripRecord {
     required this.status,
     this.expenses = const [],
     required this.totalExpense,
+    this.pickupSpot = '',
+    this.dropoffSpot = '',
   });
 
   bool get isCompleted =>
@@ -231,6 +235,8 @@ class WalletTripRecord {
       status: trip.status,
       expenses: expList,
       totalExpense: totalExp,
+      pickupSpot: trip.pickupSpot,
+      dropoffSpot: trip.dropoffSpot,
     );
   }
 

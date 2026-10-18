@@ -44,6 +44,11 @@
             android:name="flutterEmbedding"
             android:value="2" />
 
+        <!-- Google Maps API Key from secrets.properties / manifestPlaceholders -->
+        <meta-data
+            android:name="com.google.android.geo.API_KEY"
+            android:value="${MAPS_API_KEY}" />
+
         <service
             android:name=".TripForegroundService"
             android:exported="false"

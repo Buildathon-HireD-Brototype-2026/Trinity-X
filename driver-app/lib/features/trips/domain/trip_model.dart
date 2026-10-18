@@ -62,7 +62,9 @@ class TripModel {
   final bool expensesConfirmed;
   final List<TripExpenseModel> expenses;
   final DateTime? assignedAt;
+  final DateTime? spotReachedAt;
   final DateTime? startedAt;
+  final DateTime? destinationReachedAt;
   final DateTime? closedAt;
   final double? pickupLat;
   final double? pickupLng;
@@ -89,7 +91,9 @@ class TripModel {
     this.expensesConfirmed = false,
     this.expenses = const [],
     this.assignedAt,
+    this.spotReachedAt,
     this.startedAt,
+    this.destinationReachedAt,
     this.closedAt,
     this.pickupLat = 12.9716,
     this.pickupLng = 77.5946,
@@ -101,6 +105,14 @@ class TripModel {
   bool get isAssigned => status.toUpperCase() == 'ASSIGNED';
   bool get isOngoing => status.toUpperCase() == 'ONGOING';
   bool get isClosed => status.toUpperCase() == 'CLOSED' || status.toUpperCase() == 'COMPLETED';
+  bool get isCancelled => status.toUpperCase() == 'CANCELLED';
+
+  /// Roster step completion states
+  bool get isStepAssigned => true;
+  bool get isStepSpotReached => spotReachedAt != null || isOngoing || isClosed;
+  bool get isStepInJourney => isOngoing || startedAt != null || isClosed;
+  bool get isStepReachedPlace => destinationReachedAt != null || isClosed;
+
   bool get hasValidCoordinates =>
       pickupLat != null &&
       pickupLng != null &&
@@ -130,7 +142,9 @@ class TripModel {
     bool? expensesConfirmed,
     List<TripExpenseModel>? expenses,
     DateTime? assignedAt,
+    DateTime? spotReachedAt,
     DateTime? startedAt,
+    DateTime? destinationReachedAt,
     DateTime? closedAt,
     double? pickupLat,
     double? pickupLng,
@@ -157,7 +171,9 @@ class TripModel {
       expensesConfirmed: expensesConfirmed ?? this.expensesConfirmed,
       expenses: expenses ?? this.expenses,
       assignedAt: assignedAt ?? this.assignedAt,
+      spotReachedAt: spotReachedAt ?? this.spotReachedAt,
       startedAt: startedAt ?? this.startedAt,
+      destinationReachedAt: destinationReachedAt ?? this.destinationReachedAt,
       closedAt: closedAt ?? this.closedAt,
       pickupLat: pickupLat ?? this.pickupLat,
       pickupLng: pickupLng ?? this.pickupLng,
@@ -186,7 +202,9 @@ class TripModel {
     'expenses_confirmed': expensesConfirmed,
     'expenses': expenses.map((e) => e.toJson()).toList(),
     if (assignedAt != null) 'assigned_at': assignedAt!.toIso8601String(),
+    if (spotReachedAt != null) 'spot_reached_at': spotReachedAt!.toIso8601String(),
     if (startedAt != null) 'started_at': startedAt!.toIso8601String(),
+    if (destinationReachedAt != null) 'destination_reached_at': destinationReachedAt!.toIso8601String(),
     if (closedAt != null) 'closed_at': closedAt!.toIso8601String(),
     if (pickupLat != null) 'pickup_lat': pickupLat,
     if (pickupLng != null) 'pickup_lng': pickupLng,
@@ -220,7 +238,9 @@ class TripModel {
               .toList() ??
           const [],
       assignedAt: json['assigned_at'] != null ? DateTime.tryParse(json['assigned_at'].toString()) : null,
+      spotReachedAt: json['spot_reached_at'] != null ? DateTime.tryParse(json['spot_reached_at'].toString()) : null,
       startedAt: json['started_at'] != null ? DateTime.tryParse(json['started_at'].toString()) : null,
+      destinationReachedAt: json['destination_reached_at'] != null ? DateTime.tryParse(json['destination_reached_at'].toString()) : null,
       closedAt: json['closed_at'] != null ? DateTime.tryParse(json['closed_at'].toString()) : null,
       pickupLat: (json['pickup_lat'] as num?)?.toDouble() ?? 12.9716,
       pickupLng: (json['pickup_lng'] as num?)?.toDouble() ?? 77.5946,

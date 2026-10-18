@@ -74,5 +74,7 @@
 		<string>googlechromes</string>
 		<string>https</string>
 	</array>
+	<key>GMSApiKey</key>
+	<string>$(MAPS_API_KEY)</string>
 </dict>
 </plist>

@@ -28,6 +28,15 @@ import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.core.app.NotificationCompat
+import com.google.android.gms.maps.CameraUpdateFactory
+import com.google.android.gms.maps.GoogleMap
+import com.google.android.gms.maps.GoogleMapOptions
+import com.google.android.gms.maps.MapView
+import com.google.android.gms.maps.model.BitmapDescriptorFactory
+import com.google.android.gms.maps.model.LatLng
+import com.google.android.gms.maps.model.MapStyleOptions
+import com.google.android.gms.maps.model.Marker
+import com.google.android.gms.maps.model.MarkerOptions
 
 class TripForegroundService : Service() {
 
@@ -49,6 +58,8 @@ class TripForegroundService : Service() {
         const val EXTRA_OVERLAY_VISIBLE = "EXTRA_OVERLAY_VISIBLE"
         const val EXTRA_PASSENGER_PHONE = "EXTRA_PASSENGER_PHONE"
         const val EXTRA_IS_DARK_THEME = "EXTRA_IS_DARK_THEME"
+        const val EXTRA_DRIVER_LAT = "EXTRA_DRIVER_LAT"
+        const val EXTRA_DRIVER_LNG = "EXTRA_DRIVER_LNG"
 
         private const val PREFS_NAME = "trip_overlay_prefs"
         private const val KEY_POS_X = "overlay_x"
@@ -69,7 +80,16 @@ class TripForegroundService : Service() {
             isOverlayDismissedByUser = false
         }
 
-        fun updateInstanceData(status: String?, pickup: String?, dropoff: String?, etaMins: Int?, passengerPhone: String? = null, isDark: Boolean? = null) {
+        fun updateInstanceData(
+            status: String?,
+            pickup: String?,
+            dropoff: String?,
+            etaMins: Int?,
+            passengerPhone: String? = null,
+            isDark: Boolean? = null,
+            driverLat: Double? = null,
+            driverLng: Double? = null
+        ) {
             instance?.let { s ->
                 if (status != null) s.status = status
                 if (pickup != null) s.pickupSpot = pickup
@@ -77,7 +97,10 @@ class TripForegroundService : Service() {
                 if (etaMins != null) s.etaMinutes = etaMins
                 if (passengerPhone != null) s.passengerPhone = passengerPhone
                 if (isDark != null) s.isDarkTheme = isDark
+                if (driverLat != null) s.driverLat = driverLat
+                if (driverLng != null) s.driverLng = driverLng
                 s.updateOverlayUI()
+                s.updateDriverLocationOnMap()
                 s.updateNotification()
             }
         }
@@ -146,6 +169,14 @@ class TripForegroundService : Service() {
     private var mapVehicleIcon: ImageView? = null
     private var mapRouteLine: View? = null
 
+    // Native Google MapView for outside-app floating overlay
+    private var nativeMapView: MapView? = null
+    private var nativeGoogleMap: GoogleMap? = null
+    private var driverMarker: Marker? = null
+    private var driverLat: Double? = null
+    private var driverLng: Double? = null
+    private var lastCameraMoveTimeMs: Long = 0L
+
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onCreate() {
@@ -209,6 +240,14 @@ class TripForegroundService : Service() {
         }
         if (intent.hasExtra(EXTRA_IS_DARK_THEME)) {
             isDarkTheme = intent.getBooleanExtra(EXTRA_IS_DARK_THEME, isDarkTheme)
+        }
+        if (intent.hasExtra(EXTRA_DRIVER_LAT)) {
+            val lat = intent.getDoubleExtra(EXTRA_DRIVER_LAT, 0.0)
+            if (lat != 0.0) driverLat = lat
+        }
+        if (intent.hasExtra(EXTRA_DRIVER_LNG)) {
+            val lng = intent.getDoubleExtra(EXTRA_DRIVER_LNG, 0.0)
+            if (lng != 0.0) driverLng = lng
         }
     }
 
@@ -387,6 +426,7 @@ class TripForegroundService : Service() {
     private fun hideOverlay() {
         val handler = Handler(Looper.getMainLooper())
         handler.post {
+            destroyNativeMapView()
             if (overlayView != null && isOverlayViewAdded) {
                 try {
                     overlayView?.animate()?.cancel()
@@ -599,6 +639,7 @@ class TripForegroundService : Service() {
         mapCanvas!!.addView(mapGraphics)
 
         mapViewContainer!!.addView(mapCanvas)
+        setupNativeMapView(mapViewContainer!!)
         cardView!!.addView(mapViewContainer)
 
         // Divider 2
@@ -731,7 +772,109 @@ class TripForegroundService : Service() {
             etaText?.text = "~${etaMinutes}m ETA"
             statusText?.text = if (status == "ASSIGNED") "ASSIGNED" else "ONGOING"
             applyThemeColors()
+            updateDriverLocationOnMap()
         }
+    }
+
+    private fun isMapsKeyConfigured(): Boolean {
+        return try {
+            val appInfo = packageManager.getApplicationInfo(packageName, android.content.pm.PackageManager.GET_META_DATA)
+            val key = appInfo.metaData?.getString("com.google.android.geo.API_KEY")
+            !key.isNullOrBlank() && key != "YOUR_ANDROID_MAPS_API_KEY"
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    private fun setupNativeMapView(container: FrameLayout) {
+        if (!isMapsKeyConfigured()) {
+            return
+        }
+
+        try {
+            val options = GoogleMapOptions()
+                .liteMode(true)
+                .scrollGesturesEnabled(false)
+                .zoomGesturesEnabled(false)
+                .rotateGesturesEnabled(false)
+                .tiltGesturesEnabled(false)
+                .compassEnabled(false)
+                .mapToolbarEnabled(false)
+
+            val mapView = MapView(this, options).apply {
+                layoutParams = FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.MATCH_PARENT,
+                    FrameLayout.LayoutParams.MATCH_PARENT
+                )
+            }
+            mapView.onCreate(null)
+            mapView.onResume()
+
+            mapView.getMapAsync { googleMap ->
+                nativeGoogleMap = googleMap
+                googleMap.uiSettings.isMapToolbarEnabled = false
+                googleMap.uiSettings.setAllGesturesEnabled(false)
+
+                val lat = driverLat
+                val lng = driverLng
+                if (lat != null && lng != null) {
+                    val pos = LatLng(lat, lng)
+                    driverMarker = googleMap.addMarker(
+                        MarkerOptions()
+                            .position(pos)
+                            .title("Driver")
+                            .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_AZURE))
+                    )
+                    googleMap.moveCamera(CameraUpdateFactory.newLatLngZoom(pos, 16f))
+                }
+
+                mapCanvas?.visibility = View.GONE
+            }
+
+            container.addView(mapView, 0)
+            nativeMapView = mapView
+        } catch (e: Exception) {
+            nativeMapView = null
+            nativeGoogleMap = null
+            mapCanvas?.visibility = View.VISIBLE
+        }
+    }
+
+    private fun updateDriverLocationOnMap() {
+        val lat = driverLat ?: return
+        val lng = driverLng ?: return
+        val latLng = LatLng(lat, lng)
+
+        val now = System.currentTimeMillis()
+        if (now - lastCameraMoveTimeMs < 3000L) {
+            return
+        }
+        lastCameraMoveTimeMs = now
+
+        nativeGoogleMap?.let { map ->
+            if (driverMarker == null) {
+                driverMarker = map.addMarker(
+                    MarkerOptions()
+                        .position(latLng)
+                        .title("Driver")
+                        .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_AZURE))
+                )
+            } else {
+                driverMarker?.position = latLng
+            }
+            map.animateCamera(CameraUpdateFactory.newLatLngZoom(latLng, 16f))
+        }
+    }
+
+    private fun destroyNativeMapView() {
+        try {
+            nativeMapView?.onPause()
+            nativeMapView?.onDestroy()
+            mapViewContainer?.removeView(nativeMapView)
+        } catch (_: Exception) {}
+        nativeMapView = null
+        nativeGoogleMap = null
+        driverMarker = null
     }
 
     private fun attachTouchListener(
@@ -831,6 +974,7 @@ class TripForegroundService : Service() {
     }
 
     override fun onDestroy() {
+        destroyNativeMapView()
         hideOverlay()
         isServiceRunning = false
         if (instance == this) {
