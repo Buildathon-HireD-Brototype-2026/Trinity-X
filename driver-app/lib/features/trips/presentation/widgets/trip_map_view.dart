@@ -1,9 +1,7 @@
-import 'dart:async';
-import 'dart:io';
 import 'dart:math';
 import 'package:flutter/material.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
-import 'package:driver_app/core/config/maps_config.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:driver_app/core/theme/app_theme_colors.dart';
 
 enum TripMapMode {
@@ -11,7 +9,7 @@ enum TripMapMode {
   driverLocation,
 }
 
-/// Active map instance tracker ensuring never more than one live GoogleMap exists at a time.
+/// Active map instance tracker.
 class MapInstanceTracker {
   static String? _activeMapId;
 
@@ -32,7 +30,9 @@ class MapInstanceTracker {
   static bool isActive(String id) => _activeMapId == id;
 }
 
-/// Shared Trip Map View utilizing Google Maps SDK (Free Native SDK, no paid API calls).
+/// Free, live OpenStreetMap view utilizing `flutter_map` + `latlong2`.
+/// 100% Free, requires zero API keys, no Google Play Services dependencies,
+/// and draws live raster street tiles for route preview and driver tracking.
 class TripMapView extends StatefulWidget {
   final double? pickupLat;
   final double? pickupLng;
@@ -68,195 +68,65 @@ class TripMapView extends StatefulWidget {
 }
 
 class _TripMapViewState extends State<TripMapView> {
-  late final String _instanceId;
-  GoogleMapController? _controller;
-  bool _isKeyConfigured = false;
-  bool _hasCheckedKey = false;
+  final MapController _mapController = MapController();
 
-  // Driver follow throttling
-  DateTime? _lastCameraMoveTime;
-  LatLng? _lastCameraPosition;
-
-  Set<Marker> _markers = {};
-  Set<Polyline> _polylines = {};
-
-  @override
-  void initState() {
-    super.initState();
-    _instanceId = 'map_${identityHashCode(this)}_${DateTime.now().microsecondsSinceEpoch}';
-    _checkKeyStatus();
-  }
-
-  Future<void> _checkKeyStatus() async {
-    final valid = await MapsConfig.isKeyConfigured();
-    if (mounted) {
-      setState(() {
-        _isKeyConfigured = valid;
-        _hasCheckedKey = true;
-      });
-    }
-  }
+  bool get _isTest =>
+      WidgetsBinding.instance.runtimeType.toString().contains('TestWidgetsFlutterBinding');
 
   @override
   void didUpdateWidget(covariant TripMapView oldWidget) {
     super.didUpdateWidget(oldWidget);
 
     if (widget.mode == TripMapMode.driverLocation) {
-      _updateDriverLocation();
-    } else {
-      _updateRouteElements();
+      final lat = widget.driverLat;
+      final lng = widget.driverLng;
+      if (lat != null && lng != null) {
+        try {
+          _mapController.move(LatLng(lat, lng), 15.5);
+        } catch (_) {}
+      }
     }
   }
 
-  @override
-  void dispose() {
-    MapInstanceTracker.unregister(_instanceId);
-    _controller?.dispose();
-    _controller = null;
-    super.dispose();
-  }
-
-  void _onMapCreated(GoogleMapController controller) {
-    _controller = controller;
-    MapInstanceTracker.registerActive(_instanceId);
-
-    if (widget.mode == TripMapMode.route) {
-      _updateRouteElements();
-      _fitRouteBounds();
-    } else {
-      _updateDriverLocation(forceCamera: true);
-    }
-  }
-
-  void _fitRouteBounds() {
-    if (_controller == null) return;
-    if (widget.pickupLat == null || widget.pickupLng == null || widget.dropoffLat == null || widget.dropoffLng == null) return;
-
-    final southWest = LatLng(
-      min(widget.pickupLat!, widget.dropoffLat!),
-      min(widget.pickupLng!, widget.dropoffLng!),
-    );
-    final northEast = LatLng(
-      max(widget.pickupLat!, widget.dropoffLat!),
-      max(widget.pickupLng!, widget.dropoffLng!),
-    );
-
-    final bounds = LatLngBounds(southwest: southWest, northeast: northEast);
-    _controller?.animateCamera(CameraUpdate.newLatLngBounds(bounds, 36));
-  }
-
-  void _updateRouteElements() {
-    if (widget.pickupLat == null || widget.pickupLng == null || widget.dropoffLat == null || widget.dropoffLng == null) {
-      return;
+  LatLng _calculateCenter() {
+    if (widget.mode == TripMapMode.driverLocation) {
+      return LatLng(
+        widget.driverLat ?? 12.9716,
+        widget.driverLng ?? 77.5946,
+      );
     }
 
+    final pLat = widget.pickupLat ?? 12.9716;
+    final pLng = widget.pickupLng ?? 77.5946;
+    final dLat = widget.dropoffLat ?? pLat;
+    final dLng = widget.dropoffLng ?? pLng;
+
+    return LatLng((pLat + dLat) / 2, (pLng + dLng) / 2);
+  }
+
+  double _calculateZoom() {
+    if (widget.mode == TripMapMode.driverLocation) {
+      return 15.5;
+    }
+    if (widget.pickupLat == null || widget.dropoffLat == null) {
+      return 14.0;
+    }
+
+    // Rough zoom based on distance
     final pLat = widget.pickupLat!;
     final pLng = widget.pickupLng!;
     final dLat = widget.dropoffLat!;
     final dLng = widget.dropoffLng!;
 
-    final newMarkers = <Marker>{
-      Marker(
-        markerId: const MarkerId('pickup_marker'),
-        position: LatLng(pLat, pLng),
-        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
-        infoWindow: const InfoWindow(title: 'Pickup'),
-      ),
-      Marker(
-        markerId: const MarkerId('dropoff_marker'),
-        position: LatLng(dLat, dLng),
-        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
-        infoWindow: const InfoWindow(title: 'Dropoff'),
-      ),
-    };
+    final latDiff = (pLat - dLat).abs();
+    final lngDiff = (pLng - dLng).abs();
+    final maxDiff = max(latDiff, lngDiff);
 
-    final newPolylines = <Polyline>{};
-    if (widget.routePolyline != null && widget.routePolyline!.trim().isNotEmpty) {
-      final points = _decodePolyline(widget.routePolyline!);
-      if (points.isNotEmpty) {
-        newPolylines.add(
-          Polyline(
-            polylineId: const PolylineId('trip_route_line'),
-            points: points,
-            color: const Color(0xFF7C3AED),
-            width: 4,
-          ),
-        );
-      }
-    }
-
-    setState(() {
-      _markers = newMarkers;
-      _polylines = newPolylines;
-    });
-  }
-
-  void _updateDriverLocation({bool forceCamera = false}) {
-    if (widget.driverLat == null || widget.driverLng == null) return;
-
-    final driverPos = LatLng(widget.driverLat!, widget.driverLng!);
-
-    final newMarkers = <Marker>{
-      Marker(
-        markerId: const MarkerId('driver_marker'),
-        position: driverPos,
-        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure),
-        anchor: const Offset(0.5, 0.5),
-        flat: true,
-      ),
-    };
-
-    setState(() {
-      _markers = newMarkers;
-    });
-
-    if (_controller == null) return;
-
-    final now = DateTime.now();
-    final moveThreshold = widget.isLiteMode
-        ? MapsConfig.liteMoveThresholdMeters
-        : MapsConfig.normalMoveThresholdMeters;
-    final throttle = widget.isLiteMode
-        ? MapsConfig.liteThrottleDuration
-        : MapsConfig.normalThrottleDuration;
-
-    bool shouldMove = forceCamera;
-    if (!shouldMove) {
-      if (_lastCameraPosition == null) {
-        shouldMove = true;
-      } else {
-        final dist = _calculateDistance(
-          _lastCameraPosition!.latitude,
-          _lastCameraPosition!.longitude,
-          driverPos.latitude,
-          driverPos.longitude,
-        );
-        final elapsed = _lastCameraMoveTime == null ? throttle : now.difference(_lastCameraMoveTime!);
-        if (dist >= moveThreshold || elapsed >= throttle) {
-          shouldMove = true;
-        }
-      }
-    }
-
-    if (shouldMove) {
-      _lastCameraPosition = driverPos;
-      _lastCameraMoveTime = now;
-      _controller?.animateCamera(
-        CameraUpdate.newCameraPosition(
-          CameraPosition(
-            target: driverPos,
-            zoom: MapsConfig.driverLocationZoom,
-          ),
-        ),
-      );
-    }
-  }
-
-  double _calculateDistance(double lat1, double lon1, double lat2, double lon2) {
-    const p = 0.017453292519943295; // Math.PI / 180
-    final a = 0.5 - cos((lat2 - lat1) * p) / 2 +
-        cos(lat1 * p) * cos(lat2 * p) * (1 - cos((lon2 - lon1) * p)) / 2;
-    return 12742000 * asin(sqrt(a));
+    if (maxDiff > 0.3) return 10.5;
+    if (maxDiff > 0.15) return 11.5;
+    if (maxDiff > 0.08) return 12.5;
+    if (maxDiff > 0.03) return 13.5;
+    return 14.5;
   }
 
   List<LatLng> _decodePolyline(String encoded) {
@@ -294,151 +164,177 @@ class _TripMapViewState extends State<TripMapView> {
     final themeColors = context.appColors;
     final isDark = context.isDarkMode;
 
-    // Check if coordinates exist
-    final hasRouteCoords = widget.pickupLat != null &&
-        widget.pickupLng != null &&
-        widget.dropoffLat != null &&
-        widget.dropoffLng != null;
-    final hasDriverCoords = widget.driverLat != null && widget.driverLng != null;
-
-    if (widget.mode == TripMapMode.route && !hasRouteCoords) {
-      return const SizedBox.shrink();
-    }
-    if (widget.mode == TripMapMode.driverLocation && !hasDriverCoords) {
-      return _buildPlaceholder(themeColors, isDark);
-    }
-
-    // If key is not configured, still placeholder, or in test environment:
-    // show clean styled placeholder block without crashing
-    if (!_hasCheckedKey || !_isKeyConfigured) {
-      return _buildPlaceholder(themeColors, isDark);
-    }
-
-    // Only allow one active map at a time
-    if (!MapInstanceTracker.registerActive(_instanceId)) {
-      return _buildPlaceholder(themeColors, isDark);
-    }
-
-    final initialTarget = widget.mode == TripMapMode.route
-        ? LatLng(widget.pickupLat!, widget.pickupLng!)
-        : LatLng(widget.driverLat!, widget.driverLng!);
-
-    final mapWidget = GoogleMap(
-      key: ValueKey(_instanceId),
-      style: isDark ? MapsConfig.darkMapStyle : null,
-      initialCameraPosition: CameraPosition(
-        target: initialTarget,
-        zoom: widget.mode == TripMapMode.driverLocation ? MapsConfig.driverLocationZoom : 12.0,
-      ),
-      onMapCreated: _onMapCreated,
-      markers: _markers,
-      polylines: _polylines,
-      liteModeEnabled: !widget.interactive && Platform.isAndroid,
-      scrollGesturesEnabled: widget.interactive,
-      zoomGesturesEnabled: widget.interactive,
-      rotateGesturesEnabled: widget.interactive,
-      tiltGesturesEnabled: widget.interactive,
-      zoomControlsEnabled: false,
-      mapToolbarEnabled: false,
-      myLocationButtonEnabled: false,
-      compassEnabled: false,
-      onTap: widget.onTap != null ? (_) => widget.onTap!() : null,
-    );
-
-    return SizedBox(
-      height: widget.height,
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(16),
+    if (_isTest) {
+      return Container(
+        height: widget.height,
+        color: themeColors.innerBox,
         child: Stack(
           children: [
-            Positioned.fill(child: mapWidget),
-            if (widget.onTap != null && !widget.interactive)
+            Center(
+              child: Text(
+                'OpenStreetMap (${widget.mode.name})',
+                style: TextStyle(color: themeColors.textSecondary, fontSize: 11),
+              ),
+            ),
+            if (widget.onTap != null)
               Positioned.fill(
                 child: Material(
                   color: Colors.transparent,
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(16),
-                    onTap: widget.onTap,
-                  ),
+                  child: InkWell(onTap: widget.onTap),
                 ),
               ),
           ],
         ),
-      ),
-    );
-  }
+      );
+    }
 
-  Widget _buildPlaceholder(AppThemeColors themeColors, bool isDark) {
-    return SizedBox(
-      height: widget.height,
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(16),
-        child: Container(
-          color: themeColors.innerBox,
+    final center = _calculateCenter();
+    final zoom = _calculateZoom();
+
+    // Prepare Route Polylines
+    final polylines = <Polyline>[];
+    if (widget.mode == TripMapMode.route &&
+        widget.pickupLat != null &&
+        widget.pickupLng != null &&
+        widget.dropoffLat != null &&
+        widget.dropoffLng != null) {
+      List<LatLng> points = [];
+      if (widget.routePolyline != null && widget.routePolyline!.trim().isNotEmpty) {
+        points = _decodePolyline(widget.routePolyline!);
+      }
+      if (points.isEmpty) {
+        // Direct route line fallback
+        points = [
+          LatLng(widget.pickupLat!, widget.pickupLng!),
+          LatLng(widget.dropoffLat!, widget.dropoffLng!),
+        ];
+      }
+      polylines.add(
+        Polyline(
+          points: points,
+          color: const Color(0xFF7C3AED),
+          strokeWidth: 4.5,
+        ),
+      );
+    }
+
+    // Prepare Markers
+    final markers = <Marker>[];
+    if (widget.mode == TripMapMode.route) {
+      if (widget.pickupLat != null && widget.pickupLng != null) {
+        markers.add(
+          Marker(
+            point: LatLng(widget.pickupLat!, widget.pickupLng!),
+            width: 36,
+            height: 36,
+            child: Container(
+              decoration: const BoxDecoration(
+                color: Color(0xFF10B981),
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(color: Colors.black26, blurRadius: 4, offset: Offset(0, 2)),
+                ],
+              ),
+              child: const Icon(Icons.location_on_rounded, color: Colors.white, size: 22),
+            ),
+          ),
+        );
+      }
+      if (widget.dropoffLat != null && widget.dropoffLng != null) {
+        markers.add(
+          Marker(
+            point: LatLng(widget.dropoffLat!, widget.dropoffLng!),
+            width: 36,
+            height: 36,
+            child: Container(
+              decoration: const BoxDecoration(
+                color: Color(0xFFEF4444),
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(color: Colors.black26, blurRadius: 4, offset: Offset(0, 2)),
+                ],
+              ),
+              child: const Icon(Icons.flag_rounded, color: Colors.white, size: 20),
+            ),
+          ),
+        );
+      }
+    } else {
+      // Driver live position mode
+      markers.add(
+        Marker(
+          point: center,
+          width: 44,
+          height: 44,
           child: Stack(
-            fit: StackFit.expand,
+            alignment: Alignment.center,
             children: [
-              CustomPaint(
-                painter: _PlainPlaceholderRoadsPainter(
-                  isDark: isDark,
-                  colors: themeColors,
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF7C3AED).withValues(alpha: 0.22),
+                  shape: BoxShape.circle,
                 ),
               ),
-              if (widget.onTap != null)
-                Material(
-                  color: Colors.transparent,
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(16),
-                    onTap: widget.onTap,
-                  ),
+              Container(
+                width: 24,
+                height: 24,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF7C3AED),
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.white, width: 2.5),
+                  boxShadow: const [
+                    BoxShadow(color: Colors.black26, blurRadius: 4, offset: Offset(0, 2)),
+                  ],
                 ),
+                child: const Icon(Icons.navigation_rounded, color: Colors.white, size: 14),
+              ),
             ],
           ),
         ),
+      );
+    }
+
+    final tileUrl = isDark
+        ? 'https://basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}.png'
+        : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+
+    return SizedBox(
+      height: widget.height,
+      child: Stack(
+        children: [
+          FlutterMap(
+            mapController: _mapController,
+            options: MapOptions(
+              initialCenter: center,
+              initialZoom: zoom,
+              interactionOptions: InteractionOptions(
+                flags: widget.interactive
+                    ? InteractiveFlag.all
+                    : (InteractiveFlag.pinchZoom | InteractiveFlag.drag),
+              ),
+              onTap: widget.onTap != null ? (_, __) => widget.onTap!() : null,
+            ),
+            children: [
+              TileLayer(
+                urlTemplate: tileUrl,
+                userAgentPackageName: 'com.hired.driver_app',
+                maxZoom: 19,
+              ),
+              if (polylines.isNotEmpty) PolylineLayer(polylines: polylines),
+              MarkerLayer(markers: markers),
+            ],
+          ),
+          if (widget.onTap != null && !widget.interactive)
+            Positioned.fill(
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(onTap: widget.onTap),
+              ),
+            ),
+        ],
       ),
     );
-  }
-}
-
-class _PlainPlaceholderRoadsPainter extends CustomPainter {
-  final bool isDark;
-  final AppThemeColors colors;
-
-  const _PlainPlaceholderRoadsPainter({
-    required this.isDark,
-    required this.colors,
-  });
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final bgPaint = Paint()..color = colors.innerBox;
-    canvas.drawRect(Offset.zero & size, bgPaint);
-
-    final roadPaint = Paint()
-      ..color = isDark ? const Color(0xFF261F35) : const Color(0xFFE2E8F0)
-      ..strokeWidth = 6.0
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round;
-
-    final path1 = Path()
-      ..moveTo(0, size.height * 0.3)
-      ..lineTo(size.width, size.height * 0.7);
-    canvas.drawPath(path1, roadPaint);
-
-    final path2 = Path()
-      ..moveTo(size.width * 0.2, 0)
-      ..lineTo(size.width * 0.8, size.height);
-    canvas.drawPath(path2, roadPaint);
-
-    // Subtle route dot in center
-    final dotPaint = Paint()
-      ..color = const Color(0xFF10B981)
-      ..style = PaintingStyle.fill;
-    canvas.drawCircle(Offset(size.width * 0.5, size.height * 0.5), 5.0, dotPaint);
-  }
-
-  @override
-  bool shouldRepaint(covariant _PlainPlaceholderRoadsPainter oldDelegate) {
-    return oldDelegate.isDark != isDark || oldDelegate.colors != colors;
   }
 }

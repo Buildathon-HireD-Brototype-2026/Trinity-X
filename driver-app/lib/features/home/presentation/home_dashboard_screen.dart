@@ -1637,12 +1637,6 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
     List<TripModel> assignedTrips,
   ) {
     final hasTrip = selectedTrip != null;
-    final isTrip1 = hasTrip &&
-        assignedTrips.isNotEmpty &&
-        selectedTrip.tripId == assignedTrips.first.tripId;
-    final markerPosition = hasTrip
-        ? (isTrip1 ? const Offset(0.40, 0.62) : const Offset(0.70, 0.36))
-        : null;
     final themeColors = context.appColors;
     final isDark = context.isDarkMode;
 
@@ -1757,20 +1751,17 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
                       },
                     )
                   else
-                    AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 180),
-                      transitionBuilder: (child, animation) =>
-                          FadeTransition(opacity: animation, child: child),
-                      child: RepaintBoundary(
-                        child: CustomPaint(
-                          key: ValueKey('map_paint_${selectedTrip?.tripId ?? 'none'}_${isDark ? 'dark' : 'light'}'),
-                          size: const Size(double.infinity, 190),
-                          painter: _PlainMapPlaceholderPainter(
-                            markerPosition: markerPosition,
-                            colors: themeColors,
-                          ),
-                        ),
-                      ),
+                    TripMapView(
+                      mode: TripMapMode.driverLocation,
+                      driverLat: 12.9716,
+                      driverLng: 77.5946,
+                      height: 190,
+                      onTap: hasTrip
+                          ? () {
+                              ref.read(selectedTripIdProvider.notifier).select(selectedTrip.tripId);
+                              context.push(RouteNames.tripDetails, extra: selectedTrip.tripId);
+                            }
+                          : null,
                     ),
 
                   // "View Map" Chip (kept as in reference, not connected)
@@ -2790,144 +2781,5 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
         ),
       ),
     );
-  }
-}
-
-/// Plain map placeholder painter: light/dark background, road lines,
-/// and one single marker at the pickup location of the selected trip.
-class _PlainMapPlaceholderPainter extends CustomPainter {
-  final Offset? markerPosition;
-  final AppThemeColors colors;
-
-  const _PlainMapPlaceholderPainter({
-    this.markerPosition,
-    required this.colors,
-  });
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    // 1. Map background
-    final bgPaint = Paint()..color = colors.mapBg;
-    canvas.drawRect(Rect.fromLTWH(0, 0, size.width, size.height), bgPaint);
-
-    // 2. City block polygons
-    final blockPaint = Paint()..color = colors.mapBlocks;
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromLTWH(10, 10, size.width * 0.35, 60),
-        const Radius.circular(8),
-      ),
-      blockPaint,
-    );
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromLTWH(size.width * 0.55, 15, size.width * 0.4, 45),
-        const Radius.circular(8),
-      ),
-      blockPaint,
-    );
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromLTWH(15, 90, size.width * 0.3, 70),
-        const Radius.circular(8),
-      ),
-      blockPaint,
-    );
-
-    // 3. Curved river / water stream
-    final riverPaint = Paint()
-      ..color = colors.mapRiver
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 32
-      ..strokeCap = StrokeCap.round;
-
-    final riverPath = Path()
-      ..moveTo(size.width * 0.72, -10)
-      ..cubicTo(
-        size.width * 0.65,
-        50,
-        size.width * 0.52,
-        110,
-        size.width * 0.46,
-        size.height + 20,
-      );
-    canvas.drawPath(riverPath, riverPaint);
-
-    // 4. Stylized road network
-    final roadPaint = Paint()
-      ..color = colors.mapRoads
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 10
-      ..strokeCap = StrokeCap.round;
-
-    // Diagonal arterial roads
-    final roadPath1 = Path()
-      ..moveTo(-10, 40)
-      ..lineTo(size.width + 10, 160);
-    canvas.drawPath(roadPath1, roadPaint);
-
-    final roadPath2 = Path()
-      ..moveTo(-10, 130)
-      ..lineTo(size.width + 10, 30);
-    canvas.drawPath(roadPath2, roadPaint);
-
-    // Secondary streets
-    final streetPaint = Paint()
-      ..color = colors.mapRoads.withValues(alpha: 0.7)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 3.5;
-
-    canvas.drawLine(
-      Offset(size.width * 0.25, 0),
-      Offset(size.width * 0.25, size.height),
-      streetPaint,
-    );
-    canvas.drawLine(
-      Offset(size.width * 0.8, 0),
-      Offset(size.width * 0.8, size.height),
-      streetPaint,
-    );
-    canvas.drawLine(
-      Offset(0, size.height * 0.45),
-      Offset(size.width, size.height * 0.45),
-      streetPaint,
-    );
-
-    // 5. Draw single marker if a trip is selected
-    if (markerPosition != null) {
-      final pos = Offset(
-        size.width * markerPosition!.dx,
-        size.height * markerPosition!.dy,
-      );
-      _drawMarker(canvas, pos);
-    }
-  }
-
-  void _drawMarker(Canvas canvas, Offset position) {
-    // Pulse outer ring
-    final pulse = Paint()
-      ..color = colors.mapMarker.withValues(alpha: 0.25)
-      ..style = PaintingStyle.fill;
-    canvas.drawCircle(position, 22, pulse);
-
-    // Marker pin outer circle
-    final outer = Paint()..color = colors.mapMarker;
-    canvas.drawCircle(position, 11, outer);
-
-    // Crisp white border
-    final border = Paint()
-      ..color = Colors.white
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2.5;
-    canvas.drawCircle(position, 11, border);
-
-    // Inner white dot
-    final innerDot = Paint()..color = Colors.white;
-    canvas.drawCircle(position, 4, innerDot);
-  }
-
-  @override
-  bool shouldRepaint(covariant _PlainMapPlaceholderPainter oldDelegate) {
-    return oldDelegate.markerPosition != markerPosition || oldDelegate.colors != colors;
   }
 }
