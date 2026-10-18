@@ -2,8 +2,9 @@ import 'package:flutter/material.dart';
 import '../../../../core/theme/app_theme_colors.dart';
 import '../../domain/wallet_models.dart';
 
-/// Single trip row in the Wallet Trips list.
-/// PRD requirement: Each row shows only order ID, trip date and time, and driver earning (driver split amount).
+/// Single completed trip row in the Wallet Trips list (PRD Sections 2 & 4).
+/// Each row shows: order ID, completion date and time, driver earning,
+/// and the expense amount (only when the trip has expenses > 0).
 class WalletTripRow extends StatelessWidget {
   final WalletTripRecord trip;
   final VoidCallback onTap;
@@ -19,8 +20,10 @@ class WalletTripRow extends StatelessWidget {
     final themeColors = context.appColors;
     final isDark = context.isDarkMode;
 
-    final formattedDateTime = IstDateTimeHelper.formatDateTime(trip.tripStartTime);
-    final formattedEarning = IstDateTimeHelper.formatCurrency(trip.driverEarning);
+    final formattedCompletionDateTime =
+        IstDateTimeHelper.formatDateTime(trip.completedAt);
+    final formattedEarning =
+        IstDateTimeHelper.formatCurrency(trip.driverEarning);
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
@@ -48,7 +51,7 @@ class WalletTripRow extends StatelessWidget {
             ),
             child: Row(
               children: [
-                // Order ID and Date & Time
+                // Order ID and Completion Date & Time
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -64,7 +67,7 @@ class WalletTripRow extends StatelessWidget {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        formattedDateTime,
+                        formattedCompletionDateTime,
                         style: TextStyle(
                           color: themeColors.textMuted,
                           fontSize: 12,
@@ -74,16 +77,33 @@ class WalletTripRow extends StatelessWidget {
                     ],
                   ),
                 ),
-                // Driver Earning (the driver split amount)
-                Text(
-                  formattedEarning,
-                  style: TextStyle(
-                    color: trip.countsTowardBalance
-                        ? (isDark ? const Color(0xFF34D399) : const Color(0xFF059669))
-                        : themeColors.textMuted,
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
-                  ),
+                // Driver Earning and optional Expense amount
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      formattedEarning,
+                      style: TextStyle(
+                        color: isDark
+                            ? const Color(0xFF34D399)
+                            : const Color(0xFF059669),
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    // PRD Section 4: Expense amount shown ONLY when above 0
+                    if (trip.hasExpenses) ...[
+                      const SizedBox(height: 3),
+                      Text(
+                        'Expense: ${IstDateTimeHelper.formatCurrency(trip.totalExpense)}',
+                        style: TextStyle(
+                          color: themeColors.textMuted,
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
               ],
             ),

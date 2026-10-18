@@ -9,10 +9,11 @@ import 'package:driver_app/features/trips/presentation/controllers/current_trip_
 import 'package:driver_app/features/trips/data/trip_repository.dart';
 import 'package:driver_app/features/wallet/domain/wallet_models.dart';
 import 'package:driver_app/features/wallet/data/wallet_repository.dart';
+import 'package:driver_app/features/wallet/presentation/controllers/wallet_controller.dart';
 import 'package:driver_app/features/wallet/presentation/wallet_screen.dart';
 import 'package:driver_app/features/wallet/presentation/widgets/trip_details_bottom_sheet.dart';
 import 'package:driver_app/features/wallet/presentation/widgets/expense_list_sheet.dart';
-import 'package:driver_app/features/wallet/presentation/widgets/past_months_section.dart';
+import 'package:driver_app/features/wallet/presentation/widgets/previous_months_section.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -39,6 +40,7 @@ void main() {
           orderId: 101,
           tripStartTime: DateTime.utc(2026, 10, 15, 10, 0),
           tripEndTime: DateTime.utc(2026, 10, 15, 11, 0),
+          completedAt: DateTime.utc(2026, 10, 15, 11, 0),
           driverEarning: 850.0,
           status: 'CLOSED',
           totalExpense: 110.0,
@@ -58,6 +60,7 @@ void main() {
           orderId: 102,
           tripStartTime: DateTime.utc(2026, 10, 16, 14, 0),
           tripEndTime: DateTime.utc(2026, 10, 16, 15, 0),
+          completedAt: DateTime.utc(2026, 10, 16, 15, 0),
           driverEarning: 650.0,
           status: 'COMPLETED',
           totalExpense: 50.0,
@@ -68,6 +71,7 @@ void main() {
           orderId: 99,
           tripStartTime: DateTime.utc(2026, 9, 28, 14, 0),
           tripEndTime: DateTime.utc(2026, 9, 28, 15, 0),
+          completedAt: DateTime.utc(2026, 9, 28, 15, 0),
           driverEarning: 900.0,
           status: 'COMPLETED',
           totalExpense: 0.0,
@@ -77,9 +81,12 @@ void main() {
       final balance = walletRepo.calculateCurrentMonthBalance(trips, refDate);
       // October trips: 850 + 650 = 1500 (expenses 110 and 50 are not subtracted)
       expect(balance, equals(1500.0));
+
+      final tripCount = walletRepo.calculateCurrentMonthTripCount(trips, refDate);
+      expect(tripCount, equals(2));
     });
 
-    test('2. Edge Case: Cancelled trips and trips with 0 earnings are excluded from balance', () {
+    test('2. Edge Case: ONLY completed trips are included; assigned, ongoing, and cancelled never show or count', () {
       final tripRepo = MockTripRepository();
       final walletRepo = MockWalletRepository(tripRepo);
 
@@ -91,6 +98,7 @@ void main() {
           orderId: 101,
           tripStartTime: DateTime.utc(2026, 10, 15, 10, 0),
           tripEndTime: DateTime.utc(2026, 10, 15, 11, 0),
+          completedAt: DateTime.utc(2026, 10, 15, 11, 0),
           driverEarning: 500.0,
           status: 'CLOSED',
           totalExpense: 0.0,
@@ -101,6 +109,7 @@ void main() {
           orderId: 102,
           tripStartTime: DateTime.utc(2026, 10, 16, 10, 0),
           tripEndTime: DateTime.utc(2026, 10, 16, 10, 30),
+          completedAt: DateTime.utc(2026, 10, 16, 10, 30),
           driverEarning: 0.0,
           status: 'CANCELLED',
           totalExpense: 0.0,
@@ -110,6 +119,7 @@ void main() {
           tripId: 'T3',
           orderId: 103,
           tripStartTime: DateTime.utc(2026, 10, 18, 9, 0),
+          completedAt: DateTime.utc(2026, 10, 18, 9, 0),
           driverEarning: 400.0,
           status: 'ONGOING',
           totalExpense: 0.0,
@@ -118,20 +128,51 @@ void main() {
 
       final balance = walletRepo.calculateCurrentMonthBalance(trips, refDate);
       expect(balance, equals(500.0));
+      expect(walletRepo.calculateCurrentMonthTripCount(trips, refDate), equals(1));
     });
 
-    test('3. Month rollover in IST resets the wallet balance to 0 for the new month', () {
+    test('3. Period summary calculation strictly matches sum of filtered rows', () {
       final tripRepo = MockTripRepository();
       final walletRepo = MockWalletRepository(tripRepo);
 
       final trips = [
-        // Trip from October 2026
         WalletTripRecord(
           tripId: 'T1',
           orderId: 101,
-          tripStartTime: DateTime.utc(2026, 10, 31, 23, 0), // 4:30 AM Nov 1 IST
-          tripEndTime: DateTime.utc(2026, 10, 31, 23, 45),
-          driverEarning: 600.0,
+          tripStartTime: DateTime.utc(2026, 10, 15, 10, 0),
+          completedAt: DateTime.utc(2026, 10, 15, 11, 0),
+          driverEarning: 850.0,
+          status: 'CLOSED',
+          totalExpense: 110.0,
+        ),
+        WalletTripRecord(
+          tripId: 'T2',
+          orderId: 102,
+          tripStartTime: DateTime.utc(2026, 10, 16, 14, 0),
+          completedAt: DateTime.utc(2026, 10, 16, 15, 0),
+          driverEarning: 620.0,
+          status: 'CLOSED',
+          totalExpense: 60.0,
+        ),
+      ];
+
+      final summary = walletRepo.calculatePeriodSummary(trips);
+      expect(summary.totalDriverEarning, equals(1470.0));
+      expect(summary.completedTripCount, equals(2));
+      expect(summary.totalExpense, equals(170.0));
+    });
+
+    test('4. Month rollover in IST resets the wallet balance to 0 for the new month', () {
+      final tripRepo = MockTripRepository();
+      final walletRepo = MockWalletRepository(tripRepo);
+
+      final octTrip = [
+        WalletTripRecord(
+          tripId: 'T-OCT',
+          orderId: 99,
+          tripStartTime: DateTime.utc(2026, 10, 20, 10, 0),
+          completedAt: DateTime.utc(2026, 10, 20, 11, 0),
+          driverEarning: 1200.0,
           status: 'CLOSED',
           totalExpense: 0.0,
         ),
@@ -139,31 +180,14 @@ void main() {
 
       // Simulated current date: 1 November 2026 in IST
       final novDate = DateTime.utc(2026, 11, 1, 6, 0); // Nov 1st IST
-      final balance = walletRepo.calculateCurrentMonthBalance(trips, novDate);
-
-      // Since T1 tripEndTime in IST is Nov 1, 2026, it belongs to November.
-      // If trip happened in October IST:
-      final octTrip = [
-        WalletTripRecord(
-          tripId: 'T-OCT',
-          orderId: 99,
-          tripStartTime: DateTime.utc(2026, 10, 20, 10, 0),
-          tripEndTime: DateTime.utc(2026, 10, 20, 11, 0),
-          driverEarning: 1200.0,
-          status: 'CLOSED',
-          totalExpense: 0.0,
-        ),
-      ];
-
-      final novBalanceAfterOctTrips =
-          walletRepo.calculateCurrentMonthBalance(octTrip, novDate);
-      // October trip should NOT carry over to November balance; resets to 0
-      expect(novBalanceAfterOctTrips, equals(0.0));
+      final novBalance = walletRepo.calculateCurrentMonthBalance(octTrip, novDate);
+      expect(novBalance, equals(0.0));
+      expect(walletRepo.calculateCurrentMonthTripCount(octTrip, novDate), equals(0));
     });
   });
 
   group('Wallet Screen UI & PRD D-12 Compliance Widget Tests', () {
-    testWidgets('4. WalletScreen renders top card with current month label, balance, and filter bar',
+    testWidgets('5. WalletScreen renders top card with month label, balance, trip count, and range summary',
         (tester) async {
       await tester.pumpWidget(
         ProviderScope(
@@ -182,19 +206,21 @@ void main() {
       // Check App bar
       expect(find.text('Wallet'), findsOneWidget);
 
-      // Check Balance card labels
+      // Check Balance card labels and counts
       expect(find.text('Balance'), findsOneWidget);
-      // Small month label exists (e.g. October 2026)
       expect(find.textContaining('2026'), findsWidgets);
+      expect(find.textContaining('completed trip'), findsWidgets);
 
-      // Date filter options
+      // Date filter options & heading
       expect(find.text('Today'), findsOneWidget);
       expect(find.text('This Week'), findsOneWidget);
-      expect(find.text('This Month'), findsOneWidget);
+      expect(find.text('This Month'), findsNWidgets(2)); // Chip and section heading
       expect(find.text('Custom'), findsOneWidget);
 
-      // Trips heading
-      expect(find.text('Trips'), findsOneWidget);
+      // Period range summary row items
+      expect(find.text('Driver Earning'), findsWidgets);
+      expect(find.text('Trips'), findsWidgets);
+      expect(find.text('Total Expense'), findsWidgets);
 
       // PRD TC-P11-03: STRICTLY NO in-app withdrawal or payout buttons
       expect(find.text('Withdraw'), findsNothing);
@@ -202,13 +228,14 @@ void main() {
       expect(find.text('Cash Out'), findsNothing);
     });
 
-    testWidgets('5. Tapping a trip opens Trip Details bottom sheet with read-only split and total expense',
+    testWidgets('6. Tapping a trip opens Trip Details bottom sheet with read-only split, times, and total expense',
         (tester) async {
       final sampleTrip = WalletTripRecord(
         tripId: 'T-TEST-1040',
         orderId: 1040,
         tripStartTime: DateTime.utc(2026, 10, 17, 14, 0),
         tripEndTime: DateTime.utc(2026, 10, 17, 15, 20),
+        completedAt: DateTime.utc(2026, 10, 17, 15, 20),
         driverEarning: 850.0,
         status: 'CLOSED',
         totalExpense: 110.0,
@@ -243,20 +270,23 @@ void main() {
       // Check Trip Details sheet content
       expect(find.text('Trip Details'), findsOneWidget);
       expect(find.text('#ORD-1040'), findsOneWidget);
-      expect(find.text('CLOSED'), findsOneWidget);
+      expect(find.text('COMPLETED'), findsOneWidget);
+      expect(find.text('Start Time'), findsOneWidget);
+      expect(find.text('Completion Time'), findsOneWidget);
       expect(find.text('Driver Earning'), findsOneWidget);
       expect(find.text('₹850.00'), findsOneWidget);
       expect(find.text('Total Expense'), findsOneWidget);
       expect(find.text('₹110.00'), findsOneWidget);
     });
 
-    testWidgets('6. Tapping expense row in Trip Details opens ExpenseListSheet with items and total',
+    testWidgets('7. Tapping expense row in Trip Details opens ExpenseListSheet with items and total',
         (tester) async {
       final sampleTrip = WalletTripRecord(
         tripId: 'T-EXP-TEST',
         orderId: 1040,
         tripStartTime: DateTime.utc(2026, 10, 17, 14, 0),
         tripEndTime: DateTime.utc(2026, 10, 17, 15, 20),
+        completedAt: DateTime.utc(2026, 10, 17, 15, 20),
         driverEarning: 850.0,
         status: 'CLOSED',
         totalExpense: 170.0,
@@ -315,13 +345,14 @@ void main() {
       );
     });
 
-    testWidgets('7. Zero expense trip displays ₹0.00 and does NOT open expense sheet',
+    testWidgets('8. Zero expense trip displays ₹0.00 and does NOT open expense sheet',
         (tester) async {
       final zeroExpenseTrip = WalletTripRecord(
         tripId: 'T-ZERO-EXP',
         orderId: 1038,
         tripStartTime: DateTime.utc(2026, 10, 14, 11, 0),
         tripEndTime: DateTime.utc(2026, 10, 14, 12, 0),
+        completedAt: DateTime.utc(2026, 10, 14, 12, 0),
         driverEarning: 450.0,
         status: 'CLOSED',
         totalExpense: 0.0,
@@ -353,13 +384,15 @@ void main() {
       expect(find.text('Trip Expenses'), findsNothing);
     });
 
-    testWidgets('8. PastMonthsSection displays Paid and Pending settlement chips and details correctly',
+    testWidgets('9. PreviousMonthsSection displays exactly 2 previous months with trip count, expenses, and Paid/Pending status',
         (tester) async {
-      final pastMonths = [
+      final previousMonths = [
         MonthlySettlementRecord(
           month: 'September 2026',
           monthDate: DateTime.utc(2026, 9, 1),
           totalDriverEarning: 34250.0,
+          tripCount: 38,
+          totalExpense: 1420.0,
           status: SettlementStatus.paid,
           paidAmount: 34250.0,
           paidDate: DateTime.utc(2026, 10, 5),
@@ -368,8 +401,21 @@ void main() {
           month: 'August 2026',
           monthDate: DateTime.utc(2026, 8, 1),
           totalDriverEarning: 28900.0,
+          tripCount: 32,
+          totalExpense: 980.0,
           status: SettlementStatus.pending,
           pendingAmount: 28900.0,
+        ),
+        // A 3rd older month that must be filtered out
+        MonthlySettlementRecord(
+          month: 'July 2026',
+          monthDate: DateTime.utc(2026, 7, 1),
+          totalDriverEarning: 15400.0,
+          tripCount: 18,
+          totalExpense: 450.0,
+          status: SettlementStatus.paid,
+          paidAmount: 15400.0,
+          paidDate: DateTime.utc(2026, 8, 3),
         ),
       ];
 
@@ -377,21 +423,27 @@ void main() {
         MaterialApp(
           theme: AppTheme.lightTheme,
           home: Scaffold(
-            body: PastMonthsSection(pastMonths: pastMonths),
+            body: PreviousMonthsSection(previousMonths: previousMonths),
           ),
         ),
       );
 
       await tester.pumpAndSettle();
 
-      expect(find.text('Past Months'), findsOneWidget);
+      expect(find.text('Previous Months'), findsOneWidget);
+
+      // Exactly 2 months shown: September and August (July must NOT be shown)
       expect(find.text('September 2026'), findsOneWidget);
       expect(find.text('PAID'), findsOneWidget);
+      expect(find.textContaining('38 trips • Expenses: ₹1,420.00'), findsOneWidget);
       expect(find.textContaining('Paid ₹34,250.00 on 5 Oct 2026'), findsOneWidget);
 
       expect(find.text('August 2026'), findsOneWidget);
       expect(find.text('PENDING'), findsOneWidget);
+      expect(find.textContaining('32 trips • Expenses: ₹980.00'), findsOneWidget);
       expect(find.textContaining('Pending amount: ₹28,900.00'), findsOneWidget);
+
+      expect(find.text('July 2026'), findsNothing);
     });
   });
 }

@@ -7,15 +7,15 @@ import '../../../core/theme/app_theme_colors.dart';
 import '../../../core/widgets/app_loading_indicator.dart';
 import '../domain/wallet_models.dart';
 import 'controllers/wallet_controller.dart';
-import 'widgets/past_months_section.dart';
+import 'widgets/previous_months_section.dart';
 import 'widgets/trip_details_bottom_sheet.dart';
 import 'widgets/wallet_balance_card.dart';
 import 'widgets/wallet_date_filter_bar.dart';
 import 'widgets/wallet_trip_row.dart';
 
 /// Driver Wallet & Earnings Screen (PRD D-12, rows 63-64).
-/// Displays live current-month balance, date-filtered trip list,
-/// and past-month settlements (Paid/Pending).
+/// Shows live current-month balance, date filter with live range summary,
+/// completed trips list, and the last 2 previous months settlements.
 class WalletScreen extends ConsumerStatefulWidget {
   const WalletScreen({super.key});
 
@@ -25,9 +25,8 @@ class WalletScreen extends ConsumerStatefulWidget {
 
 class _WalletScreenState extends ConsumerState<WalletScreen> {
   Future<void> _onRefresh() async {
-    // Refresh both live trips and past months data
-    ref.invalidate(allWalletTripsProvider);
-    ref.invalidate(pastMonthsProvider);
+    ref.invalidate(allCompletedTripsProvider);
+    ref.invalidate(previousMonthsProvider);
     await Future.delayed(const Duration(milliseconds: 300));
   }
 
@@ -62,12 +61,19 @@ class _WalletScreenState extends ConsumerState<WalletScreen> {
     final themeColors = context.appColors;
 
     final balance = ref.watch(currentMonthBalanceProvider);
+    final monthTripCount = ref.watch(currentMonthTripCountProvider);
     final selectedFilter = ref.watch(walletDateFilterProvider);
     final customRange = ref.watch(customDateRangeProvider);
-    final filteredTripsAsync = ref.watch(filteredWalletTripsProvider);
-    final pastMonthsAsync = ref.watch(pastMonthsProvider);
+    final filteredTripsAsync = ref.watch(filteredCompletedTripsProvider);
+    final periodSummary = ref.watch(filteredPeriodSummaryProvider);
+    final previousMonthsAsync = ref.watch(previousMonthsProvider);
 
     final currentNowIST = IstDateTimeHelper.nowIST();
+
+    // Section heading: "This Month" when filter is This Month, or the filter's label
+    final listHeading = selectedFilter == WalletDateFilter.thisMonth
+        ? 'This Month'
+        : selectedFilter.label;
 
     return Scaffold(
       backgroundColor: themeColors.pageBackground,
@@ -106,17 +112,19 @@ class _WalletScreenState extends ConsumerState<WalletScreen> {
               parent: BouncingScrollPhysics(),
             ),
             children: [
-              // 1. Top Balance Card (Always shows CURRENT MONTH total only)
+              // 1. Top Balance Card (Always shows CURRENT MONTH live balance & trip count)
               WalletBalanceCard(
                 balance: balance,
                 currentDateTime: currentNowIST,
+                completedTripCount: monthTripCount,
               ),
               const SizedBox(height: 16),
 
-              // 2. Date Filter Bar (Filters the trip list only)
+              // 2. Date Filter Bar with Live Range Summary (PRD Section 3)
               WalletDateFilterBar(
                 selectedFilter: selectedFilter,
                 customRange: customRange,
+                summary: periodSummary,
                 onFilterSelected: (newFilter) {
                   ref.read(walletDateFilterProvider.notifier).state = newFilter;
                 },
@@ -131,7 +139,7 @@ class _WalletScreenState extends ConsumerState<WalletScreen> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                    'Trips',
+                    listHeading,
                     style: TextStyle(
                       color: themeColors.textPrimary,
                       fontSize: 16,
@@ -143,7 +151,7 @@ class _WalletScreenState extends ConsumerState<WalletScreen> {
               ),
               const SizedBox(height: 10),
 
-              // 4. Trip List Body
+              // 4. Completed Trip List Body (Rows sorted newest first)
               filteredTripsAsync.when(
                 loading: () => const Padding(
                   padding: EdgeInsets.symmetric(vertical: 30.0),
@@ -167,7 +175,7 @@ class _WalletScreenState extends ConsumerState<WalletScreen> {
                       ),
                       const SizedBox(height: 8),
                       TextButton(
-                        onPressed: () => ref.invalidate(allWalletTripsProvider),
+                        onPressed: () => ref.invalidate(allCompletedTripsProvider),
                         child: const Text('Retry'),
                       ),
                     ],
@@ -196,17 +204,17 @@ class _WalletScreenState extends ConsumerState<WalletScreen> {
               ),
               const SizedBox(height: 24),
 
-              // 5. Past Months Section (Paid & Pending settlement records)
-              pastMonthsAsync.when(
-                loading: () => const PastMonthsSection(
-                  pastMonths: [],
+              // 5. Previous 2 Months Section (PRD Section 5)
+              previousMonthsAsync.when(
+                loading: () => const PreviousMonthsSection(
+                  previousMonths: [],
                   isLoading: true,
                 ),
-                error: (_, __) => const PastMonthsSection(
-                  pastMonths: [],
+                error: (_, __) => const PreviousMonthsSection(
+                  previousMonths: [],
                 ),
-                data: (months) => PastMonthsSection(
-                  pastMonths: months,
+                data: (months) => PreviousMonthsSection(
+                  previousMonths: months,
                 ),
               ),
               const SizedBox(height: 20),

@@ -4,21 +4,24 @@ import '../../domain/wallet_models.dart';
 import 'trip_details_bottom_sheet.dart';
 import 'wallet_trip_row.dart';
 
-/// Section showing past closed months settlement records (PRD D-12 rows 63-64).
-/// Shows month name, total driver earning, settlement status chip ("Paid" or "Pending"),
-/// paid amount & date or pending amount.
-/// Tapping a past month displays its trips list with the same row design.
-class PastMonthsSection extends StatelessWidget {
-  final List<MonthlySettlementRecord> pastMonths;
+/// Section showing the previous 2 months settlement records (PRD Section 5).
+/// Heading: "Previous Months"
+/// Shows only the last 2 months before the current one.
+/// Each month row shows: month name, total driver earning of completed trips,
+/// number of trips, total expense, and settlement chip "Paid" or "Pending".
+/// A Pending month shows pending amount; Paid month shows amount paid & paid date.
+/// Tapping a month opens its list of completed trips (same row design).
+class PreviousMonthsSection extends StatelessWidget {
+  final List<MonthlySettlementRecord> previousMonths;
   final bool isLoading;
 
-  const PastMonthsSection({
+  const PreviousMonthsSection({
     super.key,
-    required this.pastMonths,
+    required this.previousMonths,
     this.isLoading = false,
   });
 
-  void _showPastMonthTripsSheet(
+  void _showMonthCompletedTripsSheet(
     BuildContext context,
     MonthlySettlementRecord monthRecord,
   ) {
@@ -76,7 +79,7 @@ class PastMonthsSection extends StatelessWidget {
                           ),
                           const SizedBox(height: 2),
                           Text(
-                            'Total Earning: ${IstDateTimeHelper.formatCurrency(monthRecord.totalDriverEarning)}',
+                            '${monthRecord.tripCount} completed trips • ${IstDateTimeHelper.formatCurrency(monthRecord.totalDriverEarning)}',
                             style: TextStyle(
                               color: themeColors.textMuted,
                               fontSize: 12.5,
@@ -104,7 +107,7 @@ class PastMonthsSection extends StatelessWidget {
                           padding: const EdgeInsets.all(28.0),
                           child: Center(
                             child: Text(
-                              'No trips for ${monthRecord.month}',
+                              'No trips',
                               style: TextStyle(color: themeColors.textMuted),
                             ),
                           ),
@@ -139,11 +142,14 @@ class PastMonthsSection extends StatelessWidget {
   Widget build(BuildContext context) {
     final themeColors = context.appColors;
 
+    // PRD Section 5: Show only the last 2 months before the current one
+    final displayMonths = previousMonths.take(2).toList();
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Past Months',
+          'Previous Months',
           style: TextStyle(
             color: themeColors.textPrimary,
             fontSize: 16,
@@ -163,7 +169,7 @@ class PastMonthsSection extends StatelessWidget {
               ),
             ),
           )
-        else if (pastMonths.isEmpty)
+        else if (displayMonths.isEmpty)
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(20),
@@ -174,7 +180,7 @@ class PastMonthsSection extends StatelessWidget {
             ),
             child: Center(
               child: Text(
-                'No past months',
+                'No previous months',
                 style: TextStyle(
                   color: themeColors.textMuted,
                   fontSize: 13,
@@ -186,17 +192,17 @@ class PastMonthsSection extends StatelessWidget {
           ListView.builder(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
-            itemCount: pastMonths.length,
+            itemCount: displayMonths.length,
             itemBuilder: (context, index) {
-              final month = pastMonths[index];
-              return _buildPastMonthRow(context, month);
+              final month = displayMonths[index];
+              return _buildMonthRow(context, month);
             },
           ),
       ],
     );
   }
 
-  Widget _buildPastMonthRow(
+  Widget _buildMonthRow(
     BuildContext context,
     MonthlySettlementRecord month,
   ) {
@@ -206,7 +212,7 @@ class PastMonthsSection extends StatelessWidget {
     final isPaid = month.isPaid;
     final formattedTotal = IstDateTimeHelper.formatCurrency(month.totalDriverEarning);
 
-    // Paid / Pending settlement details
+    // Paid / Pending settlement details (PRD Section 5)
     String settlementDetail;
     if (isPaid) {
       final dateStr = month.paidDate != null
@@ -225,13 +231,16 @@ class PastMonthsSection extends StatelessWidget {
       settlementDetail = 'Pending amount: $pendingStr';
     }
 
+    final tripsAndExpenseSubtitle =
+        '${month.tripCount} trips • Expenses: ${IstDateTimeHelper.formatCurrency(month.totalExpense)}';
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: Material(
         color: Colors.transparent,
         child: InkWell(
           borderRadius: BorderRadius.circular(14),
-          onTap: () => _showPastMonthTripsSheet(context, month),
+          onTap: () => _showMonthCompletedTripsSheet(context, month),
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             decoration: BoxDecoration(
@@ -261,14 +270,23 @@ class PastMonthsSection extends StatelessWidget {
                           letterSpacing: -0.2,
                         ),
                       ),
-                      const SizedBox(height: 4),
+                      const SizedBox(height: 3),
+                      Text(
+                        tripsAndExpenseSubtitle,
+                        style: TextStyle(
+                          color: themeColors.textMuted,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
                       Text(
                         settlementDetail,
                         style: TextStyle(
                           color: isPaid
                               ? themeColors.textMuted
                               : (isDark ? const Color(0xFFFBBF24) : const Color(0xFFD97706)),
-                          fontSize: 12,
+                          fontSize: 11.5,
                           fontWeight: FontWeight.w500,
                         ),
                       ),

@@ -1,7 +1,7 @@
 import 'package:intl/intl.dart';
 import '../../trips/domain/trip_model.dart';
 
-/// Settlement status for past closed months (PRD D-12 / Payroll)
+/// Settlement status for closed months (PRD D-12 / Payroll)
 enum SettlementStatus {
   paid,
   pending;
@@ -28,6 +28,24 @@ enum WalletDateFilter {
         return 'Custom';
     }
   }
+}
+
+/// Summary record for the currently filtered period (PRD section 3)
+class WalletPeriodSummary {
+  final double totalDriverEarning;
+  final int completedTripCount;
+  final double totalExpense;
+
+  const WalletPeriodSummary({
+    required this.totalDriverEarning,
+    required this.completedTripCount,
+    required this.totalExpense,
+  });
+
+  const WalletPeriodSummary.zero()
+      : totalDriverEarning = 0.0,
+        completedTripCount = 0,
+        totalExpense = 0.0;
 }
 
 /// Timezone utility to ensure month rollover and filters operate strictly in IST (UTC+05:30).
@@ -87,9 +105,24 @@ class IstDateTimeHelper {
     final ist = toIST(dateTime);
     return ist.year == now.year && ist.month == now.month;
   }
+
+  /// Checks if a given timestamp falls inside a date range (inclusive of both start and end calendar days in IST)
+  static bool isDateInPeriod(DateTime date, DateTime startInclusive, DateTime endInclusive) {
+    final ist = toIST(date);
+    final dateOnly = DateTime(ist.year, ist.month, ist.day);
+
+    final startIST = toIST(startInclusive);
+    final startDateOnly = DateTime(startIST.year, startIST.month, startIST.day);
+
+    final endIST = toIST(endInclusive);
+    final endDateOnly = DateTime(endIST.year, endIST.month, endIST.day);
+
+    return (dateOnly.isAtSameMomentAs(startDateOnly) || dateOnly.isAfter(startDateOnly)) &&
+        (dateOnly.isAtSameMomentAs(endDateOnly) || dateOnly.isBefore(endDateOnly));
+  }
 }
 
-/// Itemized expense logged for a trip (PRD D-12, D-08).
+/// Itemized expense logged for a trip (PRD D-12, D-08, database.md expenses table).
 class WalletExpenseItem {
   final int id;
   final String name; // Name or type (e.g., "Toll", "Parking", "Fuel")
@@ -106,7 +139,6 @@ class WalletExpenseItem {
   });
 
   factory WalletExpenseItem.fromTripExpense(TripExpenseModel exp) {
-    // If description contains category or reason delimiter, parse it, otherwise use description
     final desc = exp.description.trim();
     String name = 'Other';
     String addedFor = desc.isEmpty ? 'Trip expense' : desc;
@@ -149,14 +181,16 @@ class WalletExpenseItem {
   );
 }
 
-/// Trip record tailored for wallet view and ledger (PRD D-12).
+/// Trip record for wallet view and ledger (PRD D-12).
+/// PRD rule: ONLY Completed trips appear on the wallet screen.
 class WalletTripRecord {
   final String tripId;
   final int orderId;
   final DateTime tripStartTime;
   final DateTime? tripEndTime;
+  final DateTime completedAt;
   final double driverEarning; // Read-only driver split result
-  final String status; // 'COMPLETED', 'CLOSED', 'CANCELLED', 'ASSIGNED', 'ONGOING'
+  final String status; // 'COMPLETED', 'CLOSED'
   final List<WalletExpenseItem> expenses;
   final double totalExpense;
 
@@ -165,6 +199,7 @@ class WalletTripRecord {
     required this.orderId,
     required this.tripStartTime,
     this.tripEndTime,
+    required this.completedAt,
     required this.driverEarning,
     required this.status,
     this.expenses = const [],
@@ -178,19 +213,20 @@ class WalletTripRecord {
 
   bool get hasExpenses => expenses.isNotEmpty && totalExpense > 0;
 
-  /// Determines if this trip counts towards the live wallet balance.
-  /// Edge case: trips that are cancelled or have no driver earning are excluded.
+  /// PRD Section 1: Only completed trips with driver earnings > 0 count.
   bool get countsTowardBalance => isCompleted && !isCancelled && driverEarning > 0;
 
   factory WalletTripRecord.fromTripModel(TripModel trip) {
     final expList = trip.expenses.map((e) => WalletExpenseItem.fromTripExpense(e)).toList();
     final totalExp = expList.fold<double>(0.0, (sum, item) => sum + item.amount);
+    final completionTime = trip.closedAt ?? trip.startedAt ?? trip.pickupTime;
 
     return WalletTripRecord(
       tripId: trip.tripId,
       orderId: trip.orderId,
       tripStartTime: trip.startedAt ?? trip.pickupTime,
       tripEndTime: trip.closedAt,
+      completedAt: completionTime,
       driverEarning: trip.driverShare,
       status: trip.status,
       expenses: expList,
@@ -203,6 +239,7 @@ class WalletTripRecord {
     'order_id': orderId,
     'trip_start_time': tripStartTime.toIso8601String(),
     if (tripEndTime != null) 'trip_end_time': tripEndTime!.toIso8601String(),
+    'completed_at': completedAt.toIso8601String(),
     'driver_earning': driverEarning,
     'status': status,
     'expenses': expenses.map((e) => e.toJson()).toList(),
@@ -210,11 +247,13 @@ class WalletTripRecord {
   };
 }
 
-/// Monthly summary record for closed past months (PRD D-12 / rows 63-64).
+/// Monthly summary record for closed previous months (PRD D-12, section 5).
 class MonthlySettlementRecord {
   final String month; // e.g. "September 2026"
   final DateTime monthDate; // Reference month start in IST (e.g. DateTime(2026, 9, 1))
   final double totalDriverEarning; // Fixed once month closes
+  final int tripCount; // Number of completed trips
+  final double totalExpense; // Total expenses of completed trips
   final SettlementStatus status; // Paid or Pending (set by admin, read-only to driver)
   final double? paidAmount;
   final DateTime? paidDate;
@@ -225,6 +264,8 @@ class MonthlySettlementRecord {
     required this.month,
     required this.monthDate,
     required this.totalDriverEarning,
+    required this.tripCount,
+    required this.totalExpense,
     required this.status,
     this.paidAmount,
     this.paidDate,

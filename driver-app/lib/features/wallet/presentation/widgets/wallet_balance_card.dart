@@ -2,16 +2,19 @@ import 'package:flutter/material.dart';
 import '../../../../core/theme/app_theme_colors.dart';
 import '../../domain/wallet_models.dart';
 
-/// Minimal top card displaying current month live balance and month label.
-/// Per PRD D-12: Minimal design, only labels and numbers. No filler text or banners.
+/// Minimal top card displaying current month live balance, month label,
+/// and number of completed trips.
+/// PRD Section 2: Minimal design, only labels, headings, and numbers.
 class WalletBalanceCard extends StatelessWidget {
   final double balance;
   final DateTime currentDateTime;
+  final int completedTripCount;
 
   const WalletBalanceCard({
     super.key,
     required this.balance,
     required this.currentDateTime,
+    required this.completedTripCount,
   });
 
   @override
@@ -20,6 +23,9 @@ class WalletBalanceCard extends StatelessWidget {
     final isDark = context.isDarkMode;
     final monthLabel = IstDateTimeHelper.formatMonthYear(currentDateTime);
     final formattedBalance = IstDateTimeHelper.formatCurrency(balance);
+    final tripsLabel = completedTripCount == 1
+        ? '1 completed trip'
+        : '$completedTripCount completed trips';
 
     return Container(
       width: double.infinity,
@@ -57,7 +63,7 @@ class WalletBalanceCard extends StatelessWidget {
                 ),
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
                 decoration: BoxDecoration(
                   color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
                   borderRadius: BorderRadius.circular(6),
@@ -82,6 +88,16 @@ class WalletBalanceCard extends StatelessWidget {
               fontSize: 32,
               fontWeight: FontWeight.w800,
               letterSpacing: -0.8,
+            ),
+          ),
+          const SizedBox(height: 6),
+          // Number of completed trips
+          Text(
+            tripsLabel,
+            style: TextStyle(
+              color: themeColors.textMuted,
+              fontSize: 12.5,
+              fontWeight: FontWeight.w500,
             ),
           ),
         ],

@@ -3,12 +3,12 @@ import '../../../../core/theme/app_theme_colors.dart';
 import '../../domain/wallet_models.dart';
 import 'expense_list_sheet.dart';
 
-/// Bottom sheet displaying Trip Details for a wallet trip record.
-/// PRD requirement:
+/// Bottom sheet displaying Trip Details for a wallet completed trip record.
+/// PRD Section 4:
 /// Heading: "Trip Details"
-/// Show: order ID, date and time (start and end), driver earning (read-only split result),
+/// Show: order ID, start and completion date and time, driver earning (read-only split result),
 /// total expense, trip status.
-/// Expense row is tappable only when trip has expenses.
+/// Expense row is tappable only when trip has expenses > 0.
 class TripDetailsBottomSheet extends StatelessWidget {
   final WalletTripRecord trip;
 
@@ -32,9 +32,8 @@ class TripDetailsBottomSheet extends StatelessWidget {
     final isDark = context.isDarkMode;
 
     final startTimeFormatted = IstDateTimeHelper.formatDateTime(trip.tripStartTime);
-    final endTimeFormatted = trip.tripEndTime != null
-        ? IstDateTimeHelper.formatDateTime(trip.tripEndTime!)
-        : 'In progress';
+    final completionTimeFormatted =
+        IstDateTimeHelper.formatDateTime(trip.completedAt);
 
     return Container(
       decoration: BoxDecoration(
@@ -107,11 +106,11 @@ class TripDetailsBottomSheet extends StatelessWidget {
                 value: startTimeFormatted,
               ),
               const SizedBox(height: 12),
-              // End Time row
+              // Completion Time row (PRD Section 4)
               _buildDetailRow(
                 context: context,
-                label: 'End Time',
-                value: endTimeFormatted,
+                label: 'Completion Time',
+                value: completionTimeFormatted,
               ),
               const SizedBox(height: 12),
               // Driver Earning row (read-only driver split)
@@ -119,13 +118,13 @@ class TripDetailsBottomSheet extends StatelessWidget {
                 context: context,
                 label: 'Driver Earning',
                 value: IstDateTimeHelper.formatCurrency(trip.driverEarning),
-                valueColor: trip.countsTowardBalance
-                    ? (isDark ? const Color(0xFF34D399) : const Color(0xFF059669))
-                    : themeColors.textMuted,
+                valueColor: isDark
+                    ? const Color(0xFF34D399)
+                    : const Color(0xFF059669),
                 isBold: true,
               ),
               const SizedBox(height: 12),
-              // Total Expense row (tappable only when has expenses)
+              // Total Expense row (tappable only when has expenses > 0)
               _buildExpenseRow(context),
             ],
           ),
@@ -170,19 +169,8 @@ class TripDetailsBottomSheet extends StatelessWidget {
     final themeColors = context.appColors;
     final isDark = context.isDarkMode;
 
-    Color bg;
-    Color text;
-
-    if (trip.isCompleted) {
-      bg = isDark ? const Color(0xFF064E3B) : const Color(0xFFD1FAE5);
-      text = isDark ? const Color(0xFF34D399) : const Color(0xFF047857);
-    } else if (trip.isCancelled) {
-      bg = isDark ? const Color(0xFF450A0A) : const Color(0xFFFEE2E2);
-      text = isDark ? const Color(0xFFF87171) : const Color(0xFFDC2626);
-    } else {
-      bg = isDark ? const Color(0xFF1E3A8A) : const Color(0xFFDBEAFE);
-      text = isDark ? const Color(0xFF60A5FA) : const Color(0xFF1D4ED8);
-    }
+    final bg = isDark ? const Color(0xFF064E3B) : const Color(0xFFD1FAE5);
+    final text = isDark ? const Color(0xFF34D399) : const Color(0xFF047857);
 
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -202,7 +190,7 @@ class TripDetailsBottomSheet extends StatelessWidget {
             borderRadius: BorderRadius.circular(6),
           ),
           child: Text(
-            trip.status.toUpperCase(),
+            'COMPLETED',
             style: TextStyle(
               color: text,
               fontSize: 11,
@@ -219,59 +207,66 @@ class TripDetailsBottomSheet extends StatelessWidget {
     final hasExp = trip.hasExpenses;
     final formattedExpense = IstDateTimeHelper.formatCurrency(trip.totalExpense);
 
+    final content = Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Row(
+            children: [
+              Text(
+                'Total Expense',
+                style: TextStyle(
+                  color: themeColors.textMuted,
+                  fontSize: 13.5,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              if (hasExp) ...[
+                const SizedBox(width: 6),
+                Icon(
+                  Icons.info_outline_rounded,
+                  size: 14,
+                  color: themeColors.primaryButton,
+                ),
+              ],
+            ],
+          ),
+          Row(
+            children: [
+              Text(
+                formattedExpense,
+                style: TextStyle(
+                  color: themeColors.textPrimary,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              if (hasExp) ...[
+                const SizedBox(width: 4),
+                Icon(
+                  Icons.chevron_right_rounded,
+                  size: 18,
+                  color: themeColors.textMuted,
+                ),
+              ],
+            ],
+          ),
+        ],
+      ),
+    );
+
+    // PRD Section 7: If trip has no expenses, row is strictly non-tappable
+    if (!hasExp) {
+      return content;
+    }
+
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        onTap: hasExp ? () => ExpenseListSheet.show(context, trip) : null,
+        onTap: () => ExpenseListSheet.show(context, trip),
         borderRadius: BorderRadius.circular(8),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 4),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Row(
-                children: [
-                  Text(
-                    'Total Expense',
-                    style: TextStyle(
-                      color: themeColors.textMuted,
-                      fontSize: 13.5,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                  if (hasExp) ...[
-                    const SizedBox(width: 6),
-                    Icon(
-                      Icons.info_outline_rounded,
-                      size: 14,
-                      color: themeColors.primaryButton,
-                    ),
-                  ],
-                ],
-              ),
-              Row(
-                children: [
-                  Text(
-                    formattedExpense,
-                    style: TextStyle(
-                      color: themeColors.textPrimary,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  if (hasExp) ...[
-                    const SizedBox(width: 4),
-                    Icon(
-                      Icons.chevron_right_rounded,
-                      size: 18,
-                      color: themeColors.textMuted,
-                    ),
-                  ],
-                ],
-              ),
-            ],
-          ),
-        ),
+        child: content,
       ),
     );
   }
