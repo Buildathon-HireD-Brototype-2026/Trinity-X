@@ -4,6 +4,8 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:driver_app/core/theme/app_theme_colors.dart';
 
+import 'package:driver_app/core/services/location_service.dart';
+
 enum TripMapMode {
   route,
   driverLocation,
@@ -45,6 +47,8 @@ class TripMapView extends StatefulWidget {
   final TripMapMode mode;
   final bool interactive;
   final bool isLiteMode;
+  final bool showMyLocationButton;
+  final VoidCallback? onMyLocationPressed;
   final VoidCallback? onTap;
 
   const TripMapView({
@@ -60,6 +64,8 @@ class TripMapView extends StatefulWidget {
     required this.mode,
     this.interactive = false,
     this.isLiteMode = false,
+    this.showMyLocationButton = true,
+    this.onMyLocationPressed,
     this.onTap,
   });
 
@@ -69,9 +75,42 @@ class TripMapView extends StatefulWidget {
 
 class _TripMapViewState extends State<TripMapView> {
   final MapController _mapController = MapController();
+  LatLng? _liveGps;
+  bool _isLocating = false;
 
   bool get _isTest =>
       WidgetsBinding.instance.runtimeType.toString().contains('TestWidgetsFlutterBinding');
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.mode == TripMapMode.driverLocation) {
+      _fetchLiveGps(animate: false);
+    }
+  }
+
+  Future<void> _fetchLiveGps({bool animate = true}) async {
+    if (_isTest) return;
+    setState(() => _isLocating = true);
+    try {
+      final loc = await LocationService().getCurrentLocation();
+      if (mounted && loc != null) {
+        setState(() {
+          _liveGps = loc;
+          _isLocating = false;
+        });
+        if (animate) {
+          try {
+            _mapController.move(loc, 16.0);
+          } catch (_) {}
+        }
+      } else {
+        if (mounted) setState(() => _isLocating = false);
+      }
+    } catch (_) {
+      if (mounted) setState(() => _isLocating = false);
+    }
+  }
 
   @override
   void didUpdateWidget(covariant TripMapView oldWidget) {
@@ -89,15 +128,19 @@ class _TripMapViewState extends State<TripMapView> {
   }
 
   LatLng _calculateCenter() {
-    if (widget.mode == TripMapMode.driverLocation) {
-      return LatLng(
-        widget.driverLat ?? 12.9716,
-        widget.driverLng ?? 77.5946,
-      );
+    if (_liveGps != null && widget.mode == TripMapMode.driverLocation) {
+      return _liveGps!;
     }
 
-    final pLat = widget.pickupLat ?? 12.9716;
-    final pLng = widget.pickupLng ?? 77.5946;
+    if (widget.mode == TripMapMode.driverLocation) {
+      if (widget.driverLat != null && widget.driverLng != null) {
+        return LatLng(widget.driverLat!, widget.driverLng!);
+      }
+      return const LatLng(8.678465, 76.887690);
+    }
+
+    final pLat = widget.pickupLat ?? (widget.driverLat ?? 8.678465);
+    final pLng = widget.pickupLng ?? (widget.driverLng ?? 76.887690);
     final dLat = widget.dropoffLat ?? pLat;
     final dLng = widget.dropoffLng ?? pLng;
 
@@ -331,6 +374,40 @@ class _TripMapViewState extends State<TripMapView> {
               child: Material(
                 color: Colors.transparent,
                 child: InkWell(onTap: widget.onTap),
+              ),
+            ),
+          if (widget.showMyLocationButton && !_isTest)
+            Positioned(
+              top: 10,
+              right: 10,
+              child: Material(
+                color: isDark ? const Color(0xFF1E293B) : Colors.white,
+                shape: const CircleBorder(),
+                elevation: 4,
+                shadowColor: Colors.black38,
+                child: InkWell(
+                  customBorder: const CircleBorder(),
+                  onTap: () {
+                    if (widget.onMyLocationPressed != null) {
+                      widget.onMyLocationPressed!();
+                    }
+                    _fetchLiveGps(animate: true);
+                  },
+                  child: Padding(
+                    padding: const EdgeInsets.all(8.0),
+                    child: _isLocating
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(
+                            Icons.my_location_rounded,
+                            color: Color(0xFF7C3AED),
+                            size: 19,
+                          ),
+                  ),
+                ),
               ),
             ),
         ],

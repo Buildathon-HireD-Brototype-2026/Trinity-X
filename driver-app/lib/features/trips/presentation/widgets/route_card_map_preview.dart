@@ -63,6 +63,7 @@ class RouteCardMapPreview extends ConsumerWidget {
                 routePolyline: trip.routePolyline,
                 height: 148,
                 isLiteMode: isLiteMode,
+                showMyLocationButton: false,
                 onTap: handleOpenMap,
               ),
 

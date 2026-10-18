@@ -3,7 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart' hide TextDirection;
+import 'package:latlong2/latlong.dart';
 import '../../../core/routing/route_names.dart';
+import '../../../core/services/location_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_theme_colors.dart';
 import '../../../core/widgets/app_loading_indicator.dart';
@@ -30,11 +32,14 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
   int _selectedNavIndex = 0;
   Timer? _rosterAutoProgressTimer;
   bool _isAutoFetchingLocation = false;
+  bool _showMyCurrentLocation = false;
+  LatLng? _deviceGpsLocation;
 
   @override
   void initState() {
     super.initState();
     _startRosterAutoTracking();
+    _fetchDeviceLocation();
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       try {
         final hasPerm = await ref.read(tripNativeBridgeProvider).checkOverlayPermission();
@@ -43,6 +48,18 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
         }
       } catch (_) {}
     });
+  }
+
+  Future<void> _fetchDeviceLocation() async {
+    if (_isTestEnvironment) return;
+    try {
+      final loc = await ref.read(locationServiceProvider).getCurrentLocation();
+      if (mounted && loc != null) {
+        setState(() {
+          _deviceGpsLocation = loc;
+        });
+      }
+    } catch (_) {}
   }
 
   @override
@@ -1669,13 +1686,82 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-          // Header: Single row showing pin icon + pickup spot + pickup time with short fade under 200ms
+          // Header: Shows either live driver GPS location or trip pickup spot with toggle button
           AnimatedSwitcher(
             duration: const Duration(milliseconds: 180),
             transitionBuilder: (child, animation) =>
                 FadeTransition(opacity: animation, child: child),
-            child: hasTrip
+            child: (_showMyCurrentLocation || !hasTrip)
                 ? Row(
+                    key: const ValueKey('map_header_gps'),
+                    children: [
+                      Icon(
+                        Icons.my_location_rounded,
+                        color: themeColors.purpleAccent,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              'My Current Location (Live GPS)',
+                              style: TextStyle(
+                                color: themeColors.textPrimary,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w700,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            if (_deviceGpsLocation != null)
+                              Text(
+                                '${_deviceGpsLocation!.latitude.toStringAsFixed(4)}° N, ${_deviceGpsLocation!.longitude.toStringAsFixed(4)}° E',
+                                style: TextStyle(
+                                  color: isDark ? Colors.white70 : themeColors.textSecondary,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                      if (hasTrip)
+                        InkWell(
+                          borderRadius: BorderRadius.circular(16),
+                          onTap: () {
+                            setState(() {
+                              _showMyCurrentLocation = false;
+                            });
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                            decoration: BoxDecoration(
+                              color: themeColors.purpleAccent.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.alt_route_rounded, size: 14, color: themeColors.purpleAccent),
+                                const SizedBox(width: 4),
+                                Text(
+                                  'Trip Route',
+                                  style: TextStyle(
+                                    color: themeColors.purpleAccent,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                    ],
+                  )
+                : Row(
                     key: ValueKey('map_header_${selectedTrip.tripId}'),
                     children: [
                       Icon(
@@ -1697,31 +1783,35 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
                         ),
                       ),
                       const SizedBox(width: 8),
-                      Text(
-                        _formatPickupTime(selectedTrip.pickupTime),
-                        style: TextStyle(
-                          color: isDark ? Colors.white : themeColors.textSecondary,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ],
-                  )
-                : Row(
-                    key: const ValueKey('map_header_empty'),
-                    children: [
-                      Icon(
-                        Icons.location_off_outlined,
-                        color: themeColors.unselectedIcon,
-                        size: 20,
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        'No trip assigned',
-                        style: TextStyle(
-                          color: themeColors.unselectedIcon,
-                          fontSize: 15,
-                          fontWeight: FontWeight.w600,
+                      InkWell(
+                        borderRadius: BorderRadius.circular(16),
+                        onTap: () {
+                          setState(() {
+                            _showMyCurrentLocation = true;
+                          });
+                          _fetchDeviceLocation();
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                          decoration: BoxDecoration(
+                            color: themeColors.purpleAccent.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.my_location_rounded, size: 14, color: themeColors.purpleAccent),
+                              const SizedBox(width: 4),
+                              Text(
+                                'My GPS',
+                                style: TextStyle(
+                                  color: themeColors.purpleAccent,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                     ],
@@ -1736,7 +1826,7 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
               height: 190,
               child: Stack(
                 children: [
-                  if (hasTrip && selectedTrip.hasValidCoordinates)
+                  if (!_showMyCurrentLocation && hasTrip && selectedTrip.hasValidCoordinates)
                     TripMapView(
                       mode: TripMapMode.route,
                       pickupLat: selectedTrip.pickupLat,
@@ -1745,6 +1835,13 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
                       dropoffLng: selectedTrip.dropoffLng,
                       routePolyline: selectedTrip.routePolyline,
                       height: 190,
+                      showMyLocationButton: true,
+                      onMyLocationPressed: () {
+                        setState(() {
+                          _showMyCurrentLocation = true;
+                        });
+                        _fetchDeviceLocation();
+                      },
                       onTap: () {
                         ref.read(selectedTripIdProvider.notifier).select(selectedTrip.tripId);
                         context.push(RouteNames.tripDetails, extra: selectedTrip.tripId);
@@ -1753,9 +1850,11 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
                   else
                     TripMapView(
                       mode: TripMapMode.driverLocation,
-                      driverLat: 12.9716,
-                      driverLng: 77.5946,
+                      driverLat: _deviceGpsLocation?.latitude,
+                      driverLng: _deviceGpsLocation?.longitude,
                       height: 190,
+                      showMyLocationButton: true,
+                      onMyLocationPressed: () => _fetchDeviceLocation(),
                       onTap: hasTrip
                           ? () {
                               ref.read(selectedTripIdProvider.notifier).select(selectedTrip.tripId);
