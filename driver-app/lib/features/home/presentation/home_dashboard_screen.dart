@@ -32,7 +32,7 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
   int _selectedNavIndex = 0;
   Timer? _rosterAutoProgressTimer;
   bool _isAutoFetchingLocation = false;
-  bool _showMyCurrentLocation = false;
+  bool _showMyCurrentLocation = true;
   LatLng? _deviceGpsLocation;
 
   @override
