@@ -5,6 +5,7 @@ import 'core/config/app_config.dart';
 import 'core/routing/app_router.dart';
 import 'core/theme/app_theme.dart';
 import 'core/theme/theme_provider.dart';
+import 'features/trips/presentation/widgets/trip_mini_overlay_host.dart';
 
 /// Root application widget for HireD Driver App.
 class DriverApp extends ConsumerWidget {
@@ -37,6 +38,9 @@ class DriverApp extends ConsumerWidget {
         darkTheme: AppTheme.darkTheme,
         themeMode: themeMode,
         routerConfig: router,
+        builder: (context, child) => TripMiniOverlayHost(
+          child: child ?? const SizedBox.shrink(),
+        ),
       ),
     );
   }

@@ -9,7 +9,13 @@ import '../../features/home/presentation/home_dashboard_screen.dart';
 import '../../features/profile/presentation/documents_screen.dart';
 import '../../features/profile/presentation/profile_screen.dart';
 import '../../features/trips/presentation/trip_details_screen.dart';
+import '../../features/trips/presentation/trips_screen.dart';
+import '../../features/history/presentation/trip_history_screen.dart';
+import '../../features/leaves/presentation/availability_calendar_screen.dart';
+import '../../features/performance/presentation/performance_screen.dart';
+import '../../features/wallet/presentation/wallet_screen.dart';
 import 'route_names.dart';
+import 'trip_route_observer.dart';
 
 /// Bridges Riverpod AuthState updates to GoRouter's refreshListenable.
 class AuthRouterListenable extends ChangeNotifier {
@@ -26,13 +32,20 @@ final authRouterListenableProvider = Provider<AuthRouterListenable>((ref) {
   return AuthRouterListenable(ref);
 });
 
+/// Root navigator key used across the application to check stack status and handle back navigation.
+final GlobalKey<NavigatorState> rootNavigatorKey =
+    GlobalKey<NavigatorState>(debugLabel: 'rootNavigator');
+
 final appRouterProvider = Provider<GoRouter>((ref) {
   final refreshListenable = ref.watch(authRouterListenableProvider);
   final prefs = ref.watch(sharedPreferencesProvider);
+  final tripObserver = ref.watch(tripRouteObserverProvider);
 
   return GoRouter(
+    navigatorKey: rootNavigatorKey,
     initialLocation: RouteNames.splash,
     refreshListenable: refreshListenable,
+    observers: [tripObserver],
     redirect: (BuildContext context, GoRouterState state) {
       final authState = ref.read(authControllerProvider);
       final currentLoc = state.uri.path;
@@ -87,8 +100,47 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const DocumentsScreen(),
       ),
       GoRoute(
+        path: RouteNames.trips,
+        builder: (context, state) => const TripsScreen(),
+      ),
+      GoRoute(
         path: RouteNames.tripDetails,
-        builder: (context, state) => const TripDetailsScreen(),
+        name: RouteNames.tripDetails,
+        builder: (context, state) {
+          final tripId = state.extra as String? ?? state.uri.queryParameters['tripId'];
+          return TripDetailsScreen(tripId: tripId);
+        },
+      ),
+      GoRoute(
+        path: RouteNames.wallet,
+        builder: (context, state) => const WalletScreen(),
+      ),
+      GoRoute(
+        path: RouteNames.tripHistory,
+        builder: (context, state) {
+          int? initialYear;
+          int? initialMonth;
+          if (state.extra is Map<String, dynamic>) {
+            final map = state.extra as Map<String, dynamic>;
+            initialYear = map['year'] as int?;
+            initialMonth = map['month'] as int?;
+          } else if (state.uri.queryParameters.containsKey('year')) {
+            initialYear = int.tryParse(state.uri.queryParameters['year'] ?? '');
+            initialMonth = int.tryParse(state.uri.queryParameters['month'] ?? '');
+          }
+          return TripHistoryScreen(
+            initialYear: initialYear,
+            initialMonth: initialMonth,
+          );
+        },
+      ),
+      GoRoute(
+        path: RouteNames.availabilityCalendar,
+        builder: (context, state) => const AvailabilityCalendarScreen(),
+      ),
+      GoRoute(
+        path: RouteNames.performance,
+        builder: (context, state) => const PerformanceScreen(),
       ),
     ],
   );

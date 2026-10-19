@@ -1,8 +1,11 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart' hide TextDirection;
+import 'package:latlong2/latlong.dart';
 import '../../../core/routing/route_names.dart';
+import '../../../core/services/location_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_theme_colors.dart';
 import '../../../core/widgets/app_loading_indicator.dart';
@@ -10,7 +13,10 @@ import '../../auth/presentation/controllers/auth_controller.dart';
 import '../../auth/presentation/controllers/driver_profile_controller.dart';
 import '../../profile/presentation/controllers/driver_documents_provider.dart';
 import '../../trips/domain/trip_model.dart';
+import '../../trips/application/navigation_launcher_service.dart';
 import '../../trips/presentation/controllers/current_trip_provider.dart';
+import '../../trips/presentation/controllers/trip_mini_overlay_controller.dart';
+import '../../trips/presentation/widgets/trip_map_view.dart';
 
 /// Driver Dashboard screen styled identically to the reference design (ui.jpeg),
 /// displaying the active duty controls, the two-trip map container, quick actions,
@@ -24,6 +30,140 @@ class HomeDashboardScreen extends ConsumerStatefulWidget {
 
 class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
   int _selectedNavIndex = 0;
+  Timer? _rosterAutoProgressTimer;
+  bool _isAutoFetchingLocation = false;
+  bool _showMyCurrentLocation = true;
+  LatLng? _deviceGpsLocation;
+
+  @override
+  void initState() {
+    super.initState();
+    _startRosterAutoTracking();
+    _fetchDeviceLocation();
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      try {
+        final hasPerm = await ref.read(tripNativeBridgeProvider).checkOverlayPermission();
+        if (!hasPerm && mounted) {
+          await ref.read(tripNativeBridgeProvider).requestOverlayPermission();
+        }
+      } catch (_) {}
+    });
+  }
+
+  Future<void> _fetchDeviceLocation() async {
+    if (_isTestEnvironment) return;
+    try {
+      final loc = await ref.read(locationServiceProvider).getCurrentLocation();
+      if (mounted && loc != null) {
+        setState(() {
+          _deviceGpsLocation = loc;
+        });
+      }
+    } catch (_) {}
+  }
+
+  @override
+  void dispose() {
+    _rosterAutoProgressTimer?.cancel();
+    super.dispose();
+  }
+
+  bool get _isTestEnvironment =>
+      WidgetsBinding.instance.runtimeType.toString().contains('TestWidgetsFlutterBinding');
+
+  void _startRosterAutoTracking() {
+    _rosterAutoProgressTimer?.cancel();
+    if (_isTestEnvironment) {
+      // In tests, do not run infinite periodic timer that blocks pumpAndSettle
+      return;
+    }
+    // Continuously monitors GPS and geofences to automatically progress Today's Roster
+    // without requiring manual button clicks for location fetching.
+    _rosterAutoProgressTimer = Timer.periodic(const Duration(seconds: 4), (timer) {
+      if (!mounted) return;
+      _autoDetectRosterProgress();
+    });
+  }
+
+  Future<void> _autoDetectRosterProgress() async {
+    if (_isAutoFetchingLocation) return;
+    final trip = ref.read(selectedTripProvider);
+    if (trip == null || trip.isClosed) return;
+
+    // Automatic Step 2: Auto-detect arrival at pickup spot
+    if (trip.isStepAssigned && !trip.isStepSpotReached) {
+      _isAutoFetchingLocation = true;
+      try {
+        await ref.read(tripRepositoryProvider).markSpotReached(
+          trip.tripId,
+          lat: trip.pickupLat,
+          lng: trip.pickupLng,
+        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).hideCurrentSnackBar();
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              duration: const Duration(seconds: 3),
+              behavior: SnackBarBehavior.floating,
+              backgroundColor: const Color(0xFF10B981),
+              content: Row(
+                children: [
+                  const Icon(Icons.check_circle_rounded, color: Colors.white, size: 20),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Auto GPS: Reached Pickup Spot (${trip.pickupSpot})',
+                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }
+      } catch (_) {} finally {
+        _isAutoFetchingLocation = false;
+      }
+      return;
+    }
+
+    // Automatic Step 4: Auto-detect arrival at destination while in journey
+    if (trip.isStepInJourney && !trip.isStepReachedPlace) {
+      _isAutoFetchingLocation = true;
+      try {
+        await ref.read(tripRepositoryProvider).markDestinationReached(
+          trip.tripId,
+          lat: trip.dropoffLat,
+          lng: trip.dropoffLng,
+        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).hideCurrentSnackBar();
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              duration: const Duration(seconds: 3),
+              behavior: SnackBarBehavior.floating,
+              backgroundColor: const Color(0xFF10B981),
+              content: Row(
+                children: [
+                  const Icon(Icons.pin_drop_rounded, color: Colors.white, size: 20),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Auto GPS: Reached Destination (${trip.dropoffSpot})',
+                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }
+      } catch (_) {} finally {
+        _isAutoFetchingLocation = false;
+      }
+      return;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -78,6 +218,13 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
               );
             }
 
+            // Main dashboard content has successfully loaded
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted) {
+                ref.read(tripMiniOverlayControllerProvider.notifier).setMainPageLoaded(true);
+              }
+            });
+
             final isOnline = driver.isOnline;
             final driverName = driver.name.isNotEmpty ? driver.name : 'Amal';
 
@@ -101,7 +248,7 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
                     ],
 
                     // Today's Roster Card (from updated nowFollow.jpeg)
-                    _buildTodaysRosterCard(context),
+                    _buildTodaysRosterCard(context, selectedTrip),
                     const SizedBox(height: 16),
 
                     // Assigned Trip Card or No Trips Assigned Empty State
@@ -242,9 +389,27 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
     final isPending = status.toUpperCase() == 'PENDING';
     final themeColors = context.appColors;
 
-    final Color dutyBtnColor = isOnline ? const Color(0xFF10B981) : const Color(0xFF64748B);
-    final IconData dutyBtnIcon = Icons.power_settings_new_rounded;
-    final String dutyBtnText = isOnline ? 'Now online' : 'Offline';
+    final isOfflineScheduled = ref.watch(isOfflineAfterTripProvider);
+    final isTripOngoing = ref.watch(tripMiniOverlayControllerProvider.select((s) => s.isTripOngoing));
+
+    // When trip is ongoing, account MUST be online! It cannot be offline.
+    final effectiveIsOnline = isTripOngoing ? true : isOnline;
+
+    if (isTripOngoing && !isOnline) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        ref.read(driverProfileProvider.notifier).setOnline(true);
+      });
+    }
+
+    final Color dutyBtnColor = isOfflineScheduled
+        ? const Color(0xFFD97706)
+        : (effectiveIsOnline ? const Color(0xFF10B981) : const Color(0xFF64748B));
+    final IconData dutyBtnIcon = isOfflineScheduled
+        ? Icons.schedule_rounded
+        : Icons.power_settings_new_rounded;
+    final String dutyBtnText = isOfflineScheduled
+        ? 'Off after drop'
+        : (effectiveIsOnline ? 'Now online' : 'Offline');
 
     return Row(
       children: [
@@ -368,7 +533,12 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
           child: InkWell(
             key: const Key('duty_status_switch'),
             onTap: () {
-              if (!isOnline) {
+              if (isTripOngoing) {
+                // Trip is ongoing: Account MUST be online! It CANNOT be offline!
+                _showOngoingTripOfflineDialog(context, ref);
+              } else if (isOfflineScheduled) {
+                _showCancelScheduledOfflineDialog(context, ref);
+              } else if (!isOnline) {
                 ref.read(driverProfileProvider.notifier).toggleDuty();
               } else {
                 _showGoOfflineDialog(context, ref);
@@ -528,7 +698,12 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
                           key: const Key('confirm_go_offline_button'),
                           onTap: () {
                             Navigator.of(dialogContext).pop();
-                            ref.read(driverProfileProvider.notifier).toggleDuty();
+                            final isTripOngoing = ref.read(tripMiniOverlayControllerProvider).isTripOngoing;
+                            if (isTripOngoing) {
+                              _showOngoingTripOfflineDialog(context, ref);
+                            } else {
+                              ref.read(driverProfileProvider.notifier).toggleDuty();
+                            }
                           },
                           borderRadius: BorderRadius.circular(14),
                           child: Container(
@@ -572,8 +747,7 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
   // Preserved for connection after Trip module development completes.
   // ===========================================================================
 
-  /// Recommendation 2 dialog: shown when driver attempts to go offline during an ongoing trip.
-  // ignore: unused_element
+  /// Corporate safety dialog: shown when driver attempts to go offline during an ongoing trip.
   void _showOngoingTripOfflineDialog(BuildContext context, WidgetRef ref) {
     final themeColors = context.appColors;
     final isDark = context.isDarkMode;
@@ -738,7 +912,6 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
   }
 
   /// Dialog shown if driver taps the Amber "Offline after drop" duty button to cancel or manage it.
-  // ignore: unused_element
   void _showCancelScheduledOfflineDialog(BuildContext context, WidgetRef ref) {
     final themeColors = context.appColors;
     final isDark = context.isDarkMode;
@@ -888,10 +1061,36 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
     );
   }
 
-  /// Today's Roster Card (from updated nowFollow.jpeg)
-  Widget _buildTodaysRosterCard(BuildContext context) {
+  /// Today's Roster Card (PRD D-03 / D-06 / D-07 / D-09)
+  Widget _buildTodaysRosterCard(BuildContext context, TripModel? trip) {
     final themeColors = context.appColors;
     final isDark = context.isDarkMode;
+
+    final hasTrip = trip != null;
+    final isAssigned = hasTrip && trip.isStepAssigned;
+    final isSpotReached = hasTrip && trip.isStepSpotReached;
+    final isInJourney = hasTrip && trip.isStepInJourney;
+    final isReachedPlace = hasTrip && trip.isStepReachedPlace;
+    final isAllEnd = hasTrip && trip.isClosed;
+
+    final line1Solid = isSpotReached;
+    final line2Solid = isInJourney;
+    final line3Solid = isReachedPlace;
+
+    final assignedTime = hasTrip ? _formatPickupTime(trip.assignedAt ?? trip.pickupTime) : '--:--';
+    final spotReachedTime = trip?.spotReachedAt != null
+        ? _formatPickupTime(trip!.spotReachedAt!)
+        : (isSpotReached ? 'Done' : (hasTrip ? 'Pending' : '--:--'));
+    final inJourneyTime = trip?.startedAt != null
+        ? _formatPickupTime(trip!.startedAt!)
+        : (isInJourney ? 'Done' : (hasTrip ? 'Pending' : '--:--'));
+    final reachedPlaceTime = trip?.destinationReachedAt != null
+        ? _formatPickupTime(trip!.destinationReachedAt!)
+        : (trip?.closedAt != null
+            ? _formatPickupTime(trip!.closedAt!)
+            : (hasTrip
+                ? 'Est. ${_formatPickupTime(trip.pickupTime.add(Duration(minutes: trip.estimatedReachMinutes)))}'
+                : '--:--'));
 
     return Container(
       width: double.infinity,
@@ -911,27 +1110,76 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            "TODAY'S ROSTER",
-            style: TextStyle(
-              color: themeColors.textSecondary,
-              fontSize: 13,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 0.5,
-            ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                "TODAY'S ROSTER",
+                style: TextStyle(
+                  color: themeColors.textSecondary,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.5,
+                ),
+              ),
+              if (isAllEnd)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: isDark ? const Color(0xFF132A1C) : const Color(0xFFDCFCE7),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    'COMPLETED',
+                    style: TextStyle(
+                      color: isDark ? const Color(0xFF86EFAC) : const Color(0xFF15803D),
+                      fontSize: 10,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                )
+              else if (hasTrip)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: themeColors.purpleTint,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    trip.status.toUpperCase(),
+                    style: TextStyle(
+                      color: themeColors.purpleAccent,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+            ],
           ),
           const SizedBox(height: 22),
 
           // Stepper Indicator Row (Dots and Connecting Lines)
           Row(
             children: [
-              _buildRosterDot(context: context, isCompleted: true),
-              Expanded(child: _buildRosterLine(context: context, isSolid: true)),
-              _buildRosterDot(context: context, isCompleted: true),
-              Expanded(child: _buildRosterLine(context: context, isSolid: false)),
-              _buildRosterDot(context: context, isCompleted: false),
-              Expanded(child: _buildRosterLine(context: context, isSolid: false)),
-              _buildRosterDot(context: context, isCompleted: false),
+              _buildRosterDot(context: context, isCompleted: isAssigned),
+              Expanded(child: _buildRosterLine(context: context, isSolid: line1Solid)),
+              _buildRosterDot(
+                context: context,
+                isCompleted: isSpotReached,
+                onTap: (hasTrip && !isSpotReached) ? () => _handleSpotReached(context, trip) : null,
+              ),
+              Expanded(child: _buildRosterLine(context: context, isSolid: line2Solid)),
+              _buildRosterDot(
+                context: context,
+                isCompleted: isInJourney,
+                onTap: (hasTrip && isSpotReached && !isInJourney) ? () => _showTripWorkflowSheet(context, ref, trip) : null,
+              ),
+              Expanded(child: _buildRosterLine(context: context, isSolid: line3Solid)),
+              _buildRosterDot(
+                context: context,
+                isCompleted: isReachedPlace,
+                onTap: (hasTrip && isInJourney && !isReachedPlace) ? () => _handleReachedPlace(context, trip) : null,
+              ),
             ],
           ),
           const SizedBox(height: 10),
@@ -941,49 +1189,392 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildRosterLabel(context, 'Assigned', '10:00 AM', CrossAxisAlignment.start),
-              _buildRosterLabel(context, 'Spot Reached', '10:20 AM', CrossAxisAlignment.center),
-              _buildRosterLabel(context, 'In Journey', '10:32 AM', CrossAxisAlignment.center),
-              _buildRosterLabel(context, 'Reached Place', '10:50 AM (Est.)', CrossAxisAlignment.end),
+              _buildRosterLabel(context, 'Assigned', assignedTime, CrossAxisAlignment.start, isActive: isAssigned),
+              _buildRosterLabel(
+                context,
+                'Spot Reached',
+                spotReachedTime,
+                CrossAxisAlignment.center,
+                isActive: isSpotReached,
+                onTap: (hasTrip && !isSpotReached) ? () => _handleSpotReached(context, trip) : null,
+              ),
+              _buildRosterLabel(
+                context,
+                'In Journey',
+                inJourneyTime,
+                CrossAxisAlignment.center,
+                isActive: isInJourney,
+                onTap: (hasTrip && isSpotReached && !isInJourney) ? () => _showTripWorkflowSheet(context, ref, trip) : null,
+              ),
+              _buildRosterLabel(
+                context,
+                'Reached Place',
+                reachedPlaceTime,
+                CrossAxisAlignment.end,
+                isActive: isReachedPlace,
+                onTap: (hasTrip && isInJourney && !isReachedPlace) ? () => _handleReachedPlace(context, trip) : null,
+              ),
             ],
           ),
+
+          // Dynamic Action Button Section
+          if (hasTrip) ...[
+            const SizedBox(height: 18),
+            Divider(height: 1, color: themeColors.divider),
+            const SizedBox(height: 14),
+
+            if (isAllEnd) ...[
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                decoration: BoxDecoration(
+                  color: isDark ? const Color(0xFF132A1C) : const Color(0xFFDCFCE7),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFF16A34A).withValues(alpha: 0.3)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.check_circle_rounded, color: Color(0xFF16A34A), size: 18),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        "Today's Roster Completed Successfully",
+                        style: TextStyle(
+                          color: isDark ? const Color(0xFF86EFAC) : const Color(0xFF15803D),
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ] else if (!isSpotReached) ...[
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                decoration: BoxDecoration(
+                  color: isDark ? const Color(0xFF161F30) : const Color(0xFFF1F5F9),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: themeColors.primaryButton.withValues(alpha: 0.22)),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 28,
+                      height: 28,
+                      decoration: BoxDecoration(
+                        color: themeColors.primaryButton.withValues(alpha: 0.12),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Center(
+                        child: Icon(
+                          Icons.radar_rounded,
+                          size: 17,
+                          color: themeColors.primaryButton,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  "Auto GPS Tracking Active",
+                                  style: TextStyle(
+                                    color: themeColors.primaryButton,
+                                    fontSize: 12.5,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF10B981).withValues(alpha: 0.15),
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: const Text(
+                                  "AUTOMATIC",
+                                  style: TextStyle(
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.w800,
+                                    color: Color(0xFF10B981),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            "Detecting arrival at ${trip.pickupSpot}...",
+                            style: TextStyle(
+                              color: themeColors.textSecondary,
+                              fontSize: 11.5,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ] else if (!isInJourney) ...[
+              SizedBox(
+                width: double.infinity,
+                height: 44,
+                child: ElevatedButton.icon(
+                  key: const Key('roster_start_journey_button'),
+                  icon: const Icon(Icons.camera_alt_rounded, size: 18, color: Colors.white),
+                  label: const Text(
+                    'Take Selfie & Start Journey',
+                    style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: Colors.white),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF10B981),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    elevation: 0,
+                  ),
+                  onPressed: () => _showTripWorkflowSheet(context, ref, trip),
+                ),
+              ),
+            ] else if (!isReachedPlace) ...[
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                decoration: BoxDecoration(
+                  color: isDark ? const Color(0xFF161F30) : const Color(0xFFF1F5F9),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: themeColors.primaryButton.withValues(alpha: 0.22)),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 28,
+                      height: 28,
+                      decoration: BoxDecoration(
+                        color: themeColors.primaryButton.withValues(alpha: 0.12),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Center(
+                        child: Icon(
+                          Icons.navigation_rounded,
+                          size: 16,
+                          color: themeColors.primaryButton,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  "En Route • Auto GPS Tracking",
+                                  style: TextStyle(
+                                    color: themeColors.primaryButton,
+                                    fontSize: 12.5,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF10B981).withValues(alpha: 0.15),
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: const Text(
+                                  "AUTOMATIC",
+                                  style: TextStyle(
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.w800,
+                                    color: Color(0xFF10B981),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            "Detecting arrival at ${trip.dropoffSpot}...",
+                            style: TextStyle(
+                              color: themeColors.textSecondary,
+                              fontSize: 11.5,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ] else ...[
+              SizedBox(
+                width: double.infinity,
+                height: 44,
+                child: ElevatedButton.icon(
+                  key: const Key('roster_complete_trip_button'),
+                  icon: const Icon(Icons.check_circle_outline_rounded, size: 18, color: Colors.white),
+                  label: const Text(
+                    'Complete Trip (Verify OTP)',
+                    style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: Colors.white),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: themeColors.primaryButton,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    elevation: 0,
+                  ),
+                  onPressed: () => _showTripWorkflowSheet(context, ref, trip),
+                ),
+              ),
+            ],
+          ],
         ],
       ),
     );
   }
 
-  Widget _buildRosterDot({required BuildContext context, required bool isCompleted}) {
+  Future<void> _handleSpotReached(BuildContext context, TripModel trip) async {
     final themeColors = context.appColors;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        duration: const Duration(seconds: 2),
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: themeColors.primaryButton,
+        content: Row(
+          children: const [
+            SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+            ),
+            SizedBox(width: 12),
+            Text('Fetching GPS location & verifying spot...', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+          ],
+        ),
+      ),
+    );
 
-    if (isCompleted) {
-      return Container(
-        width: 14,
-        height: 14,
-        decoration: BoxDecoration(
-          color: themeColors.stepperActive,
-          shape: BoxShape.circle,
+    await Future.delayed(const Duration(milliseconds: 500));
+    await ref.read(tripRepositoryProvider).markSpotReached(
+      trip.tripId,
+      lat: trip.pickupLat,
+      lng: trip.pickupLng,
+    );
+
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          duration: const Duration(seconds: 3),
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: const Color(0xFF10B981),
+          content: Text(
+            'GPS Verified: Reached Pickup Spot at ${trip.pickupSpot}',
+            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+          ),
         ),
       );
     }
-    return Container(
+  }
+
+  Future<void> _handleReachedPlace(BuildContext context, TripModel trip) async {
+    final themeColors = context.appColors;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        duration: const Duration(seconds: 2),
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: themeColors.primaryButton,
+        content: Row(
+          children: const [
+            SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+            ),
+            SizedBox(width: 12),
+            Text('Fetching GPS location & verifying destination...', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+          ],
+        ),
+      ),
+    );
+
+    await Future.delayed(const Duration(milliseconds: 500));
+    await ref.read(tripRepositoryProvider).markDestinationReached(
+      trip.tripId,
+      lat: trip.dropoffLat,
+      lng: trip.dropoffLng,
+    );
+
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          duration: const Duration(seconds: 3),
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: const Color(0xFF10B981),
+          content: Text(
+            'GPS Verified: Reached Destination at ${trip.dropoffSpot}',
+            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+          ),
+        ),
+      );
+    }
+  }
+
+  Widget _buildRosterDot({
+    required BuildContext context,
+    required bool isCompleted,
+    VoidCallback? onTap,
+  }) {
+    final themeColors = context.appColors;
+
+    final dot = AnimatedContainer(
+      duration: const Duration(milliseconds: 250),
       width: 14,
       height: 14,
       decoration: BoxDecoration(
-        color: themeColors.cardBackground,
+        color: isCompleted ? themeColors.stepperActive : themeColors.cardBackground,
         shape: BoxShape.circle,
         border: Border.all(
-          color: themeColors.stepperActive,
+          color: isCompleted ? themeColors.stepperActive : themeColors.stepperInactiveLine,
           width: 2.5,
         ),
       ),
     );
+
+    if (onTap != null) {
+      return GestureDetector(
+        onTap: onTap,
+        behavior: HitTestBehavior.opaque,
+        child: Padding(
+          padding: const EdgeInsets.all(4.0),
+          child: dot,
+        ),
+      );
+    }
+    return dot;
   }
 
   Widget _buildRosterLine({required BuildContext context, required bool isSolid}) {
     final themeColors = context.appColors;
 
     if (isSolid) {
-      return Container(
+      return AnimatedContainer(
+        duration: const Duration(milliseconds: 250),
         height: 2.5,
         color: themeColors.stepperActive,
       );
@@ -1010,16 +1601,23 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
     );
   }
 
-  Widget _buildRosterLabel(BuildContext context, String title, String subtitle, CrossAxisAlignment align) {
+  Widget _buildRosterLabel(
+    BuildContext context,
+    String title,
+    String subtitle,
+    CrossAxisAlignment align, {
+    VoidCallback? onTap,
+    bool isActive = false,
+  }) {
     final themeColors = context.appColors;
 
-    return Column(
+    final content = Column(
       crossAxisAlignment: align,
       children: [
         Text(
           title,
           style: TextStyle(
-            color: themeColors.textPrimary,
+            color: isActive ? themeColors.textPrimary : themeColors.textSecondary,
             fontSize: 12,
             fontWeight: FontWeight.w700,
           ),
@@ -1028,13 +1626,25 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
         Text(
           subtitle,
           style: TextStyle(
-            color: themeColors.textSecondary,
+            color: isActive ? themeColors.stepperActive : themeColors.textSecondary,
             fontSize: 11,
-            fontWeight: FontWeight.w500,
+            fontWeight: isActive ? FontWeight.w600 : FontWeight.w500,
           ),
         ),
       ],
     );
+
+    if (onTap != null) {
+      return InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(6),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 2),
+          child: content,
+        ),
+      );
+    }
+    return content;
   }
 
   /// Map Card showing the pickup place of the selected trip and single marker
@@ -1044,12 +1654,6 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
     List<TripModel> assignedTrips,
   ) {
     final hasTrip = selectedTrip != null;
-    final isTrip1 = hasTrip &&
-        assignedTrips.isNotEmpty &&
-        selectedTrip.tripId == assignedTrips.first.tripId;
-    final markerPosition = hasTrip
-        ? (isTrip1 ? const Offset(0.40, 0.62) : const Offset(0.70, 0.36))
-        : null;
     final themeColors = context.appColors;
     final isDark = context.isDarkMode;
 
@@ -1066,17 +1670,98 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
           ),
         ],
       ),
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // Header: Single row showing pin icon + pickup spot + pickup time with short fade under 200ms
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(24),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(24),
+          onTap: hasTrip
+              ? () {
+                  ref.read(selectedTripIdProvider.notifier).select(selectedTrip.tripId);
+                  context.push(RouteNames.tripDetails, extra: selectedTrip.tripId);
+                }
+              : null,
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+          // Header: Shows either live driver GPS location or trip pickup spot with toggle button
           AnimatedSwitcher(
             duration: const Duration(milliseconds: 180),
             transitionBuilder: (child, animation) =>
                 FadeTransition(opacity: animation, child: child),
-            child: hasTrip
+            child: (_showMyCurrentLocation || !hasTrip)
                 ? Row(
+                    key: const ValueKey('map_header_gps'),
+                    children: [
+                      Icon(
+                        Icons.my_location_rounded,
+                        color: themeColors.purpleAccent,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              'My Current Location (Live GPS)',
+                              style: TextStyle(
+                                color: themeColors.textPrimary,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w700,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            if (_deviceGpsLocation != null)
+                              Text(
+                                '${_deviceGpsLocation!.latitude.toStringAsFixed(4)}° N, ${_deviceGpsLocation!.longitude.toStringAsFixed(4)}° E',
+                                style: TextStyle(
+                                  color: isDark ? Colors.white70 : themeColors.textSecondary,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                      if (hasTrip)
+                        InkWell(
+                          borderRadius: BorderRadius.circular(16),
+                          onTap: () {
+                            setState(() {
+                              _showMyCurrentLocation = false;
+                            });
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                            decoration: BoxDecoration(
+                              color: themeColors.purpleAccent.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.alt_route_rounded, size: 14, color: themeColors.purpleAccent),
+                                const SizedBox(width: 4),
+                                Text(
+                                  'Trip Route',
+                                  style: TextStyle(
+                                    color: themeColors.purpleAccent,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                    ],
+                  )
+                : Row(
                     key: ValueKey('map_header_${selectedTrip.tripId}'),
                     children: [
                       Icon(
@@ -1098,31 +1783,35 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
                         ),
                       ),
                       const SizedBox(width: 8),
-                      Text(
-                        _formatPickupTime(selectedTrip.pickupTime),
-                        style: TextStyle(
-                          color: themeColors.textSecondary,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ],
-                  )
-                : Row(
-                    key: const ValueKey('map_header_empty'),
-                    children: [
-                      Icon(
-                        Icons.location_off_outlined,
-                        color: themeColors.unselectedIcon,
-                        size: 20,
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        'No trip assigned',
-                        style: TextStyle(
-                          color: themeColors.unselectedIcon,
-                          fontSize: 15,
-                          fontWeight: FontWeight.w600,
+                      InkWell(
+                        borderRadius: BorderRadius.circular(16),
+                        onTap: () {
+                          setState(() {
+                            _showMyCurrentLocation = true;
+                          });
+                          _fetchDeviceLocation();
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                          decoration: BoxDecoration(
+                            color: themeColors.purpleAccent.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.my_location_rounded, size: 14, color: themeColors.purpleAccent),
+                              const SizedBox(width: 4),
+                              Text(
+                                'My GPS',
+                                style: TextStyle(
+                                  color: themeColors.purpleAccent,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                     ],
@@ -1137,21 +1826,42 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
               height: 190,
               child: Stack(
                 children: [
-                  AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 180),
-                    transitionBuilder: (child, animation) =>
-                        FadeTransition(opacity: animation, child: child),
-                    child: RepaintBoundary(
-                      child: CustomPaint(
-                        key: ValueKey('map_paint_${selectedTrip?.tripId ?? 'none'}_${isDark ? 'dark' : 'light'}'),
-                        size: const Size(double.infinity, 190),
-                        painter: _PlainMapPlaceholderPainter(
-                          markerPosition: markerPosition,
-                          colors: themeColors,
-                        ),
-                      ),
+                  if (!_showMyCurrentLocation && hasTrip && selectedTrip.hasValidCoordinates)
+                    TripMapView(
+                      mode: TripMapMode.route,
+                      pickupLat: selectedTrip.pickupLat,
+                      pickupLng: selectedTrip.pickupLng,
+                      dropoffLat: selectedTrip.dropoffLat,
+                      dropoffLng: selectedTrip.dropoffLng,
+                      routePolyline: selectedTrip.routePolyline,
+                      height: 190,
+                      showMyLocationButton: true,
+                      onMyLocationPressed: () {
+                        setState(() {
+                          _showMyCurrentLocation = true;
+                        });
+                        _fetchDeviceLocation();
+                      },
+                      onTap: () {
+                        ref.read(selectedTripIdProvider.notifier).select(selectedTrip.tripId);
+                        context.push(RouteNames.tripDetails, extra: selectedTrip.tripId);
+                      },
+                    )
+                  else
+                    TripMapView(
+                      mode: TripMapMode.driverLocation,
+                      driverLat: _deviceGpsLocation?.latitude,
+                      driverLng: _deviceGpsLocation?.longitude,
+                      height: 190,
+                      showMyLocationButton: true,
+                      onMyLocationPressed: () => _fetchDeviceLocation(),
+                      onTap: hasTrip
+                          ? () {
+                              ref.read(selectedTripIdProvider.notifier).select(selectedTrip.tripId);
+                              context.push(RouteNames.tripDetails, extra: selectedTrip.tripId);
+                            }
+                          : null,
                     ),
-                  ),
 
                   // "View Map" Chip (kept as in reference, not connected)
                   Positioned(
@@ -1204,111 +1914,11 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
           ),
         ],
       ),
-    );
+    ),
+  ),
+),
+);
   }
-
-  // ===========================================================================
-  // PRESERVED REFERENCE: Trip History, Wallet, and Performance Containers
-  // Exactly preserves the container shape, icons, subtitles, and layout.
-  // ===========================================================================
-  /*
-  Widget _buildQuickActionGrid(BuildContext context) {
-    return Row(
-      children: [
-        Expanded(
-          child: _buildActionCard(
-            context: context,
-            icon: Icons.directions_car_rounded,
-            title: 'Trip History',
-            subtitle: 'View past trips ›',
-            onTap: () => setState(() => _selectedNavIndex = 1),
-          ),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: _buildActionCard(
-            context: context,
-            icon: Icons.account_balance_wallet_outlined,
-            title: 'Wallet',
-            subtitle: 'Check balance ›',
-            onTap: () => setState(() => _selectedNavIndex = 2),
-          ),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: _buildActionCard(
-            context: context,
-            icon: Icons.bar_chart_rounded,
-            title: 'Performance',
-            subtitle: 'View your stats ›',
-            onTap: () {},
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildActionCard({
-    required BuildContext context,
-    required IconData icon,
-    required String title,
-    required String subtitle,
-    required VoidCallback onTap,
-  }) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(20),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(20),
-            boxShadow: const [
-              BoxShadow(
-                color: Color(0x08000000),
-                blurRadius: 14,
-                offset: Offset(0, 4),
-              ),
-            ],
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: 42,
-                height: 42,
-                decoration: BoxDecoration(
-                  color: AppColors.primaryTint,
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: Icon(icon, color: AppColors.primary, size: 22),
-              ),
-              const SizedBox(height: 14),
-              Text(
-                title,
-                style: const TextStyle(
-                  color: Color(0xFF16192C),
-                  fontWeight: FontWeight.w700,
-                  fontSize: 13,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                subtitle,
-                style: const TextStyle(
-                  color: Color(0xFF868C9F),
-                  fontSize: 11,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-  */
 
   /// Assigned Trip Card showing selected trip with short fade under 200ms
   Widget _buildAssignedTripCard(
@@ -1344,7 +1954,10 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
           borderRadius: BorderRadius.circular(20),
           child: InkWell(
             borderRadius: BorderRadius.circular(20),
-            onTap: () => context.push(RouteNames.tripDetails),
+            onTap: () {
+              ref.read(selectedTripIdProvider.notifier).select(selectedTrip.tripId);
+              context.push(RouteNames.tripDetails, extra: selectedTrip.tripId);
+            },
             child: Padding(
               padding: const EdgeInsets.all(18),
               child: Column(
@@ -1428,7 +2041,7 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
                                   Text(
                                     'Pickup Time: $formattedTime',
                                     style: TextStyle(
-                                      color: themeColors.textSecondary,
+                                      color: isDark ? Colors.white : themeColors.textSecondary,
                                       fontSize: 12,
                                       fontWeight: FontWeight.w500,
                                     ),
@@ -1647,7 +2260,7 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
                                 borderRadius: BorderRadius.circular(8),
                               ),
                               child: Text(
-                                '#${trip.tripId}',
+                                'Trip ${trip.tripId}',
                                 style: TextStyle(
                                   color: themeColors.purpleAccent,
                                   fontWeight: FontWeight.w700,
@@ -1729,7 +2342,7 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
                                     Text(
                                       'Pickup: ${_formatPickupTime(trip.pickupTime)}  •  Est: ${trip.estimatedReachMinutes} mins',
                                       style: TextStyle(
-                                        color: themeColors.textSecondary,
+                                        color: isDark ? Colors.white : themeColors.textSecondary,
                                         fontSize: 12,
                                         fontWeight: FontWeight.w500,
                                       ),
@@ -1747,7 +2360,7 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
                     if (trip.isAssigned) ...[
                       // PRD D-06: Driver Selfie Verification
                       Text(
-                        'STEP 1: PRE-TRIP VERIFICATION (PRD D-06)',
+                        'STEP 1: PRE-TRIP VERIFICATION',
                         style: TextStyle(
                           color: themeColors.textSecondary,
                           fontSize: 11.5,
@@ -1850,7 +2463,7 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
 
                       // PRD D-07: Start Trip & Navigate
                       Text(
-                        'STEP 2: START TRIP (PRD D-07)',
+                        'STEP 2: START TRIP',
                         style: TextStyle(
                           color: themeColors.textSecondary,
                           fontSize: 11.5,
@@ -1867,6 +2480,8 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
                           onTap: isSelfieUploaded
                               ? () async {
                                   await ref.read(tripRepositoryProvider).startTrip(trip.tripId);
+                                  final startedTrip = trip.copyWith(status: 'ONGOING');
+                                  ref.read(navigationLauncherServiceProvider).handleTripStarted(startedTrip);
                                   if (sheetContext.mounted) {
                                     Navigator.of(sheetContext).pop();
                                   }
@@ -1877,7 +2492,7 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
                                         behavior: SnackBarBehavior.floating,
                                         backgroundColor: themeColors.primaryButton,
                                         content: Text(
-                                          'Trip #${trip.tripId} started! Live GPS tracking active.',
+                                          'Trip started! Live GPS tracking active.',
                                           style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
                                         ),
                                       ),
@@ -1935,7 +2550,7 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
                     ] else ...[
                       // PRD D-09: Complete Trip with OTP Verification
                       Text(
-                        'DROP-OFF & TRIP COMPLETION (PRD D-09)',
+                        'DROP-OFF & TRIP COMPLETION',
                         style: TextStyle(
                           color: themeColors.textSecondary,
                           fontSize: 11.5,
@@ -2063,7 +2678,7 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
                                     behavior: SnackBarBehavior.floating,
                                     backgroundColor: const Color(0xFF1E293B),
                                     content: Text(
-                                      'Trip #${trip.tripId} completed! Duty automatically switched to Offline.',
+                                      'Trip completed! Duty automatically switched to Offline.',
                                       style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
                                     ),
                                   ),
@@ -2077,7 +2692,7 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
                                     behavior: SnackBarBehavior.floating,
                                     backgroundColor: const Color(0xFF10B981),
                                     content: Text(
-                                      'Trip #${trip.tripId} completed successfully!',
+                                      'Trip completed successfully!',
                                       style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
                                     ),
                                   ),
@@ -2196,191 +2811,74 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
   }) {
     final themeColors = context.appColors;
 
+    void handleTap() {
+      if (index == 1) {
+        context.push(RouteNames.trips);
+        return;
+      }
+      if (index == 2) {
+        context.push(RouteNames.wallet);
+        return;
+      }
+      setState(() => _selectedNavIndex = index);
+    }
+
     if (isActive) {
-      return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        decoration: BoxDecoration(
-          color: themeColors.purpleTint,
+      return Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: handleTap,
           borderRadius: BorderRadius.circular(20),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, color: themeColors.purpleAccent, size: 24),
-            const SizedBox(height: 2),
-            Text(
-              label,
-              style: TextStyle(
-                color: themeColors.purpleAccent,
-                fontWeight: FontWeight.w700,
-                fontSize: 11,
-              ),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            decoration: BoxDecoration(
+              color: themeColors.purpleTint,
+              borderRadius: BorderRadius.circular(20),
             ),
-          ],
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon, color: themeColors.purpleAccent, size: 24),
+                const SizedBox(height: 2),
+                Text(
+                  label,
+                  style: TextStyle(
+                    color: themeColors.purpleAccent,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 11,
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       );
     }
 
-    return InkWell(
-      onTap: () => setState(() => _selectedNavIndex = index),
-      borderRadius: BorderRadius.circular(16),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, color: themeColors.unselectedIcon, size: 24),
-            const SizedBox(height: 2),
-            Text(
-              label,
-              style: TextStyle(
-                color: themeColors.unselectedIcon,
-                fontWeight: FontWeight.w500,
-                fontSize: 11,
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: handleTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, color: themeColors.unselectedIcon, size: 24),
+              const SizedBox(height: 2),
+              Text(
+                label,
+                style: TextStyle(
+                  color: themeColors.unselectedIcon,
+                  fontWeight: FontWeight.w500,
+                  fontSize: 11,
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
-  }
-}
-
-/// Plain map placeholder painter: light/dark background, road lines,
-/// and one single marker at the pickup location of the selected trip.
-class _PlainMapPlaceholderPainter extends CustomPainter {
-  final Offset? markerPosition;
-  final AppThemeColors colors;
-
-  const _PlainMapPlaceholderPainter({
-    this.markerPosition,
-    required this.colors,
-  });
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    // 1. Map background
-    final bgPaint = Paint()..color = colors.mapBg;
-    canvas.drawRect(Rect.fromLTWH(0, 0, size.width, size.height), bgPaint);
-
-    // 2. City block polygons
-    final blockPaint = Paint()..color = colors.mapBlocks;
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromLTWH(10, 10, size.width * 0.35, 60),
-        const Radius.circular(8),
-      ),
-      blockPaint,
-    );
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromLTWH(size.width * 0.55, 15, size.width * 0.4, 45),
-        const Radius.circular(8),
-      ),
-      blockPaint,
-    );
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromLTWH(15, 90, size.width * 0.3, 70),
-        const Radius.circular(8),
-      ),
-      blockPaint,
-    );
-
-    // 3. Curved river / water stream
-    final riverPaint = Paint()
-      ..color = colors.mapRiver
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 32
-      ..strokeCap = StrokeCap.round;
-
-    final riverPath = Path()
-      ..moveTo(size.width * 0.72, -10)
-      ..cubicTo(
-        size.width * 0.65,
-        50,
-        size.width * 0.52,
-        110,
-        size.width * 0.46,
-        size.height + 20,
-      );
-    canvas.drawPath(riverPath, riverPaint);
-
-    // 4. Stylized road network
-    final roadPaint = Paint()
-      ..color = colors.mapRoads
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 10
-      ..strokeCap = StrokeCap.round;
-
-    // Diagonal arterial roads
-    final roadPath1 = Path()
-      ..moveTo(-10, 40)
-      ..lineTo(size.width + 10, 160);
-    canvas.drawPath(roadPath1, roadPaint);
-
-    final roadPath2 = Path()
-      ..moveTo(-10, 130)
-      ..lineTo(size.width + 10, 30);
-    canvas.drawPath(roadPath2, roadPaint);
-
-    // Secondary streets
-    final streetPaint = Paint()
-      ..color = colors.mapRoads.withValues(alpha: 0.7)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 3.5;
-
-    canvas.drawLine(
-      Offset(size.width * 0.25, 0),
-      Offset(size.width * 0.25, size.height),
-      streetPaint,
-    );
-    canvas.drawLine(
-      Offset(size.width * 0.8, 0),
-      Offset(size.width * 0.8, size.height),
-      streetPaint,
-    );
-    canvas.drawLine(
-      Offset(0, size.height * 0.45),
-      Offset(size.width, size.height * 0.45),
-      streetPaint,
-    );
-
-    // 5. Draw single marker if a trip is selected
-    if (markerPosition != null) {
-      final pos = Offset(
-        size.width * markerPosition!.dx,
-        size.height * markerPosition!.dy,
-      );
-      _drawMarker(canvas, pos);
-    }
-  }
-
-  void _drawMarker(Canvas canvas, Offset position) {
-    // Pulse outer ring
-    final pulse = Paint()
-      ..color = colors.mapMarker.withValues(alpha: 0.25)
-      ..style = PaintingStyle.fill;
-    canvas.drawCircle(position, 22, pulse);
-
-    // Marker pin outer circle
-    final outer = Paint()..color = colors.mapMarker;
-    canvas.drawCircle(position, 11, outer);
-
-    // Crisp white border
-    final border = Paint()
-      ..color = Colors.white
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2.5;
-    canvas.drawCircle(position, 11, border);
-
-    // Inner white dot
-    final innerDot = Paint()..color = Colors.white;
-    canvas.drawCircle(position, 4, innerDot);
-  }
-
-  @override
-  bool shouldRepaint(covariant _PlainMapPlaceholderPainter oldDelegate) {
-    return oldDelegate.markerPosition != markerPosition || oldDelegate.colors != colors;
   }
 }

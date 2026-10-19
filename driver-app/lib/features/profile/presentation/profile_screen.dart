@@ -8,6 +8,7 @@ import '../../../core/theme/theme_provider.dart';
 import '../../auth/presentation/controllers/auth_controller.dart';
 import '../../auth/presentation/controllers/driver_profile_controller.dart';
 import 'controllers/driver_documents_provider.dart';
+import '../../trips/application/navigation_launcher_service.dart';
 
 /// Driver Profile Screen styled identically to the reference design (Profile ui.jpeg)
 class ProfileScreen extends ConsumerStatefulWidget {
@@ -129,6 +130,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
                     // Request & Leave Status Section Card
                     _buildRequestAndLeaveCard(context),
+
+                    const SizedBox(height: 20),
+
+                    // Navigation Settings Card
+                    _buildNavigationSettingsCard(context),
 
                     const SizedBox(height: 20),
                   ],
@@ -409,7 +415,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             context: context,
             icon: Icons.flight_takeoff_rounded,
             title: 'Apply for Leave',
-            onTap: () {},
+            onTap: () => context.push(RouteNames.availabilityCalendar),
           ),
           Divider(height: 24, color: themeColors.divider),
 
@@ -440,6 +446,103 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               ),
             ),
             onTap: () => context.push(RouteNames.documents),
+          ),
+          Divider(height: 24, color: themeColors.divider),
+
+          // 3. Trip History
+          _buildActionRow(
+            context: context,
+            icon: Icons.history_rounded,
+            title: 'Trip History',
+            onTap: () => context.push(RouteNames.tripHistory),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Navigation Preferences Section Card
+  Widget _buildNavigationSettingsCard(BuildContext context) {
+    final themeColors = context.appColors;
+    final isDark = context.isDarkMode;
+    final isAutoOpenEnabled = ref.watch(autoOpenNavSettingProvider);
+
+    return Container(
+      decoration: BoxDecoration(
+        color: themeColors.cardBackground,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: themeColors.border),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.04),
+            blurRadius: 16,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'SETTINGS & NAVIGATION',
+            style: TextStyle(
+              color: themeColors.textSecondary,
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.5,
+            ),
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: themeColors.purpleTint,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Icon(
+                  Icons.near_me_rounded,
+                  color: themeColors.purpleAccent,
+                  size: 21,
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Auto-open navigation',
+                      style: TextStyle(
+                        color: themeColors.textPrimary,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Launch turn-by-turn map when trip starts',
+                      style: TextStyle(
+                        color: themeColors.textSecondary,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w400,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Switch.adaptive(
+                value: isAutoOpenEnabled,
+                activeTrackColor: themeColors.purpleAccent,
+                activeThumbColor: Colors.white,
+                onChanged: (val) {
+                  ref.read(autoOpenNavSettingProvider.notifier).toggle(val);
+                },
+              ),
+            ],
           ),
         ],
       ),
@@ -546,11 +649,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               icon: Icons.directions_car_outlined,
               label: 'Trips',
               onTap: () {
-                if (context.canPop()) {
-                  context.pop();
-                } else {
-                  context.go(RouteNames.home);
-                }
+                context.push(RouteNames.trips);
               },
             ),
             _buildNavItem(
@@ -558,11 +657,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               icon: Icons.account_balance_wallet_outlined,
               label: 'Wallet',
               onTap: () {
-                if (context.canPop()) {
-                  context.pop();
-                } else {
-                  context.go(RouteNames.home);
-                }
+                context.push(RouteNames.wallet);
               },
             ),
           ],
@@ -680,6 +775,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     label: 'Earnings & Wallet',
                     onTap: () {
                       Navigator.of(context).pop();
+                      context.push(RouteNames.wallet);
                     },
                   ),
                   _buildDrawerItem(
