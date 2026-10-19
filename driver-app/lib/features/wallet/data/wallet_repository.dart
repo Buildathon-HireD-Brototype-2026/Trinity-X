@@ -1,30 +1,90 @@
 import 'dart:async';
+import 'package:dio/dio.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../core/network/api_exception.dart';
+import '../../../core/network/auth_interceptor.dart';
 import '../../trips/data/trip_repository.dart';
+import '../../trips/presentation/controllers/current_trip_provider.dart';
 import '../domain/wallet_models.dart';
 
+class WalletTransactionModel {
+  final int transactionId;
+  final String amount;
+  final String transactionType; // 'CREDIT' or 'DEBIT'
+  final String? description;
+  final DateTime? createdAt;
+
+  const WalletTransactionModel({
+    required this.transactionId,
+    required this.amount,
+    required this.transactionType,
+    this.description,
+    this.createdAt,
+  });
+
+  bool get isCredit => transactionType.toUpperCase() == 'CREDIT';
+
+  factory WalletTransactionModel.fromJson(Map<String, dynamic> json) {
+    return WalletTransactionModel(
+      transactionId: json['transaction_id'] as int? ?? json['id'] as int? ?? 0,
+      amount: json['amount']?.toString() ?? '0.00',
+      transactionType: json['transaction_type'] as String? ?? 'CREDIT',
+      description: json['description'] as String?,
+      createdAt: json['created_at'] != null
+          ? DateTime.tryParse(json['created_at'] as String)
+          : null,
+    );
+  }
+}
+
+class DriverWalletModel {
+  final String balance;
+  final List<WalletTransactionModel> items;
+  final int page;
+  final int limit;
+  final int total;
+
+  const DriverWalletModel({
+    required this.balance,
+    required this.items,
+    this.page = 1,
+    this.limit = 20,
+    this.total = 0,
+  });
+
+  factory DriverWalletModel.fromJson(Map<String, dynamic> json) {
+    final rawItems = json['items'];
+    final txList = <WalletTransactionModel>[];
+    if (rawItems is List) {
+      for (final item in rawItems) {
+        if (item is Map<String, dynamic>) {
+          txList.add(WalletTransactionModel.fromJson(item));
+        }
+      }
+    }
+    return DriverWalletModel(
+      balance: json['balance']?.toString() ?? '0.00',
+      items: txList,
+      page: json['page'] as int? ?? 1,
+      limit: json['limit'] as int? ?? 20,
+      total: json['total'] as int? ?? txList.length,
+    );
+  }
+}
+
 abstract class WalletRepository {
-  /// Watches ONLY completed trips converted into WalletTripRecord
-  /// PRD Section 1: Assigned, ongoing, and cancelled trips NEVER appear.
   Stream<List<WalletTripRecord>> watchCompletedTrips();
-
-  /// Gets the previous 2 months settlement records (PRD Section 5)
-  Future<List<MonthlySettlementRecord>> getPreviousMonths([DateTime? referenceNow]);
-
-  /// Calculates the live wallet balance for the CURRENT MONTH only in IST
-  /// Sums driver splits for completed trips in current month; expenses not subtracted.
   double calculateCurrentMonthBalance(
     List<WalletTripRecord> trips, [
     DateTime? referenceNow,
   ]);
-
-  /// Calculates the number of completed trips in the current month in IST
   int calculateCurrentMonthTripCount(
     List<WalletTripRecord> trips, [
     DateTime? referenceNow,
   ]);
-
-  /// Calculates period summary for a filtered list of trips (PRD Section 3)
   WalletPeriodSummary calculatePeriodSummary(List<WalletTripRecord> trips);
+  Future<List<MonthlySettlementRecord>> getPreviousMonths([DateTime? referenceNow]);
+  Future<DriverWalletModel> getWallet({int page = 1, int limit = 20});
 }
 
 class MockWalletRepository implements WalletRepository {
@@ -35,7 +95,6 @@ class MockWalletRepository implements WalletRepository {
   @override
   Stream<List<WalletTripRecord>> watchCompletedTrips() {
     return _tripRepository.watchTrips().map((trips) {
-      // PRD Section 1: Everywhere on wallet screen, include ONLY trips with status Completed
       return trips
           .where((t) => t.isClosed && t.status.toUpperCase() != 'CANCELLED')
           .map((t) => WalletTripRecord.fromTripModel(t))
@@ -107,8 +166,6 @@ class MockWalletRepository implements WalletRepository {
 
   @override
   Future<List<MonthlySettlementRecord>> getPreviousMonths([DateTime? referenceNow]) async {
-    // PRD Section 5: "showing only the last 2 months before the current one (e.g. in October: September and August)"
-    // Unified trip source: derives from _tripRepository completed trips so History and Wallet match.
     final allTrips = await _tripRepository.getTrips();
     final completedTrips = allTrips
         .where((t) => t.isClosed && !t.isCancelled)
@@ -156,4 +213,68 @@ class MockWalletRepository implements WalletRepository {
       ),
     ];
   }
+
+  @override
+  Future<DriverWalletModel> getWallet({int page = 1, int limit = 20}) async {
+    return const DriverWalletModel(balance: '0.00', items: []);
+  }
 }
+
+class ApiWalletRepository implements WalletRepository {
+  final Dio _dio;
+  final TripRepository _tripRepository;
+  late final MockWalletRepository _calculator;
+
+  ApiWalletRepository(this._dio, this._tripRepository) {
+    _calculator = MockWalletRepository(_tripRepository);
+  }
+
+  @override
+  Stream<List<WalletTripRecord>> watchCompletedTrips() => _calculator.watchCompletedTrips();
+
+  @override
+  double calculateCurrentMonthBalance(List<WalletTripRecord> trips, [DateTime? referenceNow]) =>
+      _calculator.calculateCurrentMonthBalance(trips, referenceNow);
+
+  @override
+  int calculateCurrentMonthTripCount(List<WalletTripRecord> trips, [DateTime? referenceNow]) =>
+      _calculator.calculateCurrentMonthTripCount(trips, referenceNow);
+
+  @override
+  WalletPeriodSummary calculatePeriodSummary(List<WalletTripRecord> trips) =>
+      _calculator.calculatePeriodSummary(trips);
+
+  @override
+  Future<List<MonthlySettlementRecord>> getPreviousMonths([DateTime? referenceNow]) =>
+      _calculator.getPreviousMonths(referenceNow);
+
+  @override
+  Future<DriverWalletModel> getWallet({int page = 1, int limit = 20}) async {
+    try {
+      final response = await _dio.get(
+        '/driver/wallet',
+        queryParameters: {'page': page, 'limit': limit},
+      );
+      final data = response.data['data'] as Map<String, dynamic>;
+      return DriverWalletModel.fromJson(data);
+    } on DioException catch (e) {
+      throw ApiException.fromDioError(e);
+    } catch (_) {
+      return const DriverWalletModel(balance: '0.00', items: []);
+    }
+  }
+}
+
+final walletRepositoryProvider = Provider<WalletRepository>((ref) {
+  final tripRepo = ref.watch(tripRepositoryProvider);
+  if (tripRepo is MockTripRepository) {
+    return MockWalletRepository(tripRepo);
+  }
+  final dio = ref.watch(dioProvider);
+  return ApiWalletRepository(dio, tripRepo);
+});
+
+final driverWalletProvider = FutureProvider<DriverWalletModel>((ref) {
+  final repo = ref.watch(walletRepositoryProvider);
+  return repo.getWallet();
+});

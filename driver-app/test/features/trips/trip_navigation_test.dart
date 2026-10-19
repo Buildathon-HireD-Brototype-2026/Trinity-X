@@ -5,7 +5,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:driver_app/core/storage/local_cache_service.dart';
 import 'package:driver_app/features/trips/application/navigation_launcher_service.dart';
 import 'package:driver_app/features/trips/domain/trip_model.dart';
-import 'package:driver_app/features/trips/presentation/controllers/trip_mini_overlay_controller.dart';
 import 'package:driver_app/features/trips/presentation/widgets/route_card_map_preview.dart';
 import 'package:driver_app/features/trips/presentation/widgets/trip_navigate_button.dart';
 

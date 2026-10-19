@@ -1,14 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../trips/presentation/controllers/current_trip_provider.dart';
 import '../../data/wallet_repository.dart';
 import '../../domain/wallet_models.dart';
+export '../../data/wallet_repository.dart';
 
-/// Provider for WalletRepository
-final walletRepositoryProvider = Provider<WalletRepository>((ref) {
-  final tripRepo = ref.watch(tripRepositoryProvider);
-  return MockWalletRepository(tripRepo);
-});
 
 /// Stream of ONLY completed trips (PRD Section 1: Assigned, ongoing, cancelled NEVER appear)
 final allCompletedTripsProvider = StreamProvider<List<WalletTripRecord>>((ref) {

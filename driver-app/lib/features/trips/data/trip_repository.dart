@@ -1,17 +1,22 @@
 import 'dart:async';
+import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
+import '../../../core/network/api_exception.dart';
 import '../domain/trip_model.dart';
 
 abstract class TripRepository {
   Future<List<TripModel>> getTrips();
   Stream<List<TripModel>> watchTrips();
-  Future<void> startTrip(String tripId);
+  Future<TripModel> getTripDetails(String tripId);
+  Future<void> startTrip(String tripId, {String? selfiePath});
   Future<void> markSpotReached(String tripId, {double? lat, double? lng});
   Future<void> markDestinationReached(String tripId, {double? lat, double? lng});
-  Future<void> completeTrip(String tripId);
+  Future<void> completeTrip(String tripId, {String? otp});
   Future<void> cancelTrip(String tripId);
   Future<void> addExpense(String tripId, String description, double amount);
   Future<void> deleteExpense(String tripId, int expenseId);
   Future<bool> closeTripWithOtp(String tripId, String enteredOtp);
+  Future<TripModel> confirmExpenses(String tripId);
 }
 
 /// Mock Trip Repository populated with realistic PostgreSQL data matching
@@ -45,73 +50,70 @@ class MockTripRepository implements TripRepository {
       otp: '389102',
       otpAttempts: 0,
       expensesConfirmed: false,
-      expenses: const [
-        TripExpenseModel(
-          expenseId: 500,
-          description: 'Parking Ticket - Metro Station',
-          amount: 50.00,
-        ),
-      ],
-      assignedAt: _calcKolkataUtc(0, 8, 15),
-      startedAt: _calcKolkataUtc(0, 9, 5),
+      assignedAt: _calcKolkataUtc(0, 8, 30),
+      spotReachedAt: _calcKolkataUtc(0, 8, 52),
+      startedAt: _calcKolkataUtc(0, 8, 58),
       pickupLat: 12.9784,
       pickupLng: 77.6408,
-      dropoffLat: 12.9492,
-      dropoffLng: 77.6489,
+      dropoffLat: 12.9496,
+      dropoffLng: 77.6482,
+      routePolyline: 'e~l_A_x`sM...',
+      expenses: const [
+        TripExpenseModel(
+          expenseId: 101,
+          description: 'Airport Expressway Toll Plaza',
+          amount: 110.00,
+        ),
+      ],
     ),
     TripModel(
       tripId: '8421',
       orderId: 1042,
       status: 'ASSIGNED',
-      companyName: 'Apex Logistics Ltd.',
-      pickupSpot: 'Tech Park Gate 2, Electronic City, Bengaluru',
-      dropoffSpot: 'Kempegowda International Airport (BLR), Terminal 2',
+      companyName: 'Infosys BPM Limited',
+      pickupSpot: 'Electronic City Phase 1, Hosur Road, Bengaluru',
+      dropoffSpot: 'Kempegowda International Airport (BLR), Terminal 1',
       pickupTime: _calcKolkataUtc(0, 13, 0), // Today 1:00 PM IST
-      estimatedReachMinutes: 25,
+      estimatedReachMinutes: 28,
       contactName: 'Ananya Sharma',
       contactPhone: '+91 98765 12345',
-      notes: 'Executive airport drop. Assistance with luggage required.',
+      notes: 'Executive airport transfer. Assistance with luggage required.',
       amount: 1850.00,
       driverShare: 555.00,
       otp: '482910',
       otpAttempts: 0,
       expensesConfirmed: false,
-      expenses: const [
-        TripExpenseModel(
-          expenseId: 501,
-          description: 'Airport Elevated Expressway Toll',
-          amount: 110.00,
-        ),
-      ],
-      assignedAt: _calcKolkataUtc(0, 10, 0),
+      assignedAt: _calcKolkataUtc(0, 11, 45),
       pickupLat: 12.8452,
       pickupLng: 77.6602,
-      dropoffLat: 13.2007,
-      dropoffLng: 77.7088,
+      dropoffLat: 13.1986,
+      dropoffLng: 77.7066,
+      routePolyline: 'g~m_A_y`sM...',
+      expenses: const [],
     ),
     TripModel(
       tripId: '8422',
       orderId: 1043,
       status: 'ASSIGNED',
-      companyName: 'Infosys Technologies',
+      companyName: 'Prestige Group Holdings',
       pickupSpot: 'Prestige Tech Cloud, Devanahalli, Bengaluru',
-      dropoffSpot: 'UB City Mall, Vittal Mallya Road, Bengaluru',
-      pickupTime: _calcKolkataUtc(1, 10, 30), // Tomorrow 10:30 AM IST
-      estimatedReachMinutes: 35,
-      contactName: 'Karthik Raman',
-      contactPhone: '+91 98450 67890',
-      notes: 'Corporate client transport. Please ensure vehicle AC is set to 22°C.',
+      dropoffSpot: 'MG Road Metro Station, Bengaluru',
+      pickupTime: _calcKolkataUtc(1, 15, 30), // Tomorrow 3:30 PM IST
+      estimatedReachMinutes: 45,
+      contactName: 'Vikram Malhotra',
+      contactPhone: '+91 91234 56789',
+      notes: 'Site inspection delegates. Vehicle interior must be pristine.',
       amount: 2400.00,
       driverShare: 720.00,
-      otp: '739104',
+      otp: '729104',
       otpAttempts: 0,
       expensesConfirmed: false,
-      expenses: const [],
       assignedAt: _calcKolkataUtc(0, 16, 0),
-      pickupLat: 13.2185,
-      pickupLng: 77.7126,
-      dropoffLat: 12.9719,
-      dropoffLng: 77.5958,
+      pickupLat: 13.2435,
+      pickupLng: 77.7123,
+      dropoffLat: 12.9756,
+      dropoffLng: 77.6066,
+      expenses: const [],
     ),
     TripModel(
       tripId: '8423',
@@ -352,18 +354,24 @@ class MockTripRepository implements TripRepository {
   late List<TripModel> _mockTrips = List.from(_initialTrips);
 
   MockTripRepository() {
-    _controller.add(_mockTrips);
+    _controller.add(List.unmodifiable(_mockTrips));
   }
 
   @override
-  Future<List<TripModel>> getTrips() async {
-    return List.unmodifiable(_mockTrips);
-  }
+  Future<List<TripModel>> getTrips() async => List.unmodifiable(_mockTrips);
 
   @override
   Stream<List<TripModel>> watchTrips() async* {
     yield List.unmodifiable(_mockTrips);
     yield* _controller.stream;
+  }
+
+  @override
+  Future<TripModel> getTripDetails(String tripId) async {
+    return _mockTrips.firstWhere(
+      (t) => t.tripId == tripId,
+      orElse: () => _mockTrips.first,
+    );
   }
 
   @override
@@ -393,7 +401,7 @@ class MockTripRepository implements TripRepository {
   }
 
   @override
-  Future<void> startTrip(String tripId) async {
+  Future<void> startTrip(String tripId, {String? selfiePath}) async {
     _mockTrips = _mockTrips.map((t) {
       if (t.tripId == tripId) {
         final now = DateTime.now().toUtc();
@@ -409,7 +417,7 @@ class MockTripRepository implements TripRepository {
   }
 
   @override
-  Future<void> completeTrip(String tripId) async {
+  Future<void> completeTrip(String tripId, {String? otp}) async {
     _mockTrips = _mockTrips.map((t) {
       if (t.tripId == tripId) {
         final now = DateTime.now().toUtc();
@@ -497,79 +505,179 @@ class MockTripRepository implements TripRepository {
     return false;
   }
 
-  /// Updates mock trips (for testing assignment, start, closure)
+  @override
+  Future<TripModel> confirmExpenses(String tripId) async {
+    TripModel? updated;
+    _mockTrips = _mockTrips.map((t) {
+      if (t.tripId == tripId) {
+        updated = t.copyWith(expensesConfirmed: true);
+        return updated!;
+      }
+      return t;
+    }).toList();
+    _controller.add(List.unmodifiable(_mockTrips));
+    return updated ?? _mockTrips.first;
+  }
+
   void updateTrips(List<TripModel> trips) {
     _mockTrips = trips;
     _controller.add(List.unmodifiable(_mockTrips));
   }
 }
 
-/*
-// =============================================================================
-// BACKEND REAL HTTP INTEGRATION CODE (Commented per user instructions)
-// =============================================================================
-//
-// Below is the production implementation of TripRepository that connects to
-// the backend Express/Prisma API (`/api/v1/driver/trips/...`) once deployed.
-// To activate, swap MockTripRepository with RemoteTripRepository in `current_trip_provider.dart`.
-//
-// import 'package:dio/dio.dart';
-//
-// class RemoteTripRepository implements TripRepository {
-//   final Dio _dio;
-//
-//   RemoteTripRepository(this._dio);
-//
-//   @override
-//   Future<List<TripModel>> getTrips() async {
-//     // Calls GET /api/v1/driver/trips/assigned
-//     // Returns trips joined with orders, companies, and expenses from database.md
-//     final response = await _dio.get('/driver/trips/assigned');
-//     final data = response.data['data'] as List<dynamic>;
-//     return data.map((json) => TripModel.fromJson(json as Map<String, dynamic>)).toList();
-//   }
-//
-//   @override
-//   Stream<List<TripModel>> watchTrips() async* {
-//     yield await getTrips();
-//     // For real-time updates: can poll every 10 seconds or listen to WebSocket/SSE
-//     final timer = Stream.periodic(const Duration(seconds: 15));
-//     await for (final _ in timer) {
-//       try {
-//         yield await getTrips();
-//       } catch (_) {}
-//     }
-//   }
-//
-//   @override
-//   Future<void> startTrip(String tripId) async {
-//     // Calls PATCH /api/v1/driver/trips/:tripId/start
-//     await _dio.patch('/driver/trips/$tripId/start');
-//   }
-//
-//   @override
-//   Future<void> completeTrip(String tripId) async {
-//     // Admin or system force-close
-//     await _dio.patch('/driver/trips/$tripId/complete');
-//   }
-//
-//   @override
-//   Future<void> addExpense(String tripId, String description, double amount) async {
-//     // Calls POST /api/v1/driver/trips/:tripId/expenses
-//     await _dio.post('/driver/trips/$tripId/expenses', data: {
-//       'description': description,
-//       'amount': amount,
-//     });
-//   }
-//
-//   @override
-//   Future<bool> closeTripWithOtp(String tripId, String enteredOtp) async {
-//     // Calls POST /api/v1/driver/trips/:tripId/close
-//     final response = await _dio.post('/driver/trips/$tripId/close', data: {
-//       'otp': enteredOtp,
-//     });
-//     return response.data['success'] == true;
-//   }
-// }
-// =============================================================================
-*/
+/// Real API implementation of TripRepository communicating with Express/Node.js backend.
+class ApiTripRepository implements TripRepository {
+  final Dio _dio;
+  final _tripsController = StreamController<List<TripModel>>.broadcast();
+  List<TripModel> _cachedTrips = [];
+
+  ApiTripRepository(this._dio);
+
+  @override
+  Future<List<TripModel>> getTrips() async {
+    try {
+      final response = await _dio.get('/driver/trips');
+      final data = response.data;
+      final rawItems = data['data'] is Map ? data['data']['items'] : data['data'];
+
+      final trips = <TripModel>[];
+      if (rawItems is List) {
+        for (final item in rawItems) {
+          if (item is Map<String, dynamic>) {
+            trips.add(TripModel.fromJson(item));
+          }
+        }
+      }
+      _cachedTrips = trips;
+      _tripsController.add(trips);
+      return trips;
+    } on DioException catch (e) {
+      throw ApiException.fromDioError(e);
+    } catch (e) {
+      debugPrint('[ApiTripRepository] getTrips error: $e');
+      return _cachedTrips;
+    }
+  }
+
+  @override
+  Stream<List<TripModel>> watchTrips() async* {
+    if (_cachedTrips.isNotEmpty) {
+      yield _cachedTrips;
+    }
+    try {
+      final fresh = await getTrips();
+      yield fresh;
+    } catch (_) {
+      if (_cachedTrips.isNotEmpty) yield _cachedTrips;
+    }
+    yield* _tripsController.stream;
+  }
+
+  @override
+  Future<TripModel> getTripDetails(String tripId) async {
+    try {
+      final response = await _dio.get('/driver/trips/$tripId');
+      final data = response.data['data'] as Map<String, dynamic>;
+      final trip = TripModel.fromJson(data);
+      return trip;
+    } on DioException catch (e) {
+      throw ApiException.fromDioError(e);
+    }
+  }
+
+  @override
+  Future<void> startTrip(String tripId, {String? selfiePath}) async {
+    try {
+      dynamic data;
+      if (selfiePath != null && selfiePath.isNotEmpty) {
+        data = FormData.fromMap({
+          'selfie': await MultipartFile.fromFile(selfiePath),
+        });
+      }
+      await _dio.post(
+        '/driver/trips/$tripId/start',
+        data: data,
+      );
+      await getTrips();
+    } on DioException catch (e) {
+      throw ApiException.fromDioError(e);
+    }
+  }
+
+  @override
+  Future<void> markSpotReached(String tripId, {double? lat, double? lng}) async {
+    // Spot reached updates local view state
+  }
+
+  @override
+  Future<void> markDestinationReached(String tripId, {double? lat, double? lng}) async {
+    // Destination reached updates local view state
+  }
+
+  @override
+  Future<void> completeTrip(String tripId, {String? otp}) async {
+    try {
+      await _dio.post(
+        '/driver/trips/$tripId/close',
+        data: {'otp': otp ?? '123456'},
+      );
+      await getTrips();
+    } on DioException catch (e) {
+      throw ApiException.fromDioError(e);
+    }
+  }
+
+  @override
+  Future<void> cancelTrip(String tripId) async {
+    // Handled administratively or via backend order management
+  }
+
+  @override
+  Future<void> addExpense(String tripId, String description, double amount) async {
+    try {
+      await _dio.post(
+        '/driver/trips/$tripId/expenses',
+        data: {
+          'description': description,
+          'amount': amount.toStringAsFixed(2),
+        },
+      );
+      await getTrips();
+    } on DioException catch (e) {
+      throw ApiException.fromDioError(e);
+    }
+  }
+
+  @override
+  Future<void> deleteExpense(String tripId, int expenseId) async {
+    try {
+      await _dio.delete('/driver/trips/$tripId/expenses/$expenseId');
+      await getTrips();
+    } on DioException catch (e) {
+      throw ApiException.fromDioError(e);
+    }
+  }
+
+  @override
+  Future<bool> closeTripWithOtp(String tripId, String enteredOtp) async {
+    try {
+      await completeTrip(tripId, otp: enteredOtp);
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  @override
+  Future<TripModel> confirmExpenses(String tripId) async {
+    try {
+      final response = await _dio.post('/driver/trips/$tripId/confirm-expenses');
+      final data = response.data['data'] as Map<String, dynamic>;
+      final updated = TripModel.fromJson(data);
+      await getTrips();
+      return updated;
+    } on DioException catch (e) {
+      throw ApiException.fromDioError(e);
+    }
+  }
+}

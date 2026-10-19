@@ -2,20 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:driver_app/core/routing/route_names.dart';
 import 'package:driver_app/core/storage/local_cache_service.dart';
 import 'package:driver_app/core/theme/app_theme.dart';
-import 'package:driver_app/features/history/presentation/controllers/trip_history_controller.dart';
 import 'package:driver_app/features/history/presentation/trip_history_screen.dart';
 import 'package:driver_app/features/profile/presentation/profile_screen.dart';
 import 'package:driver_app/features/trips/data/trip_repository.dart';
-import 'package:driver_app/features/trips/domain/trip_model.dart';
 import 'package:driver_app/features/trips/presentation/controllers/current_trip_provider.dart';
 import 'package:driver_app/features/trips/presentation/trips_screen.dart';
 import 'package:driver_app/features/wallet/data/wallet_repository.dart';
-import 'package:driver_app/features/wallet/domain/wallet_models.dart';
-import 'package:driver_app/features/wallet/presentation/controllers/wallet_controller.dart';
-import 'package:driver_app/features/wallet/presentation/widgets/previous_months_section.dart';
 import 'package:driver_app/features/wallet/presentation/widgets/trip_details_bottom_sheet.dart';
 
 void main() {

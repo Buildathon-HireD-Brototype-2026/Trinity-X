@@ -4,8 +4,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:driver_app/core/storage/local_cache_service.dart';
 import 'package:driver_app/core/theme/app_theme.dart';
-import 'package:driver_app/features/trips/domain/trip_model.dart';
-import 'package:driver_app/features/trips/presentation/controllers/current_trip_provider.dart';
 import 'package:driver_app/features/trips/data/trip_repository.dart';
 import 'package:driver_app/features/wallet/domain/wallet_models.dart';
 import 'package:driver_app/features/wallet/data/wallet_repository.dart';

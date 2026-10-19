@@ -7,6 +7,7 @@ import '../../../core/theme/app_theme_colors.dart';
 import '../../../core/theme/theme_provider.dart';
 import '../../auth/presentation/controllers/auth_controller.dart';
 import '../../auth/presentation/controllers/driver_profile_controller.dart';
+import '../../office/data/office_repository.dart';
 import 'controllers/driver_documents_provider.dart';
 import '../../trips/application/navigation_launcher_service.dart';
 
@@ -780,6 +781,15 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   ),
                   _buildDrawerItem(
                     context: context,
+                    icon: Icons.business_rounded,
+                    label: 'Head Office',
+                    onTap: () {
+                      Navigator.of(context).pop();
+                      _showHeadOfficeModal(context);
+                    },
+                  ),
+                  _buildDrawerItem(
+                    context: context,
                     icon: Icons.description_rounded,
                     label: 'My Documents',
                     onTap: () {
@@ -914,6 +924,105 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           ),
         ),
       ),
+    );
+  }
+
+  void _showHeadOfficeModal(BuildContext context) {
+    final themeColors = context.appColors;
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: themeColors.cardBackground,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) {
+        return Consumer(
+          builder: (context, ref, child) {
+            final officeAsync = ref.watch(headOfficeProvider);
+            return SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.all(24.0),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: themeColors.purpleTint,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Icon(Icons.business_rounded, color: themeColors.purpleAccent),
+                        ),
+                        const SizedBox(width: 14),
+                        Text(
+                          'HireD Head Office',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w700,
+                            color: themeColors.textPrimary,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+                    officeAsync.when(
+                      loading: () => const Center(
+                        child: Padding(
+                          padding: EdgeInsets.all(24.0),
+                          child: CircularProgressIndicator(),
+                        ),
+                      ),
+                      error: (err, _) => Text(
+                        'Failed to load office: $err',
+                        style: const TextStyle(color: AppColors.error),
+                      ),
+                      data: (office) => Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            office.officeName,
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              color: themeColors.textPrimary,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            office.officeLocation ?? 'Headquarters',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: themeColors.textSecondary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primary,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        onPressed: () => Navigator.of(ctx).pop(),
+                        child: const Text('Close'),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
     );
   }
 }

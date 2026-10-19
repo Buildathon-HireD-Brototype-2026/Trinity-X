@@ -5,12 +5,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:driver_app/core/config/leave_config.dart';
 import 'package:driver_app/core/theme/app_theme.dart';
 import 'package:driver_app/features/leaves/data/leave_repository.dart';
-import 'package:driver_app/features/leaves/domain/driver_leave_model.dart';
 import 'package:driver_app/features/leaves/presentation/availability_calendar_screen.dart';
-import 'package:driver_app/features/leaves/presentation/controllers/leave_controller.dart';
 import 'package:driver_app/features/trips/data/trip_repository.dart';
-import 'package:driver_app/features/trips/domain/trip_model.dart';
-import 'package:driver_app/features/trips/presentation/controllers/current_trip_provider.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();

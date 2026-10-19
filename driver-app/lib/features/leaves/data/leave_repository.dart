@@ -1,8 +1,14 @@
 import 'dart:async';
-import 'package:driver_app/core/config/leave_config.dart';
-import 'package:driver_app/features/trips/data/trip_repository.dart';
-import 'package:driver_app/features/wallet/domain/wallet_models.dart';
-import 'package:driver_app/features/leaves/domain/driver_leave_model.dart';
+import 'dart:io';
+import 'package:dio/dio.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../core/config/leave_config.dart';
+import '../../../core/network/api_exception.dart';
+import '../../../core/network/auth_interceptor.dart';
+import '../../trips/data/trip_repository.dart';
+import '../../trips/presentation/controllers/current_trip_provider.dart';
+import '../../wallet/domain/wallet_models.dart';
+import '../domain/driver_leave_model.dart';
 
 abstract class LeaveRepository {
   Future<List<DriverLeaveModel>> getLeaves();
@@ -10,9 +16,16 @@ abstract class LeaveRepository {
   Future<DriverLeaveModel> applyLeave({
     required DateTime startDate,
     required DateTime endDate,
+    String? reason,
     DateTime? referenceNow,
   });
   Future<void> cancelLeave(int leaveId, {DateTime? referenceNow});
+  Future<void> deleteLeave(int leaveId);
+  Future<DriverLeaveModel> requestLeave({
+    required String startDate,
+    required String endDate,
+    String? reason,
+  });
 }
 
 class MockLeaveRepository implements LeaveRepository {
@@ -34,14 +47,16 @@ class MockLeaveRepository implements LeaveRepository {
   }
 
   @override
-  Stream<List<DriverLeaveModel>> watchLeaves() {
-    return _controller.stream;
+  Stream<List<DriverLeaveModel>> watchLeaves() async* {
+    yield List.unmodifiable(_leaves);
+    yield* _controller.stream;
   }
 
   @override
   Future<DriverLeaveModel> applyLeave({
     required DateTime startDate,
     required DateTime endDate,
+    String? reason,
     DateTime? referenceNow,
   }) async {
     final nowIST = referenceNow != null
@@ -132,9 +147,6 @@ class MockLeaveRepository implements LeaveRepository {
 
     _leaves = [..._leaves, newLeave];
     _controller.add(List.unmodifiable(_leaves));
-
-    // Admin Notification Hook:
-    // When a leave is created, the admin is notified through existing notification flow.
     return newLeave;
   }
 
@@ -157,8 +169,128 @@ class MockLeaveRepository implements LeaveRepository {
 
     _leaves = _leaves.where((l) => l.leaveId != leaveId).toList();
     _controller.add(List.unmodifiable(_leaves));
+  }
 
-    // Admin Notification Hook:
-    // When a leave is cancelled, the admin is notified through existing notification flow.
+  @override
+  Future<void> deleteLeave(int leaveId) async {
+    await cancelLeave(leaveId);
+  }
+
+  @override
+  Future<DriverLeaveModel> requestLeave({
+    required String startDate,
+    required String endDate,
+    String? reason,
+  }) async {
+    final s = DateTime.parse(startDate);
+    final e = DateTime.parse(endDate);
+    return applyLeave(startDate: s, endDate: e, reason: reason);
   }
 }
+
+class ApiLeaveRepository implements LeaveRepository {
+  final Dio _dio;
+  final _controller = StreamController<List<DriverLeaveModel>>.broadcast();
+
+  ApiLeaveRepository(this._dio);
+
+  @override
+  Future<List<DriverLeaveModel>> getLeaves() async {
+    try {
+      final response = await _dio.get('/driver/leaves');
+      final raw = response.data['data'] is Map
+          ? response.data['data']['items']
+          : response.data['data'];
+      final leaves = <DriverLeaveModel>[];
+      if (raw is List) {
+        for (final item in raw) {
+          if (item is Map<String, dynamic>) {
+            leaves.add(DriverLeaveModel.fromJson(item));
+          }
+        }
+      }
+      _controller.add(leaves);
+      return leaves;
+    } on DioException catch (e) {
+      throw ApiException.fromDioError(e);
+    } catch (_) {
+      return [];
+    }
+  }
+
+  @override
+  Stream<List<DriverLeaveModel>> watchLeaves() {
+    getLeaves().ignore();
+    return _controller.stream;
+  }
+
+  @override
+  Future<DriverLeaveModel> applyLeave({
+    required DateTime startDate,
+    required DateTime endDate,
+    String? reason,
+    DateTime? referenceNow,
+  }) async {
+    final s = '${startDate.year}-${startDate.month.toString().padLeft(2, '0')}-${startDate.day.toString().padLeft(2, '0')}';
+    final e = '${endDate.year}-${endDate.month.toString().padLeft(2, '0')}-${endDate.day.toString().padLeft(2, '0')}';
+    return requestLeave(startDate: s, endDate: e, reason: reason);
+  }
+
+  @override
+  Future<DriverLeaveModel> requestLeave({
+    required String startDate,
+    required String endDate,
+    String? reason,
+  }) async {
+    try {
+      final response = await _dio.post(
+        '/driver/leaves',
+        data: {
+          'start_date': startDate,
+          'end_date': endDate,
+          'reason': reason,
+        },
+      );
+      final data = response.data['data'] as Map<String, dynamic>;
+      final model = DriverLeaveModel.fromJson(data);
+      await getLeaves();
+      return model;
+    } on DioException catch (e) {
+      throw ApiException.fromDioError(e);
+    }
+  }
+
+  @override
+  Future<void> cancelLeave(int leaveId, {DateTime? referenceNow}) async {
+    await deleteLeave(leaveId);
+  }
+
+  @override
+  Future<void> deleteLeave(int leaveId) async {
+    try {
+      await _dio.delete('/driver/leaves/$leaveId');
+      await getLeaves();
+    } on DioException catch (e) {
+      throw ApiException.fromDioError(e);
+    }
+  }
+}
+
+final leaveRepositoryProvider = Provider<LeaveRepository>((ref) {
+  if (Platform.environment.containsKey('FLUTTER_TEST')) {
+    final tripRepo = ref.watch(tripRepositoryProvider);
+    return MockLeaveRepository(tripRepo);
+  }
+  final dio = ref.watch(dioProvider);
+  return ApiLeaveRepository(dio);
+});
+
+final driverLeavesProvider = FutureProvider<List<DriverLeaveModel>>((ref) {
+  final repo = ref.watch(leaveRepositoryProvider);
+  return repo.getLeaves();
+});
+
+final leavesStreamProvider = StreamProvider<List<DriverLeaveModel>>((ref) {
+  final repo = ref.watch(leaveRepositoryProvider);
+  return repo.watchLeaves();
+});

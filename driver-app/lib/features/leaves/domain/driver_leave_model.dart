@@ -5,6 +5,8 @@ class DriverLeaveModel {
   final DateTime startDate;
   final DateTime endDate;
   final DateTime createdAt;
+  final String status;
+  final String? reason;
 
   const DriverLeaveModel({
     required this.leaveId,
@@ -12,7 +14,13 @@ class DriverLeaveModel {
     required this.startDate,
     required this.endDate,
     required this.createdAt,
+    this.status = 'PENDING',
+    this.reason,
   });
+
+  bool get isPending => status.toUpperCase() == 'PENDING';
+  bool get isApproved => status.toUpperCase() == 'APPROVED';
+  bool get isRejected => status.toUpperCase() == 'REJECTED';
 
   /// Total days of the leave (inclusive)
   int get daysCount {
@@ -54,11 +62,15 @@ class DriverLeaveModel {
   /// Factory from JSON
   factory DriverLeaveModel.fromJson(Map<String, dynamic> json) {
     return DriverLeaveModel(
-      leaveId: json['leave_id'] as int,
-      driverId: json['driver_id'] as int,
+      leaveId: json['leave_id'] as int? ?? json['id'] as int? ?? 0,
+      driverId: json['driver_id'] as int? ?? 0,
       startDate: DateTime.parse(json['start_date'] as String),
       endDate: DateTime.parse(json['end_date'] as String),
-      createdAt: DateTime.parse(json['created_at'] as String),
+      createdAt: json['created_at'] != null
+          ? DateTime.parse(json['created_at'] as String)
+          : DateTime.now().toUtc(),
+      status: json['status'] as String? ?? 'PENDING',
+      reason: json['reason'] as String?,
     );
   }
 
@@ -68,5 +80,7 @@ class DriverLeaveModel {
     'start_date': '${startDate.year}-${startDate.month.toString().padLeft(2, '0')}-${startDate.day.toString().padLeft(2, '0')}',
     'end_date': '${endDate.year}-${endDate.month.toString().padLeft(2, '0')}-${endDate.day.toString().padLeft(2, '0')}',
     'created_at': createdAt.toIso8601String(),
+    'status': status,
+    'reason': reason,
   };
 }
