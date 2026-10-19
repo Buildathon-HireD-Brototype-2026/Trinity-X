@@ -38,7 +38,7 @@ The Driver App serves onboarded drivers throughout their operational journey:
    ```bash
    cp .env.example .env
    ```
-   Configure `API_BASE_URL` in `.env` (default: `http://10.0.2.2:8000/api/v1` for Android emulator).
+   Configure `API_BASE_URL` in `.env` (default: `http://10.0.2.2:5000/api/v1` for Android emulator).
 
 3. **Install Dependencies:**
    ```bash
