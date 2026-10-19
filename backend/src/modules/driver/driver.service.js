@@ -2,6 +2,7 @@ import prisma from '../../config/db.js';
 import { AppError } from '../../shared/response.js';
 import { recordAuditLog } from '../../shared/audit.js';
 import { generateSignedFileToken } from '../../shared/security.js';
+import storage from '../../shared/storage.js';
 
 /**
  * Format a Driver model to OpenAPI-compliant Driver schema.
@@ -490,11 +491,18 @@ export async function uploadDriverDocument(driverId, file, documentType) {
     cleanDocType = 'DRIVING_LICENCE';
   }
 
+  const saved = await storage.saveFile({
+    buffer: file.buffer,
+    originalname: file.originalname,
+    mimetype: file.mimetype,
+    folder: 'documents'
+  });
+
   const doc = await prisma.driverDocument.create({
     data: {
       driverId: Number(driverId),
       documentType: cleanDocType,
-      fileURL: `uploads/driver_${driverId}_${cleanDocType}_${Date.now()}_${file.originalname}`,
+      fileURL: saved.fileUrl,
       originalFileName: file.originalname,
       mimeType: file.mimetype,
       sizeBytes: file.size
@@ -606,7 +614,7 @@ export async function getDriverTrip(driverId, tripId) {
 /**
  * Start a trip assigned to driver (PRD D-07).
  */
-export async function startDriverTrip(driverId, tripId, { selfie_url } = {}, ipAddress) {
+export async function startDriverTrip(driverId, tripId, { selfie_url } = {}, ipAddress, file = null) {
   const trip = await prisma.trip.findFirst({
     where: {
       tripId: Number(tripId),
@@ -623,15 +631,29 @@ export async function startDriverTrip(driverId, tripId, { selfie_url } = {}, ipA
     throw new AppError(409, 'CONFLICT', `Cannot start trip in ${trip.tripStatus} status. Must be ASSIGNED.`);
   }
 
+  let finalSelfieUrl = selfie_url || null;
+  if (file) {
+    const saved = await storage.saveFile({
+      buffer: file.buffer,
+      originalname: file.originalname,
+      mimetype: file.mimetype,
+      folder: 'selfies'
+    });
+    finalSelfieUrl = saved.fileUrl;
+  }
+
   const updatedTrip = await prisma.trip.update({
     where: { tripId: trip.tripId },
     data: {
       tripStatus: 'ONGOING',
       startedAt: new Date(),
-      selfieURL: selfie_url || null,
+      selfieURL: finalSelfieUrl,
       version: { increment: 1 }
     },
-    include: { order: true }
+    include: {
+      order: true,
+      expenses: { orderBy: { createdAt: 'desc' } }
+    }
   });
 
   await recordAuditLog(prisma, {
@@ -641,11 +663,49 @@ export async function startDriverTrip(driverId, tripId, { selfie_url } = {}, ipA
     entityType: 'TRIP',
     entityId: trip.tripId,
     oldValue: { tripStatus: 'ASSIGNED' },
-    newValue: { tripStatus: 'ONGOING' },
+    newValue: { tripStatus: 'ONGOING', selfieURL: finalSelfieUrl },
     ipAddress
   });
 
   return formatDriverTripResponse(updatedTrip);
+}
+
+/**
+ * Upload trip-start selfie independently (PRD D-07)
+ */
+export async function uploadTripSelfie(driverId, tripId, file) {
+  if (!file) {
+    throw new AppError(422, 'VALIDATION_ERROR', 'Selfie file is required.');
+  }
+
+  const trip = await prisma.trip.findFirst({
+    where: {
+      tripId: Number(tripId),
+      driverId: Number(driverId)
+    }
+  });
+
+  if (!trip) {
+    throw new AppError(404, 'NOT_FOUND', 'Trip not found or does not belong to you.');
+  }
+
+  const saved = await storage.saveFile({
+    buffer: file.buffer,
+    originalname: file.originalname,
+    mimetype: file.mimetype,
+    folder: 'selfies'
+  });
+
+  await prisma.trip.update({
+    where: { tripId: trip.tripId },
+    data: { selfieURL: saved.fileUrl }
+  });
+
+  return {
+    trip_id: trip.tripId,
+    selfie_url: saved.fileUrl,
+    message: 'Selfie uploaded successfully.'
+  };
 }
 
 /**
@@ -1057,7 +1117,16 @@ export async function confirmTripExpenses(driverId, tripId, ipAddress) {
 
   const updated = await prisma.trip.update({
     where: { tripId: trip.tripId },
-    data: { expensesConfirmed: true }
+    data: {
+      expensesConfirmed: true,
+      version: { increment: 1 }
+    },
+    include: {
+      order: true,
+      expenses: {
+        orderBy: { createdAt: 'desc' }
+      }
+    }
   });
 
   await recordAuditLog(prisma, {
@@ -1253,24 +1322,30 @@ export async function recordBatchLocations(driverId, { pings = [] } = {}) {
     });
 
     if (latestPing) {
-      await prisma.driverLocation.upsert({
-        where: { driverId: parsedDriverId },
-        create: {
-          driverId: parsedDriverId,
-          lat: latestPing.lat,
-          lng: latestPing.lng,
-          speed: latestPing.speed,
-          tripId: latestPing.tripId,
-          updatedAt: latestPing.recordedAt
-        },
-        update: {
-          lat: latestPing.lat,
-          lng: latestPing.lng,
-          speed: latestPing.speed,
-          tripId: latestPing.tripId,
-          updatedAt: latestPing.recordedAt
-        }
+      const existing = await prisma.driverLocation.findUnique({
+        where: { driverId: parsedDriverId }
       });
+
+      if (!existing || latestPing.recordedAt > existing.updatedAt) {
+        await prisma.driverLocation.upsert({
+          where: { driverId: parsedDriverId },
+          create: {
+            driverId: parsedDriverId,
+            lat: latestPing.lat,
+            lng: latestPing.lng,
+            speed: latestPing.speed,
+            tripId: latestPing.tripId,
+            updatedAt: latestPing.recordedAt
+          },
+          update: {
+            lat: latestPing.lat,
+            lng: latestPing.lng,
+            speed: latestPing.speed,
+            tripId: latestPing.tripId,
+            updatedAt: latestPing.recordedAt
+          }
+        });
+      }
     }
   }
 
@@ -1287,15 +1362,17 @@ export async function uploadDriverPhoto(driverId, file) {
   if (!file) {
     throw new AppError(422, 'VALIDATION_ERROR', 'Photo file is required.');
   }
-  const allowedMime = ['image/jpeg', 'image/png'];
-  if (!allowedMime.includes(file.mimetype)) {
-    throw new AppError(422, 'VALIDATION_ERROR', 'Only image/jpeg and image/png are allowed for profile photo.');
-  }
 
-  const photoURL = `uploads/driver_${driverId}_photo_${Date.now()}_${file.originalname}`;
+  const saved = await storage.saveFile({
+    buffer: file.buffer,
+    originalname: file.originalname,
+    mimetype: file.mimetype,
+    folder: 'profiles'
+  });
+
   const driver = await prisma.driver.update({
     where: { driverId: Number(driverId) },
-    data: { photoURL }
+    data: { photoURL: saved.fileUrl }
   });
 
   return formatDriverResponse(driver);

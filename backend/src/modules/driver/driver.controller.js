@@ -25,7 +25,8 @@ import {
   getOwnDriverWallet,
   recordDriverLocation,
   recordBatchLocations,
-  uploadDriverPhoto
+  uploadDriverPhoto,
+  uploadTripSelfie
 } from './driver.service.js';
 import { successResponse, listResponse } from '../../shared/response.js';
 import { parsePagination } from '../../middlewares/validate.middleware.js';
@@ -225,8 +226,22 @@ export async function startOwnTripHandler(req, res, next) {
   try {
     const driverId = req.user.userId;
     const tripId = req.params.trip_id || req.params.tripId;
-    const trip = await startDriverTrip(driverId, tripId, req.body, req.ip);
+    const trip = await startDriverTrip(driverId, tripId, req.body, req.ip, req.file);
     return successResponse(res, 200, trip, 'Trip started.');
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * POST /driver/trips/:trip_id/selfie
+ */
+export async function uploadTripSelfieHandler(req, res, next) {
+  try {
+    const driverId = req.user.userId;
+    const tripId = req.params.trip_id || req.params.tripId;
+    const result = await uploadTripSelfie(driverId, tripId, req.file);
+    return successResponse(res, 200, result, 'Selfie uploaded successfully.');
   } catch (err) {
     next(err);
   }

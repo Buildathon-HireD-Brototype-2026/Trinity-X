@@ -23,7 +23,8 @@ import {
   confirmTripExpensesHandler,
   getOwnWalletHandler,
   recordLocationHandler,
-  recordBatchLocationsHandler
+  recordBatchLocationsHandler,
+  uploadTripSelfieHandler
 } from '../modules/driver/driver.controller.js';
 
 const router = Router();
@@ -56,7 +57,8 @@ router.get('/documents/:document_id/link', getOwnDocumentLinkHandler);
 // Trip execution lifecycle & expenses
 router.get('/trips', listOwnTripsHandler);
 router.get('/trips/:trip_id', getOwnTripDetailHandler);
-router.post('/trips/:trip_id/start', startOwnTripHandler);
+router.post('/trips/:trip_id/start', upload.single('selfie'), startOwnTripHandler);
+router.post('/trips/:trip_id/selfie', upload.single('selfie'), uploadTripSelfieHandler);
 router.post('/trips/:trip_id/close', closeOwnTripHandler);
 
 router.get('/trips/:trip_id/expenses', listTripExpensesHandler);
