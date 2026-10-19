@@ -13,16 +13,28 @@ function assert(condition, message) {
 
 async function request(path, options = {}) {
   const url = `${baseUrl}${path}`;
-  const headers = {
-    'Content-Type': 'application/json',
-    ...(options.headers || {})
-  };
+  let headers = { ...(options.headers || {}) };
+  let body;
+
+  if (options.formData) {
+    body = options.formData;
+  } else if (options.body) {
+    headers['Content-Type'] = 'application/json';
+    body = JSON.stringify(options.body);
+  }
+
   const res = await fetch(url, {
     ...options,
     headers,
-    body: options.body ? JSON.stringify(options.body) : undefined
+    body
   });
-  const data = await res.json().catch(() => null);
+  let data = null;
+  const contentType = res.headers.get('content-type') || '';
+  if (contentType.includes('application/json')) {
+    data = await res.json().catch(() => null);
+  } else {
+    data = await res.text().catch(() => null);
+  }
   return { status: res.status, data, headers: res.headers };
 }
 
@@ -245,7 +257,11 @@ async function runTests() {
     });
     assert(confRes.status === 200, 'Confirm expenses must return 200');
     assert(confRes.data.data.expenses_confirmed === true, 'expenses_confirmed must be true');
-    console.log('  PASS - Expenses confirmed.');
+    assert(Array.isArray(confRes.data.data.expenses), 'Response must include real expenses list');
+    assert(confRes.data.data.expenses.length > 0, 'Expenses list must not be empty');
+    assert(confRes.data.data.expenses.some(e => e.expense_id === testExpenseId), 'Logged expense must be present in response');
+    assert(typeof confRes.data.data.version === 'number', 'Version must be a number');
+    console.log(`  PASS - Expenses confirmed with ${confRes.data.data.expenses.length} expense(s), version: ${confRes.data.data.version}.`);
 
     // -------------------------------------------------------------
     // TEST 16: Single Location Ping with Google Maps URL
@@ -328,8 +344,91 @@ async function runTests() {
     assert(closeRes.data.data.status === 'CLOSED', 'Trip status must be CLOSED');
     console.log('  PASS - Trip closed with OTP verification; payroll & wallet credit processed.');
 
+    // -------------------------------------------------------------
+    // TEST 21: Upload KYC Document (Storage Adapter & 5MB Limit)
+    // -------------------------------------------------------------
+    console.log('TEST 21: Upload KYC document (POST /api/v1/driver/documents)');
+    const pdfContent = Buffer.from('%PDF-1.4 Mock driving licence binary test stream');
+    const docFormData = new FormData();
+    docFormData.append('file', new Blob([pdfContent], { type: 'application/pdf' }), 'driving_licence.pdf');
+    docFormData.append('document_type', 'DRIVING_LICENCE');
+
+    const docUploadRes = await request('/api/v1/driver/documents', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${driver1Token}` },
+      formData: docFormData
+    });
+    assert(docUploadRes.status === 201, `Document upload failed: ${JSON.stringify(docUploadRes.data)}`);
+    assert(docUploadRes.data.data.document_id !== undefined, 'Document ID must be returned');
+    assert(docUploadRes.data.data.document_type === 'DRIVING_LICENCE', 'Document type must match');
+    const uploadedDocId = docUploadRes.data.data.document_id;
+    console.log(`  PASS - Document uploaded successfully (ID: ${uploadedDocId}).`);
+
+    // -------------------------------------------------------------
+    // TEST 22: Generate Signed Document Link & Download Real Content
+    // -------------------------------------------------------------
+    console.log('TEST 22: Generate signed link and download document (GET /api/v1/driver/documents/:id/link)');
+    const linkRes = await request(`/api/v1/driver/documents/${uploadedDocId}/link`, {
+      headers: { Authorization: `Bearer ${driver1Token}` }
+    });
+    assert(linkRes.status === 200, `Link generation failed: ${JSON.stringify(linkRes.data)}`);
+    assert(linkRes.data.data.url, 'Signed URL must be returned');
+
+    // Fetch file via signed URL
+    const fileRes = await fetch(linkRes.data.data.url);
+    assert(fileRes.status === 200, `Signed download failed with status ${fileRes.status}`);
+    const downloadedBuf = Buffer.from(await fileRes.arrayBuffer());
+    assert(downloadedBuf.toString() === pdfContent.toString(), 'Downloaded content must match uploaded file');
+    console.log('  PASS - Signed document link verified and real file content downloaded.');
+
+    // -------------------------------------------------------------
+    // TEST 23: Upload Profile Photo & Verify Persistence
+    // -------------------------------------------------------------
+    console.log('TEST 23: Upload profile photo (POST /api/v1/driver/profile/photo)');
+    const photoContent = Buffer.from('mock_png_image_binary_data');
+    const photoFormData = new FormData();
+    photoFormData.append('photo', new Blob([photoContent], { type: 'image/png' }), 'driver_avatar.png');
+
+    const photoRes = await request('/api/v1/driver/profile/photo', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${driver1Token}` },
+      formData: photoFormData
+    });
+    assert(photoRes.status === 200, `Photo upload failed: ${JSON.stringify(photoRes.data)}`);
+    assert(photoRes.data.data.has_photo === true, 'has_photo must be true');
+    console.log('  PASS - Profile photo uploaded and persisted.');
+
+    // -------------------------------------------------------------
+    // TEST 24: Upload File Validation Guards (Size & Mime Type)
+    // -------------------------------------------------------------
+    console.log('TEST 24: File validation guards (5 MB limit and unsupported type rejection)');
+    const invalidTypeForm = new FormData();
+    invalidTypeForm.append('file', new Blob([Buffer.from('plain text')], { type: 'text/plain' }), 'notes.txt');
+    invalidTypeForm.append('document_type', 'AADHAAR');
+
+    const invalidTypeRes = await request('/api/v1/driver/documents', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${driver1Token}` },
+      formData: invalidTypeForm
+    });
+    assert(invalidTypeRes.status === 422, 'Unsupported file type must be rejected with 422');
+
+    // Test > 5MB file
+    const oversizedBuffer = Buffer.alloc(5.5 * 1024 * 1024); // 5.5 MB
+    const oversizedForm = new FormData();
+    oversizedForm.append('file', new Blob([oversizedBuffer], { type: 'image/png' }), 'huge_image.png');
+    oversizedForm.append('document_type', 'AADHAAR');
+
+    const oversizedRes = await request('/api/v1/driver/documents', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${driver1Token}` },
+      formData: oversizedForm
+    });
+    assert(oversizedRes.status === 422, 'Oversized file (>5MB) must be rejected with 422');
+    console.log('  PASS - File validation guards correctly reject invalid types and oversized files.');
+
     console.log('\n=================================================================');
-    console.log('   ALL 20 DRIVER APP INTEGRATION ENDPOINT TESTS PASSED (100%)   ');
+    console.log('   ALL 24 DRIVER APP INTEGRATION ENDPOINT TESTS PASSED (100%)   ');
     console.log('=================================================================\n');
 
   } finally {
