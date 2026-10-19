@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart' hide TextDirection;
 import 'package:latlong2/latlong.dart' hide Path;
+import '../../../core/location/driver_location_provider.dart';
+import '../../../core/location/location_tracking_service.dart';
 import '../../../core/routing/route_names.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_theme_colors.dart';
@@ -35,6 +37,14 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
     final selectedTrip = ref.watch(selectedTripProvider);
     final docsState = ref.watch(driverDocumentsProvider);
     final themeColors = context.appColors;
+
+    // Active Location Tracking when driver is online
+    ref.listen<DriverLocationState>(driverLocationProvider, (previous, next) {
+      final isOnline = driverAsync.valueOrNull?.isOnline ?? false;
+      if (isOnline && next.hasLocation) {
+        ref.read(locationTrackingServiceProvider).onLocationUpdate(next);
+      }
+    });
 
     return Scaffold(
       backgroundColor: themeColors.pageBackground,

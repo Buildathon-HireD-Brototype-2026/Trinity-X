@@ -7,6 +7,9 @@ import '../../../core/theme/app_theme_colors.dart';
 import '../../../core/theme/theme_provider.dart';
 import '../../auth/presentation/controllers/auth_controller.dart';
 import '../../auth/presentation/controllers/driver_profile_controller.dart';
+import '../../leaves/data/leave_repository.dart';
+import '../../office/data/office_repository.dart';
+import '../../wallet/data/wallet_repository.dart';
 import 'controllers/driver_documents_provider.dart';
 
 /// Driver Profile Screen styled identically to the reference design (Profile ui.jpeg)
@@ -409,7 +412,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             context: context,
             icon: Icons.flight_takeoff_rounded,
             title: 'Apply for Leave',
-            onTap: () {},
+            onTap: () => _showLeavesModal(context),
           ),
           Divider(height: 24, color: themeColors.divider),
 
@@ -557,13 +560,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               context: context,
               icon: Icons.account_balance_wallet_outlined,
               label: 'Wallet',
-              onTap: () {
-                if (context.canPop()) {
-                  context.pop();
-                } else {
-                  context.go(RouteNames.home);
-                }
-              },
+              onTap: () => _showWalletModal(context),
             ),
           ],
         ),
@@ -680,6 +677,16 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     label: 'Earnings & Wallet',
                     onTap: () {
                       Navigator.of(context).pop();
+                      _showWalletModal(context);
+                    },
+                  ),
+                  _buildDrawerItem(
+                    context: context,
+                    icon: Icons.business_rounded,
+                    label: 'Head Office',
+                    onTap: () {
+                      Navigator.of(context).pop();
+                      _showHeadOfficeModal(context);
                     },
                   ),
                   _buildDrawerItem(
@@ -818,6 +825,525 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           ),
         ),
       ),
+    );
+  }
+
+  void _showHeadOfficeModal(BuildContext context) {
+    final themeColors = context.appColors;
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: themeColors.cardBackground,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) {
+        return Consumer(
+          builder: (context, ref, child) {
+            final officeAsync = ref.watch(headOfficeProvider);
+            return SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.all(24.0),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: themeColors.purpleTint,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Icon(Icons.business_rounded, color: themeColors.purpleAccent),
+                        ),
+                        const SizedBox(width: 14),
+                        Text(
+                          'HireD Head Office',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w700,
+                            color: themeColors.textPrimary,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+                    officeAsync.when(
+                      loading: () => const Center(
+                        child: Padding(
+                          padding: EdgeInsets.all(24.0),
+                          child: CircularProgressIndicator(),
+                        ),
+                      ),
+                      error: (err, _) => Text(
+                        'Failed to load office: $err',
+                        style: const TextStyle(color: AppColors.error),
+                      ),
+                      data: (office) => Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            office.officeName,
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              color: themeColors.textPrimary,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            office.officeLocation ?? 'Headquarters',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: themeColors.textSecondary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primary,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        onPressed: () => Navigator.of(ctx).pop(),
+                        child: const Text('Close'),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _showWalletModal(BuildContext context) {
+    final themeColors = context.appColors;
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: themeColors.cardBackground,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) {
+        return Consumer(
+          builder: (context, ref, child) {
+            final walletAsync = ref.watch(driverWalletProvider);
+            return DraggableScrollableSheet(
+              initialChildSize: 0.65,
+              minChildSize: 0.4,
+              maxChildSize: 0.9,
+              expand: false,
+              builder: (context, scrollController) {
+                return Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Center(
+                        child: Container(
+                          width: 40,
+                          height: 4,
+                          margin: const EdgeInsets.only(bottom: 16),
+                          decoration: BoxDecoration(
+                            color: themeColors.divider,
+                            borderRadius: BorderRadius.circular(2),
+                          ),
+                        ),
+                      ),
+                      Text(
+                        'Earnings & Wallet',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w700,
+                          color: themeColors.textPrimary,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      walletAsync.when(
+                        loading: () => const Center(
+                          child: Padding(
+                            padding: EdgeInsets.all(40),
+                            child: CircularProgressIndicator(),
+                          ),
+                        ),
+                        error: (err, _) => Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: Text('Error: $err', style: const TextStyle(color: AppColors.error)),
+                        ),
+                        data: (wallet) => Container(
+                          padding: const EdgeInsets.all(20),
+                          decoration: BoxDecoration(
+                            gradient: const LinearGradient(
+                              colors: [Color(0xFF6A379F), Color(0xFF8B5CF6)],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ),
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Current Balance',
+                                style: TextStyle(color: Colors.white70, fontSize: 13),
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                '₹${wallet.balance}',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 28,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      Text(
+                        'TRANSACTIONS',
+                        style: TextStyle(
+                          color: themeColors.textSecondary,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Expanded(
+                        child: walletAsync.when(
+                          loading: () => const SizedBox.shrink(),
+                          error: (_, __) => const SizedBox.shrink(),
+                          data: (wallet) {
+                            if (wallet.items.isEmpty) {
+                              return Center(
+                                child: Text(
+                                  'No transactions yet.',
+                                  style: TextStyle(color: themeColors.textSecondary),
+                                ),
+                              );
+                            }
+                            return ListView.separated(
+                              controller: scrollController,
+                              itemCount: wallet.items.length,
+                              separatorBuilder: (_, __) => Divider(color: themeColors.divider, height: 16),
+                              itemBuilder: (context, index) {
+                                final tx = wallet.items[index];
+                                return Row(
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.all(8),
+                                      decoration: BoxDecoration(
+                                        color: tx.isCredit
+                                            ? Colors.green.withValues(alpha: 0.15)
+                                            : Colors.red.withValues(alpha: 0.15),
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: Icon(
+                                        tx.isCredit ? Icons.arrow_downward_rounded : Icons.arrow_upward_rounded,
+                                        size: 16,
+                                        color: tx.isCredit ? Colors.green : Colors.red,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            tx.description ?? (tx.isCredit ? 'Trip Payout' : 'Debit'),
+                                            style: TextStyle(
+                                              fontSize: 14,
+                                              fontWeight: FontWeight.w600,
+                                              color: themeColors.textPrimary,
+                                            ),
+                                          ),
+                                          if (tx.createdAt != null)
+                                            Text(
+                                              '${tx.createdAt!.day}/${tx.createdAt!.month}/${tx.createdAt!.year}',
+                                              style: TextStyle(
+                                                fontSize: 11,
+                                                color: themeColors.textSecondary,
+                                              ),
+                                            ),
+                                        ],
+                                      ),
+                                    ),
+                                    Text(
+                                      '${tx.isCredit ? '+' : '-'}₹${tx.amount}',
+                                      style: TextStyle(
+                                        fontSize: 15,
+                                        fontWeight: FontWeight.w700,
+                                        color: tx.isCredit ? Colors.green : Colors.red,
+                                      ),
+                                    ),
+                                  ],
+                                );
+                              },
+                            );
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _showLeavesModal(BuildContext context) {
+    final themeColors = context.appColors;
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: themeColors.cardBackground,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) {
+        return Consumer(
+          builder: (context, ref, child) {
+            final leavesAsync = ref.watch(driverLeavesProvider);
+            return DraggableScrollableSheet(
+              initialChildSize: 0.7,
+              minChildSize: 0.4,
+              maxChildSize: 0.95,
+              expand: false,
+              builder: (context, scrollController) {
+                return Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Center(
+                        child: Container(
+                          width: 40,
+                          height: 4,
+                          margin: const EdgeInsets.only(bottom: 16),
+                          decoration: BoxDecoration(
+                            color: themeColors.divider,
+                            borderRadius: BorderRadius.circular(2),
+                          ),
+                        ),
+                      ),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            'Planned Leaves',
+                            style: TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.w700,
+                              color: themeColors.textPrimary,
+                            ),
+                          ),
+                          TextButton.icon(
+                            icon: const Icon(Icons.add, size: 18),
+                            label: const Text('Apply'),
+                            onPressed: () => _showRequestLeaveDialog(context),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      Expanded(
+                        child: leavesAsync.when(
+                          loading: () => const Center(child: CircularProgressIndicator()),
+                          error: (err, _) => Center(
+                            child: Text('Error: $err', style: const TextStyle(color: AppColors.error)),
+                          ),
+                          data: (leaves) {
+                            if (leaves.isEmpty) {
+                              return Center(
+                                child: Text(
+                                  'No leaves scheduled.',
+                                  style: TextStyle(color: themeColors.textSecondary),
+                                ),
+                              );
+                            }
+                            return ListView.separated(
+                              controller: scrollController,
+                              itemCount: leaves.length,
+                              separatorBuilder: (_, __) => Divider(color: themeColors.divider, height: 16),
+                              itemBuilder: (context, index) {
+                                final leave = leaves[index];
+                                Color statusColor = Colors.orange;
+                                if (leave.isApproved) statusColor = Colors.green;
+                                if (leave.isRejected) statusColor = Colors.red;
+
+                                return Row(
+                                  children: [
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            '${leave.startDate} to ${leave.endDate}',
+                                            style: TextStyle(
+                                              fontSize: 14,
+                                              fontWeight: FontWeight.w600,
+                                              color: themeColors.textPrimary,
+                                            ),
+                                          ),
+                                          if (leave.reason != null && leave.reason!.isNotEmpty)
+                                            Padding(
+                                              padding: const EdgeInsets.only(top: 2.0),
+                                              child: Text(
+                                                leave.reason!,
+                                                style: TextStyle(
+                                                  fontSize: 12,
+                                                  color: themeColors.textSecondary,
+                                                ),
+                                              ),
+                                            ),
+                                        ],
+                                      ),
+                                    ),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                      decoration: BoxDecoration(
+                                        color: statusColor.withValues(alpha: 0.15),
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      child: Text(
+                                        leave.status,
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w700,
+                                          color: statusColor,
+                                        ),
+                                      ),
+                                    ),
+                                    if (leave.isPending) ...[
+                                      const SizedBox(width: 8),
+                                      IconButton(
+                                        icon: const Icon(Icons.delete_outline, size: 20, color: AppColors.error),
+                                        onPressed: () async {
+                                          await ref.read(leaveRepositoryProvider).deleteLeave(leave.leaveId);
+                                          ref.invalidate(driverLeavesProvider);
+                                        },
+                                      ),
+                                    ],
+                                  ],
+                                );
+                              },
+                            );
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _showRequestLeaveDialog(BuildContext context) {
+    final reasonController = TextEditingController();
+    DateTime startDate = DateTime.now().add(const Duration(days: 1));
+    DateTime endDate = DateTime.now().add(const Duration(days: 2));
+
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            String formatDate(DateTime dt) =>
+                '${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')}';
+
+            return AlertDialog(
+              title: const Text('Request Planned Leave'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  ListTile(
+                    title: const Text('Start Date'),
+                    subtitle: Text(formatDate(startDate)),
+                    trailing: const Icon(Icons.calendar_today_rounded, size: 18),
+                    onTap: () async {
+                      final picked = await showDatePicker(
+                        context: context,
+                        initialDate: startDate,
+                        firstDate: DateTime.now(),
+                        lastDate: DateTime.now().add(const Duration(days: 365)),
+                      );
+                      if (picked != null) {
+                        setState(() {
+                          startDate = picked;
+                          if (endDate.isBefore(startDate)) endDate = startDate;
+                        });
+                      }
+                    },
+                  ),
+                  ListTile(
+                    title: const Text('End Date'),
+                    subtitle: Text(formatDate(endDate)),
+                    trailing: const Icon(Icons.calendar_today_rounded, size: 18),
+                    onTap: () async {
+                      final picked = await showDatePicker(
+                        context: context,
+                        initialDate: endDate,
+                        firstDate: startDate,
+                        lastDate: DateTime.now().add(const Duration(days: 365)),
+                      );
+                      if (picked != null) {
+                        setState(() => endDate = picked);
+                      }
+                    },
+                  ),
+                  TextField(
+                    controller: reasonController,
+                    decoration: const InputDecoration(
+                      labelText: 'Reason (optional)',
+                      hintText: 'e.g., Family event',
+                    ),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(ctx).pop(),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  onPressed: () async {
+                    Navigator.of(ctx).pop();
+                    await ref.read(leaveRepositoryProvider).requestLeave(
+                          startDate: formatDate(startDate),
+                          endDate: formatDate(endDate),
+                          reason: reasonController.text.trim().isEmpty
+                              ? null
+                              : reasonController.text.trim(),
+                        );
+                    ref.invalidate(driverLeavesProvider);
+                  },
+                  child: const Text('Submit'),
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
   }
 }

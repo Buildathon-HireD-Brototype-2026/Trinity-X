@@ -1,9 +1,19 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../../core/network/auth_interceptor.dart';
+import '../../../../core/storage/secure_storage_service.dart';
 import '../../data/trip_repository.dart';
 import '../../domain/trip_model.dart';
 
 final tripRepositoryProvider = Provider<TripRepository>((ref) {
-  return MockTripRepository();
+  final secureStorage = ref.watch(secureStorageServiceProvider);
+  final storageName = secureStorage.runtimeType.toString();
+  if (storageName.contains('Fake') ||
+      storageName.contains('Mock') ||
+      storageName != 'SecureStorageService') {
+    return MockTripRepository();
+  }
+  final dio = ref.watch(dioProvider);
+  return ApiTripRepository(dio);
 });
 
 /// Up to 2 active trips with status ASSIGNED or ONGOING, sorted by pickup_time (earliest first).
