@@ -17,6 +17,8 @@ __pycache__/
 dist/
 build/
 .next/
+uploads/
+backend/uploads/
 
 # Flutter / Mobile
 .dart_tool/
