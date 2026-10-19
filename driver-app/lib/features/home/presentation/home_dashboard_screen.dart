@@ -7,7 +7,7 @@ import '../../../core/routing/route_names.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_theme_colors.dart';
 import '../../../core/widgets/app_loading_indicator.dart';
-import '../../../core/widgets/trip_osm_map_widget.dart';
+import '../../../core/widgets/live_map.dart';
 import '../../auth/presentation/controllers/auth_controller.dart';
 import '../../auth/presentation/controllers/driver_profile_controller.dart';
 import '../../profile/presentation/controllers/driver_documents_provider.dart';
@@ -1130,9 +1130,8 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
           const SizedBox(height: 14),
 
           // OpenStreetMap Preview using flutter_map + latlong2 & Navigation Launcher
-          TripOsmMapWidget(
+          LiveMap(
             height: 190,
-            driverPosition: const LatLng(9.9981, 76.3575),
             pickupPosition: hasTrip
                 ? (isTrip1
                     ? const LatLng(10.0158, 76.3418)
@@ -1146,6 +1145,7 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
             pickupLabel: selectedTrip?.pickupSpot,
             dropoffLabel: selectedTrip?.dropoffSpot,
             showControls: true,
+            initialZoom: 16.0,
           ),
         ],
       ),

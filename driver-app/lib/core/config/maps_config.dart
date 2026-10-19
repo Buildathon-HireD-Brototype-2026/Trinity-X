@@ -1,4 +1,4 @@
-import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 /// Configuration and helper utilities for OpenStreetMap and external navigation.
@@ -51,13 +51,21 @@ class MapsConfig {
     required double lat,
     required double lng,
     String? query,
+    BuildContext? context,
+    void Function(String message)? onError,
   }) async {
+    final messenger = context != null ? ScaffoldMessenger.maybeOf(context) : null;
     final url = getSearchUrl(lat: lat, lng: lng, query: query);
     final uri = Uri.parse(url);
     try {
-      return await launchUrl(uri, mode: LaunchMode.externalApplication);
+      final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
+      if (!launched) {
+        _handleLaunchError(messenger, onError, 'Could not open Google Maps.');
+      }
+      return launched;
     } catch (e) {
       debugPrint('[MapsConfig] Could not launch maps URL $url: $e');
+      _handleLaunchError(messenger, onError, 'Could not open Google Maps.');
       return false;
     }
   }
@@ -68,7 +76,10 @@ class MapsConfig {
     required double destLng,
     double? originLat,
     double? originLng,
+    BuildContext? context,
+    void Function(String message)? onError,
   }) async {
+    final messenger = context != null ? ScaffoldMessenger.maybeOf(context) : null;
     final url = getDirectionsUrl(
       destLat: destLat,
       destLng: destLng,
@@ -77,10 +88,33 @@ class MapsConfig {
     );
     final uri = Uri.parse(url);
     try {
-      return await launchUrl(uri, mode: LaunchMode.externalApplication);
+      final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
+      if (!launched) {
+        _handleLaunchError(messenger, onError, 'Could not open navigation.');
+      }
+      return launched;
     } catch (e) {
       debugPrint('[MapsConfig] Could not launch navigation URL $url: $e');
+      _handleLaunchError(messenger, onError, 'Could not open navigation.');
       return false;
+    }
+  }
+
+  static void _handleLaunchError(
+    ScaffoldMessengerState? messenger,
+    void Function(String message)? onError,
+    String defaultMsg,
+  ) {
+    if (onError != null) {
+      onError(defaultMsg);
+    } else if (messenger != null) {
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(defaultMsg),
+          duration: const Duration(seconds: 3),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
     }
   }
 }

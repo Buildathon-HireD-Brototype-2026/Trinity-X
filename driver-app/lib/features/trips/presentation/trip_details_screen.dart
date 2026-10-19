@@ -5,7 +5,7 @@ import 'package:intl/intl.dart';
 import 'package:latlong2/latlong.dart' hide Path;
 import '../../../core/config/maps_config.dart';
 import '../../../core/theme/app_theme_colors.dart';
-import '../../../core/widgets/trip_osm_map_widget.dart';
+import '../../../core/widgets/live_map.dart';
 import '../../trips/presentation/controllers/current_trip_provider.dart';
 
 /// Place search result item without requiring Google Places API or billing
@@ -183,16 +183,15 @@ class _TripDetailsScreenState extends ConsumerState<TripDetailsScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // 1. OpenStreetMap preview with flutter_map + latlong2 & attribution
-            TripOsmMapWidget(
+            // 1. OpenStreetMap live preview with flutter_map + latlong2 & attribution
+            LiveMap(
               height: 240,
-              driverPosition: driverPos,
               pickupPosition: pickupPos,
               dropoffPosition: dropoffPos,
               pickupLabel: pickupTitle,
               dropoffLabel: dropoffTitle,
-              interactive: true,
               showControls: true,
+              initialZoom: 16.0,
             ),
             const SizedBox(height: 16),
 
