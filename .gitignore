@@ -2,10 +2,7 @@
 .env
 .env.*
 !.env.example
-secrets.properties
-Secrets.xcconfig
-driver-app/android/secrets.properties
-driver-app/ios/Flutter/Secrets.xcconfig
+
 
 # Dependencies
 node_modules/

@@ -121,3 +121,18 @@ All assumed REST endpoints follow the HireD technical guidelines and database de
 | `POST` | `/api/v1/driver/trips/:trip_id/close` | Close trip via 6-digit `otp`. Validates expenses confirmed; credits wallet. |
 | `GET` | `/api/v1/driver/wallet` | Fetch driver wallet balance and transaction ledger. |
 | `GET` | `/api/v1/driver/trips/history` | Fetch completed trip history. |
+
+---
+
+## 7. Maps & Navigation Architecture (Zero Google API Keys / Zero Billing)
+
+The Driver App uses a completely free, open-source mapping stack requiring **zero Google API keys, zero Google cloud billing, and zero proprietary SDK dependencies**:
+
+* **In-App Interactive Maps:** Powered by [`flutter_map`](https://pub.dev/packages/flutter_map) + [`latlong2`](https://pub.dev/packages/latlong2) using standard OpenStreetMap raster tiles (`https://tile.openstreetmap.org/{z}/{x}/{y}.png`).
+* **Attribution:** Displays the required OpenStreetMap attribution (`"© OpenStreetMap contributors"`) via `RichAttributionWidget`.
+* **Markers:** Visualizes the driver's live GPS position (HireD purple pin), trip pickup location (green marker), and destination dropoff location (red flag marker).
+* **External Turn-by-Turn Navigation:** Utilizes [`url_launcher`](https://pub.dev/packages/url_launcher) through the [`MapsConfig`](file:///home/thinkpad/Documents/project/Trinity-X/driver-app/lib/core/config/maps_config.dart) helper:
+  * "Open in Google Maps" generates a plain search URL (`https://www.google.com/maps/search/?api=1&query=...`).
+  * "Navigate" generates an external navigation intent URL (`https://www.google.com/maps/dir/?api=1&destination=...&travelmode=driving`).
+* **Zero Secrets & Credentials:** No Google Maps SDK, no `MAPS_API_KEY`, no `secrets.properties`, no `Secrets.xcconfig`, and no Google Directions, Places, Geocoding, or Street View APIs.
+
