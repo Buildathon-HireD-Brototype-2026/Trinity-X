@@ -1,5 +1,6 @@
 import app from '../src/server.js';
 import prisma from '../src/config/db.js';
+import { seedInitialData } from '../src/seed.js';
 
 let server;
 let baseUrl;
@@ -29,6 +30,8 @@ async function runTests() {
   console.log('=================================================================');
   console.log('   HIRED DRIVER APP INTEGRATION ENDPOINT TEST SUITE              ');
   console.log('=================================================================\n');
+
+  await seedInitialData();
 
   await new Promise((resolve) => {
     server = app.listen(0, () => {
