@@ -49,7 +49,10 @@ class TripMapView extends StatefulWidget {
   final bool isLiteMode;
   final bool showMyLocationButton;
   final VoidCallback? onMyLocationPressed;
+  final MapController? mapController;
   final VoidCallback? onTap;
+  final bool singleTargetMode;
+  final bool isTargetDropoff;
 
   const TripMapView({
     super.key,
@@ -66,7 +69,10 @@ class TripMapView extends StatefulWidget {
     this.isLiteMode = false,
     this.showMyLocationButton = true,
     this.onMyLocationPressed,
+    this.mapController,
     this.onTap,
+    this.singleTargetMode = false,
+    this.isTargetDropoff = false,
   });
 
   @override
@@ -74,7 +80,8 @@ class TripMapView extends StatefulWidget {
 }
 
 class _TripMapViewState extends State<TripMapView> {
-  final MapController _mapController = MapController();
+  final MapController _internalController = MapController();
+  MapController get _mapController => widget.mapController ?? _internalController;
   LatLng? _liveGps;
   bool _isLocating = false;
 
@@ -84,9 +91,7 @@ class _TripMapViewState extends State<TripMapView> {
   @override
   void initState() {
     super.initState();
-    if (widget.mode == TripMapMode.driverLocation) {
-      _fetchLiveGps(animate: false);
-    }
+    _fetchLiveGps(animate: false);
   }
 
   Future<void> _fetchLiveGps({bool animate = true}) async {
@@ -128,6 +133,24 @@ class _TripMapViewState extends State<TripMapView> {
   }
 
   LatLng _calculateCenter() {
+    if (widget.singleTargetMode) {
+      final targetLat = widget.isTargetDropoff ? widget.dropoffLat : widget.pickupLat;
+      final targetLng = widget.isTargetDropoff ? widget.dropoffLng : widget.pickupLng;
+      final driver = _liveGps ??
+          (widget.driverLat != null && widget.driverLng != null
+              ? LatLng(widget.driverLat!, widget.driverLng!)
+              : null);
+
+      if (driver != null && targetLat != null && targetLng != null) {
+        return LatLng((driver.latitude + targetLat) / 2, (driver.longitude + targetLng) / 2);
+      } else if (driver != null) {
+        return driver;
+      } else if (targetLat != null && targetLng != null) {
+        return LatLng(targetLat, targetLng);
+      }
+      return const LatLng(8.678465, 76.887690);
+    }
+
     if (_liveGps != null && widget.mode == TripMapMode.driverLocation) {
       return _liveGps!;
     }
@@ -148,6 +171,29 @@ class _TripMapViewState extends State<TripMapView> {
   }
 
   double _calculateZoom() {
+    if (widget.singleTargetMode) {
+      final targetLat = widget.isTargetDropoff ? widget.dropoffLat : widget.pickupLat;
+      final targetLng = widget.isTargetDropoff ? widget.dropoffLng : widget.pickupLng;
+      final driver = _liveGps ??
+          (widget.driverLat != null && widget.driverLng != null
+              ? LatLng(widget.driverLat!, widget.driverLng!)
+              : null);
+
+      if (driver != null && targetLat != null && targetLng != null) {
+        final latDiff = (driver.latitude - targetLat).abs();
+        final lngDiff = (driver.longitude - targetLng).abs();
+        final maxDiff = max(latDiff, lngDiff);
+
+        if (maxDiff > 0.3) return 10.5;
+        if (maxDiff > 0.15) return 11.5;
+        if (maxDiff > 0.08) return 12.5;
+        if (maxDiff > 0.03) return 13.5;
+        if (maxDiff > 0.01) return 14.5;
+        return 15.2;
+      }
+      return 15.0;
+    }
+
     if (widget.mode == TripMapMode.driverLocation) {
       return 15.5;
     }
@@ -236,7 +282,24 @@ class _TripMapViewState extends State<TripMapView> {
 
     // Prepare Route Polylines
     final polylines = <Polyline>[];
-    if (widget.mode == TripMapMode.route &&
+    if (widget.singleTargetMode) {
+      final targetLat = widget.isTargetDropoff ? widget.dropoffLat : widget.pickupLat;
+      final targetLng = widget.isTargetDropoff ? widget.dropoffLng : widget.pickupLng;
+      final driver = _liveGps ??
+          (widget.driverLat != null && widget.driverLng != null
+              ? LatLng(widget.driverLat!, widget.driverLng!)
+              : null);
+
+      if (driver != null && targetLat != null && targetLng != null) {
+        polylines.add(
+          Polyline(
+            points: [driver, LatLng(targetLat, targetLng)],
+            color: const Color(0xFF7C3AED),
+            strokeWidth: 4.5,
+          ),
+        );
+      }
+    } else if (widget.mode == TripMapMode.route &&
         widget.pickupLat != null &&
         widget.pickupLng != null &&
         widget.dropoffLat != null &&
@@ -263,7 +326,76 @@ class _TripMapViewState extends State<TripMapView> {
 
     // Prepare Markers
     final markers = <Marker>[];
-    if (widget.mode == TripMapMode.route) {
+    if (widget.singleTargetMode) {
+      // 1. Driver current location pin
+      final driverPt = _liveGps ??
+          (widget.driverLat != null && widget.driverLng != null
+              ? LatLng(widget.driverLat!, widget.driverLng!)
+              : null);
+      if (driverPt != null) {
+        markers.add(
+          Marker(
+            point: driverPt,
+            width: 44,
+            height: 44,
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF7C3AED).withValues(alpha: 0.25),
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                Container(
+                  width: 24,
+                  height: 24,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF7C3AED),
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.white, width: 2.5),
+                    boxShadow: const [
+                      BoxShadow(color: Colors.black26, blurRadius: 4, offset: Offset(0, 2)),
+                    ],
+                  ),
+                  child: const Icon(Icons.navigation_rounded, color: Colors.white, size: 13),
+                ),
+              ],
+            ),
+          ),
+        );
+      }
+
+      // 2. Only the target pin (Pickup or Dropoff, not other places)
+      final targetLat = widget.isTargetDropoff ? widget.dropoffLat : widget.pickupLat;
+      final targetLng = widget.isTargetDropoff ? widget.dropoffLng : widget.pickupLng;
+      if (targetLat != null && targetLng != null) {
+        final isDropoff = widget.isTargetDropoff;
+        markers.add(
+          Marker(
+            point: LatLng(targetLat, targetLng),
+            width: 38,
+            height: 38,
+            child: Container(
+              decoration: BoxDecoration(
+                color: isDropoff ? const Color(0xFFEF4444) : const Color(0xFF10B981),
+                shape: BoxShape.circle,
+                boxShadow: const [
+                  BoxShadow(color: Colors.black26, blurRadius: 4, offset: Offset(0, 2)),
+                ],
+              ),
+              child: Icon(
+                isDropoff ? Icons.flag_rounded : Icons.location_on_rounded,
+                color: Colors.white,
+                size: 22,
+              ),
+            ),
+          ),
+        );
+      }
+    } else if (widget.mode == TripMapMode.route) {
       if (widget.pickupLat != null && widget.pickupLng != null) {
         markers.add(
           Marker(
@@ -298,6 +430,45 @@ class _TripMapViewState extends State<TripMapView> {
                 ],
               ),
               child: const Icon(Icons.flag_rounded, color: Colors.white, size: 20),
+            ),
+          ),
+        );
+      }
+      final driverPt = _liveGps ??
+          (widget.driverLat != null && widget.driverLng != null
+              ? LatLng(widget.driverLat!, widget.driverLng!)
+              : null);
+      if (driverPt != null) {
+        markers.add(
+          Marker(
+            point: driverPt,
+            width: 40,
+            height: 40,
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF7C3AED).withValues(alpha: 0.25),
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                Container(
+                  width: 22,
+                  height: 22,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF7C3AED),
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.white, width: 2),
+                    boxShadow: const [
+                      BoxShadow(color: Colors.black26, blurRadius: 4, offset: Offset(0, 2)),
+                    ],
+                  ),
+                  child: const Icon(Icons.navigation_rounded, color: Colors.white, size: 12),
+                ),
+              ],
             ),
           ),
         );
