@@ -60,7 +60,7 @@ app.use('/api/v1/driver', driverRouter);
 app.use('/driver', driverRouter);
 
 // Health check endpoint to verify server and database connectivity
-app.get('/health', async (req, res) => {
+const healthHandler = async (req, res) => {
   let dbStatus = 'disconnected';
   try {
     await prisma.$queryRawUnsafe('SELECT 1');
@@ -76,7 +76,10 @@ app.get('/health', async (req, res) => {
     timestamp: new Date().toISOString(),
     environment: process.env.NODE_ENV || 'development'
   });
-});
+};
+
+app.get('/health', healthHandler);
+app.get('/api/v1/health', healthHandler);
 
 // 404 Handler for undefined routes
 app.use((req, res) => {

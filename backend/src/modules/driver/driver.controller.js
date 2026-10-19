@@ -12,7 +12,20 @@ import {
   listDriverTrips,
   getDriverTrip,
   startDriverTrip,
-  closeDriverTrip
+  closeDriverTrip,
+  getHeadOffice,
+  listDriverLeaves,
+  createDriverLeave,
+  deleteDriverLeave,
+  listTripExpenses,
+  createTripExpense,
+  updateTripExpense,
+  deleteTripExpense,
+  confirmTripExpenses,
+  getOwnDriverWallet,
+  recordDriverLocation,
+  recordBatchLocations,
+  uploadDriverPhoto
 } from './driver.service.js';
 import { successResponse, listResponse } from '../../shared/response.js';
 import { parsePagination } from '../../middlewares/validate.middleware.js';
@@ -228,6 +241,183 @@ export async function closeOwnTripHandler(req, res, next) {
     const tripId = req.params.trip_id || req.params.tripId;
     const result = await closeDriverTrip(driverId, tripId, req.body, req.ip);
     return successResponse(res, 200, result, 'Trip closed successfully.');
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * GET /driver/office
+ */
+export async function getHeadOfficeHandler(req, res, next) {
+  try {
+    const office = await getHeadOffice();
+    return successResponse(res, 200, office, 'OK');
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * GET /driver/leaves
+ */
+export async function listOwnLeavesHandler(req, res, next) {
+  try {
+    const driverId = req.user.userId;
+    const leaves = await listDriverLeaves(driverId);
+    return successResponse(res, 200, leaves, 'OK');
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * POST /driver/leaves
+ */
+export async function createOwnLeaveHandler(req, res, next) {
+  try {
+    const driverId = req.user.userId;
+    const leave = await createDriverLeave(driverId, req.body, req.ip);
+    return successResponse(res, 201, leave, 'Leave requested successfully.');
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * DELETE /driver/leaves/:leave_id
+ */
+export async function deleteOwnLeaveHandler(req, res, next) {
+  try {
+    const driverId = req.user.userId;
+    const leaveId = req.params.leave_id || req.params.leaveId;
+    const result = await deleteDriverLeave(driverId, leaveId, req.ip);
+    return successResponse(res, 200, result, 'Leave deleted.');
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * GET /driver/trips/:trip_id/expenses
+ */
+export async function listTripExpensesHandler(req, res, next) {
+  try {
+    const driverId = req.user.userId;
+    const tripId = req.params.trip_id || req.params.tripId;
+    const expenses = await listTripExpenses(driverId, tripId);
+    return successResponse(res, 200, expenses, 'OK');
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * POST /driver/trips/:trip_id/expenses
+ */
+export async function createTripExpenseHandler(req, res, next) {
+  try {
+    const driverId = req.user.userId;
+    const tripId = req.params.trip_id || req.params.tripId;
+    const expense = await createTripExpense(driverId, tripId, req.body, req.ip);
+    return successResponse(res, 201, expense, 'Expense added.');
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * PUT /driver/trips/:trip_id/expenses/:expense_id
+ */
+export async function updateTripExpenseHandler(req, res, next) {
+  try {
+    const driverId = req.user.userId;
+    const tripId = req.params.trip_id || req.params.tripId;
+    const expenseId = req.params.expense_id || req.params.expenseId;
+    const expense = await updateTripExpense(driverId, tripId, expenseId, req.body, req.ip);
+    return successResponse(res, 200, expense, 'Expense updated.');
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * DELETE /driver/trips/:trip_id/expenses/:expense_id
+ */
+export async function deleteTripExpenseHandler(req, res, next) {
+  try {
+    const driverId = req.user.userId;
+    const tripId = req.params.trip_id || req.params.tripId;
+    const expenseId = req.params.expense_id || req.params.expenseId;
+    const result = await deleteTripExpense(driverId, tripId, expenseId, req.ip);
+    return successResponse(res, 200, result, 'Expense deleted.');
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * POST /driver/trips/:trip_id/confirm-expenses
+ */
+export async function confirmTripExpensesHandler(req, res, next) {
+  try {
+    const driverId = req.user.userId;
+    const tripId = req.params.trip_id || req.params.tripId;
+    const trip = await confirmTripExpenses(driverId, tripId, req.ip);
+    return successResponse(res, 200, trip, 'Expenses confirmed.');
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * GET /driver/wallet
+ */
+export async function getOwnWalletHandler(req, res, next) {
+  try {
+    const driverId = req.user.userId;
+    const { page, limit, skip } = parsePagination(req);
+    const wallet = await getOwnDriverWallet(driverId, { page, limit, skip });
+    return successResponse(res, 200, wallet, 'OK');
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * POST /driver/location
+ */
+export async function recordLocationHandler(req, res, next) {
+  try {
+    const driverId = req.user.userId;
+    const location = await recordDriverLocation(driverId, req.body);
+    return successResponse(res, 200, location, 'Location updated.');
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * POST /driver/locations/batch
+ */
+export async function recordBatchLocationsHandler(req, res, next) {
+  try {
+    const driverId = req.user.userId;
+    const result = await recordBatchLocations(driverId, req.body);
+    return successResponse(res, 200, result, 'Batch locations recorded.');
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * POST /driver/profile/photo
+ */
+export async function uploadPhotoHandler(req, res, next) {
+  try {
+    const driverId = req.user.userId;
+    const driver = await uploadDriverPhoto(driverId, req.file);
+    return successResponse(res, 200, driver, 'Profile photo updated.');
   } catch (err) {
     next(err);
   }

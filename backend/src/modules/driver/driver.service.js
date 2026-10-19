@@ -57,6 +57,8 @@ export function formatDriverLeaveResponse(leave) {
     driver_id: leave.driverId,
     start_date: formatIsoDate(leave.startDate),
     end_date: formatIsoDate(leave.endDate),
+    status: leave.status || 'PENDING',
+    reason: leave.reason || null,
     created_at: leave.createdAt ? leave.createdAt.toISOString() : null
   };
 }
@@ -521,11 +523,23 @@ export function formatDriverTripResponse(trip) {
     contact_phone: trip.order ? trip.order.contactPhone : 'N/A',
     notes: trip.order?.notes || null,
     selfie_url: trip.selfieURL || null,
+    has_selfie: Boolean(trip.selfieURL),
     expenses_confirmed: Boolean(trip.expensesConfirmed),
     assigned_at: trip.assignedAt ? trip.assignedAt.toISOString() : null,
     started_at: trip.startedAt ? trip.startedAt.toISOString() : null,
     closed_at: trip.closedAt ? trip.closedAt.toISOString() : null,
-    created_at: trip.createdAt ? trip.createdAt.toISOString() : null
+    created_at: trip.createdAt ? trip.createdAt.toISOString() : null,
+    version: trip.version !== undefined ? trip.version : 0,
+    expenses: Array.isArray(trip.expenses)
+      ? trip.expenses.map(e => ({
+          expense_id: e.expenseId,
+          trip_id: e.tripId,
+          driver_id: e.driverId,
+          description: e.description,
+          amount: Number(e.amount).toFixed(2),
+          created_at: e.createdAt ? e.createdAt.toISOString() : null
+        }))
+      : []
   };
 }
 
@@ -740,5 +754,550 @@ export async function closeDriverTrip(driverId, tripId, { otp } = {}, ipAddress)
       closed_at: closedAt.toISOString()
     };
   });
+}
+
+/**
+ * Get Head Office details (queries first office by office_id ASC).
+ */
+export async function getHeadOffice() {
+  const office = await prisma.office.findFirst({
+    orderBy: { officeId: 'asc' }
+  });
+  if (!office) {
+    throw new AppError(404, 'NOT_FOUND', 'Office not found.');
+  }
+  return {
+    office_id: office.officeId,
+    office_name: office.officeName,
+    office_location: office.officeLocation || null,
+    created_at: office.createdAt ? office.createdAt.toISOString() : null
+  };
+}
+
+/**
+ * List leaves for authenticated driver.
+ */
+export async function listDriverLeaves(driverId) {
+  const leaves = await prisma.driverLeave.findMany({
+    where: { driverId: Number(driverId) },
+    orderBy: { startDate: 'desc' }
+  });
+  return leaves.map(formatDriverLeaveResponse);
+}
+
+/**
+ * Create a new leave request (status: PENDING).
+ */
+export async function createDriverLeave(driverId, { start_date, end_date, reason } = {}, ipAddress) {
+  if (!start_date || !end_date) {
+    throw new AppError(422, 'VALIDATION_ERROR', 'start_date and end_date are required.', [
+      { field: 'start_date', message: 'required' },
+      { field: 'end_date', message: 'required' }
+    ]);
+  }
+  const start = new Date(start_date);
+  const end = new Date(end_date);
+  if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+    throw new AppError(422, 'VALIDATION_ERROR', 'Invalid date format. Use YYYY-MM-DD.');
+  }
+  if (end < start) {
+    throw new AppError(422, 'VALIDATION_ERROR', 'end_date must be on or after start_date.');
+  }
+
+  const leave = await prisma.driverLeave.create({
+    data: {
+      driverId: Number(driverId),
+      startDate: start,
+      endDate: end,
+      status: 'PENDING',
+      reason: reason ? String(reason).trim() : null
+    }
+  });
+
+  await recordAuditLog(prisma, {
+    actorId: driverId,
+    actorType: 'DRIVER',
+    action: 'LEAVE_REQUESTED',
+    entityType: 'DRIVER_LEAVE',
+    entityId: leave.leaveId,
+    oldValue: null,
+    newValue: { status: 'PENDING', startDate: start_date, endDate: end_date },
+    ipAddress
+  });
+
+  return formatDriverLeaveResponse(leave);
+}
+
+/**
+ * Delete own leave to unblock days off.
+ */
+export async function deleteDriverLeave(driverId, leaveId, ipAddress) {
+  const leave = await prisma.driverLeave.findFirst({
+    where: {
+      leaveId: Number(leaveId),
+      driverId: Number(driverId)
+    }
+  });
+  if (!leave) {
+    throw new AppError(404, 'NOT_FOUND', 'Leave request not found or does not belong to you.');
+  }
+
+  await prisma.driverLeave.delete({
+    where: { leaveId: leave.leaveId }
+  });
+
+  await recordAuditLog(prisma, {
+    actorId: driverId,
+    actorType: 'DRIVER',
+    action: 'LEAVE_DELETED',
+    entityType: 'DRIVER_LEAVE',
+    entityId: leave.leaveId,
+    oldValue: { status: leave.status, startDate: leave.startDate },
+    newValue: null,
+    ipAddress
+  });
+
+  return { success: true, message: 'Leave request deleted.' };
+}
+
+/**
+ * List expenses for a trip belonging to driver.
+ */
+export async function listTripExpenses(driverId, tripId) {
+  const trip = await prisma.trip.findFirst({
+    where: {
+      tripId: Number(tripId),
+      driverId: Number(driverId)
+    }
+  });
+  if (!trip) {
+    throw new AppError(404, 'NOT_FOUND', 'Trip not found or does not belong to you.');
+  }
+
+  const expenses = await prisma.expense.findMany({
+    where: { tripId: Number(tripId) },
+    orderBy: { createdAt: 'desc' }
+  });
+
+  return expenses.map(e => ({
+    expense_id: e.expenseId,
+    trip_id: e.tripId,
+    driver_id: e.driverId,
+    description: e.description,
+    amount: Number(e.amount).toFixed(2),
+    created_at: e.createdAt ? e.createdAt.toISOString() : null
+  }));
+}
+
+/**
+ * Create an expense on an ONGOING trip.
+ */
+export async function createTripExpense(driverId, tripId, { description, amount } = {}, ipAddress) {
+  const trip = await prisma.trip.findFirst({
+    where: {
+      tripId: Number(tripId),
+      driverId: Number(driverId)
+    }
+  });
+  if (!trip) {
+    throw new AppError(404, 'NOT_FOUND', 'Trip not found or does not belong to you.');
+  }
+  if (trip.tripStatus !== 'ONGOING') {
+    throw new AppError(409, 'CONFLICT', `Expenses can only be logged while trip is ONGOING (current: ${trip.tripStatus}).`);
+  }
+
+  const numAmount = parseFloat(amount);
+  if (!description || !description.trim()) {
+    throw new AppError(422, 'VALIDATION_ERROR', 'Expense description is required.');
+  }
+  if (isNaN(numAmount) || numAmount <= 0) {
+    throw new AppError(422, 'VALIDATION_ERROR', 'Expense amount must be a positive number.');
+  }
+
+  const expense = await prisma.expense.create({
+    data: {
+      tripId: trip.tripId,
+      driverId: Number(driverId),
+      description: description.trim(),
+      amount: numAmount.toFixed(2)
+    }
+  });
+
+  await recordAuditLog(prisma, {
+    actorId: driverId,
+    actorType: 'DRIVER',
+    action: 'EXPENSE_LOGGED',
+    entityType: 'EXPENSE',
+    entityId: expense.expenseId,
+    oldValue: null,
+    newValue: { description: expense.description, amount: expense.amount },
+    ipAddress
+  });
+
+  return {
+    expense_id: expense.expenseId,
+    trip_id: expense.tripId,
+    driver_id: expense.driverId,
+    description: expense.description,
+    amount: Number(expense.amount).toFixed(2),
+    created_at: expense.createdAt.toISOString()
+  };
+}
+
+/**
+ * Update an expense on an ONGOING trip.
+ */
+export async function updateTripExpense(driverId, tripId, expenseId, { description, amount } = {}, ipAddress) {
+  const trip = await prisma.trip.findFirst({
+    where: { tripId: Number(tripId), driverId: Number(driverId) }
+  });
+  if (!trip) {
+    throw new AppError(404, 'NOT_FOUND', 'Trip not found.');
+  }
+  if (trip.tripStatus !== 'ONGOING') {
+    throw new AppError(409, 'CONFLICT', 'Expenses can only be modified while trip is ONGOING.');
+  }
+
+  const expense = await prisma.expense.findFirst({
+    where: { expenseId: Number(expenseId), tripId: Number(tripId), driverId: Number(driverId) }
+  });
+  if (!expense) {
+    throw new AppError(404, 'NOT_FOUND', 'Expense not found.');
+  }
+
+  const data = {};
+  if (description !== undefined) {
+    if (!description.trim()) throw new AppError(422, 'VALIDATION_ERROR', 'Description cannot be empty.');
+    data.description = description.trim();
+  }
+  if (amount !== undefined) {
+    const numAmount = parseFloat(amount);
+    if (isNaN(numAmount) || numAmount <= 0) throw new AppError(422, 'VALIDATION_ERROR', 'Amount must be positive.');
+    data.amount = numAmount.toFixed(2);
+  }
+
+  const updated = await prisma.expense.update({
+    where: { expenseId: expense.expenseId },
+    data
+  });
+
+  await recordAuditLog(prisma, {
+    actorId: driverId,
+    actorType: 'DRIVER',
+    action: 'EXPENSE_UPDATED',
+    entityType: 'EXPENSE',
+    entityId: expense.expenseId,
+    oldValue: { description: expense.description, amount: expense.amount },
+    newValue: data,
+    ipAddress
+  });
+
+  return {
+    expense_id: updated.expenseId,
+    trip_id: updated.tripId,
+    driver_id: updated.driverId,
+    description: updated.description,
+    amount: Number(updated.amount).toFixed(2),
+    created_at: updated.createdAt.toISOString()
+  };
+}
+
+/**
+ * Delete an expense on an ONGOING trip.
+ */
+export async function deleteTripExpense(driverId, tripId, expenseId, ipAddress) {
+  const trip = await prisma.trip.findFirst({
+    where: { tripId: Number(tripId), driverId: Number(driverId) }
+  });
+  if (!trip) {
+    throw new AppError(404, 'NOT_FOUND', 'Trip not found.');
+  }
+  if (trip.tripStatus !== 'ONGOING') {
+    throw new AppError(409, 'CONFLICT', 'Expenses can only be deleted while trip is ONGOING.');
+  }
+
+  const expense = await prisma.expense.findFirst({
+    where: { expenseId: Number(expenseId), tripId: Number(tripId), driverId: Number(driverId) }
+  });
+  if (!expense) {
+    throw new AppError(404, 'NOT_FOUND', 'Expense not found.');
+  }
+
+  await prisma.expense.delete({
+    where: { expenseId: expense.expenseId }
+  });
+
+  await recordAuditLog(prisma, {
+    actorId: driverId,
+    actorType: 'DRIVER',
+    action: 'EXPENSE_DELETED',
+    entityType: 'EXPENSE',
+    entityId: expense.expenseId,
+    oldValue: { description: expense.description, amount: expense.amount },
+    newValue: null,
+    ipAddress
+  });
+
+  return { success: true, message: 'Expense deleted.' };
+}
+
+/**
+ * Confirm expenses are complete on an ONGOING trip.
+ */
+export async function confirmTripExpenses(driverId, tripId, ipAddress) {
+  const trip = await prisma.trip.findFirst({
+    where: { tripId: Number(tripId), driverId: Number(driverId) }
+  });
+  if (!trip) {
+    throw new AppError(404, 'NOT_FOUND', 'Trip not found.');
+  }
+  if (trip.tripStatus !== 'ONGOING') {
+    throw new AppError(409, 'CONFLICT', 'Can only confirm expenses on an ONGOING trip.');
+  }
+
+  const updated = await prisma.trip.update({
+    where: { tripId: trip.tripId },
+    data: { expensesConfirmed: true }
+  });
+
+  await recordAuditLog(prisma, {
+    actorId: driverId,
+    actorType: 'DRIVER',
+    action: 'EXPENSES_CONFIRMED',
+    entityType: 'TRIP',
+    entityId: trip.tripId,
+    oldValue: { expensesConfirmed: false },
+    newValue: { expensesConfirmed: true },
+    ipAddress
+  });
+
+  return formatDriverTripResponse(updated);
+}
+
+/**
+ * Driver view of own wallet and transaction ledger.
+ */
+export async function getOwnDriverWallet(driverId, { page = 1, limit = 20, skip = 0 } = {}) {
+  const parsedDriverId = Number(driverId);
+  const take = Math.min(Math.max(Number(limit) || 20, 1), 100);
+
+  const [total, transactions, creditsSum, debitsSum] = await Promise.all([
+    prisma.driverWalletTransaction.count({ where: { driverId: parsedDriverId } }),
+    prisma.driverWalletTransaction.findMany({
+      where: { driverId: parsedDriverId },
+      orderBy: { createdAt: 'desc' },
+      skip,
+      take
+    }),
+    prisma.driverWalletTransaction.aggregate({
+      where: { driverId: parsedDriverId },
+      _sum: { credit: true }
+    }),
+    prisma.driverWalletTransaction.aggregate({
+      where: { driverId: parsedDriverId },
+      _sum: { debit: true }
+    })
+  ]);
+
+  const totalCredit = Number(creditsSum._sum.credit || 0);
+  const totalDebit = Number(debitsSum._sum.debit || 0);
+  const balance = totalCredit - totalDebit;
+
+  return {
+    driver_id: parsedDriverId,
+    balance: balance.toFixed(2),
+    total_credit: totalCredit.toFixed(2),
+    total_debit: totalDebit.toFixed(2),
+    transactions: {
+      items: transactions.map(formatWalletTransaction),
+      total,
+      page: Number(page) || 1,
+      limit: take
+    }
+  };
+}
+
+/**
+ * Record single live location ping (UPSERT driver_locations + INSERT driver_location_history).
+ * Enforces rate limit: 1 ping per 3 seconds per driver.
+ */
+export async function recordDriverLocation(driverId, data) {
+  const parsedDriverId = Number(driverId);
+  const { lat, lng, speed, heading, accuracy, battery_percent, trip_id } = data;
+
+  const numLat = parseFloat(lat);
+  const numLng = parseFloat(lng);
+
+  if (isNaN(numLat) || numLat < -90 || numLat > 90) {
+    throw new AppError(422, 'VALIDATION_ERROR', 'lat must be a number between -90 and 90.');
+  }
+  if (isNaN(numLng) || numLng < -180 || numLng > 180) {
+    throw new AppError(422, 'VALIDATION_ERROR', 'lng must be a number between -180 and 180.');
+  }
+
+  // Rate limit: 1 ping per 3 seconds per driver
+  const existing = await prisma.driverLocation.findUnique({
+    where: { driverId: parsedDriverId }
+  });
+
+  if (existing) {
+    const elapsedMs = Date.now() - new Date(existing.updatedAt).getTime();
+    if (elapsedMs < 3000) {
+      throw new AppError(429, 'RATE_LIMITED', 'Location pings rate limited to one ping per 3 seconds.');
+    }
+  }
+
+  const now = new Date();
+  const parsedTripId = trip_id ? Number(trip_id) : (existing?.tripId || null);
+
+  // 1. Upsert latest location
+  const loc = await prisma.driverLocation.upsert({
+    where: { driverId: parsedDriverId },
+    create: {
+      driverId: parsedDriverId,
+      lat: numLat,
+      lng: numLng,
+      speed: speed !== undefined && speed !== null ? parseFloat(speed) : null,
+      heading: heading !== undefined && heading !== null ? parseFloat(heading) : null,
+      accuracy: accuracy !== undefined && accuracy !== null ? parseFloat(accuracy) : null,
+      batteryPercent: battery_percent !== undefined && battery_percent !== null ? parseInt(battery_percent, 10) : null,
+      tripId: parsedTripId,
+      updatedAt: now
+    },
+    update: {
+      lat: numLat,
+      lng: numLng,
+      speed: speed !== undefined && speed !== null ? parseFloat(speed) : null,
+      heading: heading !== undefined && heading !== null ? parseFloat(heading) : null,
+      accuracy: accuracy !== undefined && accuracy !== null ? parseFloat(accuracy) : null,
+      batteryPercent: battery_percent !== undefined && battery_percent !== null ? parseInt(battery_percent, 10) : null,
+      tripId: parsedTripId,
+      updatedAt: now
+    }
+  });
+
+  // 2. Insert into history
+  await prisma.driverLocationHistory.create({
+    data: {
+      driverId: parsedDriverId,
+      tripId: parsedTripId,
+      lat: numLat,
+      lng: numLng,
+      speed: speed !== undefined && speed !== null ? parseFloat(speed) : null,
+      recordedAt: now
+    }
+  });
+
+  return {
+    driver_id: loc.driverId,
+    lat: loc.lat,
+    lng: loc.lng,
+    speed: loc.speed,
+    heading: loc.heading,
+    accuracy: loc.accuracy,
+    battery_percent: loc.batteryPercent,
+    trip_id: loc.tripId,
+    updated_at: loc.updatedAt.toISOString(),
+    google_maps_url: `https://www.google.com/maps/dir/?api=1&destination=${loc.lat},${loc.lng}`
+  };
+}
+
+/**
+ * Record batch offline locations.
+ */
+export async function recordBatchLocations(driverId, { pings = [] } = {}) {
+  const parsedDriverId = Number(driverId);
+  if (!Array.isArray(pings) || pings.length === 0) {
+    throw new AppError(422, 'VALIDATION_ERROR', 'pings must be a non-empty array of location objects.');
+  }
+  if (pings.length > 100) {
+    throw new AppError(422, 'VALIDATION_ERROR', 'Maximum 100 location pings allowed per batch.');
+  }
+
+  const validRecords = [];
+  let latestPing = null;
+
+  for (const ping of pings) {
+    const lat = parseFloat(ping.lat);
+    const lng = parseFloat(ping.lng);
+    if (isNaN(lat) || lat < -90 || lat > 90 || isNaN(lng) || lng < -180 || lng > 180) {
+      continue;
+    }
+    const recordedAt = ping.recorded_at ? new Date(ping.recorded_at) : new Date();
+    const tripId = ping.trip_id ? Number(ping.trip_id) : null;
+    const speed = ping.speed !== undefined && ping.speed !== null ? parseFloat(ping.speed) : null;
+
+    validRecords.push({
+      driverId: parsedDriverId,
+      tripId,
+      lat,
+      lng,
+      speed,
+      recordedAt
+    });
+
+    if (!latestPing || recordedAt > latestPing.recordedAt) {
+      latestPing = {
+        lat,
+        lng,
+        speed,
+        tripId,
+        recordedAt
+      };
+    }
+  }
+
+  if (validRecords.length > 0) {
+    await prisma.driverLocationHistory.createMany({
+      data: validRecords
+    });
+
+    if (latestPing) {
+      await prisma.driverLocation.upsert({
+        where: { driverId: parsedDriverId },
+        create: {
+          driverId: parsedDriverId,
+          lat: latestPing.lat,
+          lng: latestPing.lng,
+          speed: latestPing.speed,
+          tripId: latestPing.tripId,
+          updatedAt: latestPing.recordedAt
+        },
+        update: {
+          lat: latestPing.lat,
+          lng: latestPing.lng,
+          speed: latestPing.speed,
+          tripId: latestPing.tripId,
+          updatedAt: latestPing.recordedAt
+        }
+      });
+    }
+  }
+
+  return {
+    synced: validRecords.length,
+    message: `Successfully synchronized ${validRecords.length} location pings.`
+  };
+}
+
+/**
+ * Upload profile photo for driver.
+ */
+export async function uploadDriverPhoto(driverId, file) {
+  if (!file) {
+    throw new AppError(422, 'VALIDATION_ERROR', 'Photo file is required.');
+  }
+  const allowedMime = ['image/jpeg', 'image/png'];
+  if (!allowedMime.includes(file.mimetype)) {
+    throw new AppError(422, 'VALIDATION_ERROR', 'Only image/jpeg and image/png are allowed for profile photo.');
+  }
+
+  const photoURL = `uploads/driver_${driverId}_photo_${Date.now()}_${file.originalname}`;
+  const driver = await prisma.driver.update({
+    where: { driverId: Number(driverId) },
+    data: { photoURL }
+  });
+
+  return formatDriverResponse(driver);
 }
 
