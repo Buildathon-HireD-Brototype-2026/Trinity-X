@@ -6,10 +6,11 @@
   "scripts": {
     "dev": "nodemon src/server.js",
     "start": "node src/server.js",
-    "test": "node tests/auth_and_onboarding.test.js && node tests/admin_company_driver.test.js && node tests/admin_account_management.test.js",
+    "test": "node tests/auth_and_onboarding.test.js && node tests/admin_company_driver.test.js && node tests/admin_account_management.test.js && node tests/driver_app_endpoints.test.js",
     "test:auth": "node tests/auth_and_onboarding.test.js",
     "test:management": "node tests/admin_company_driver.test.js",
-    "test:admin": "node tests/admin_account_management.test.js"
+    "test:admin": "node tests/admin_account_management.test.js",
+    "test:driver": "node tests/driver_app_endpoints.test.js"
   },
   "keywords": [],
   "author": "",
