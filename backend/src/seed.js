@@ -206,6 +206,23 @@ export async function seedInitialData() {
       }
     });
     console.log('[seed] Created Assigned Trip #:', activeTrip.tripId, 'OTP: 482910');
+  } else if (activeTrip.tripStatus !== 'ASSIGNED') {
+    await prisma.tripPayroll.deleteMany({ where: { tripId: activeTrip.tripId } });
+    await prisma.driverWalletTransaction.deleteMany({ where: { tripId: activeTrip.tripId } });
+    await prisma.expense.deleteMany({ where: { tripId: activeTrip.tripId } });
+    activeTrip = await prisma.trip.update({
+      where: { tripId: activeTrip.tripId },
+      data: {
+        tripStatus: 'ASSIGNED',
+        otp: '482910',
+        otpAttempts: 0,
+        expensesConfirmed: false,
+        startedAt: null,
+        closedAt: null,
+        selfieURL: null
+      }
+    });
+    console.log('[seed] Reset Trip #:', activeTrip.tripId, 'back to ASSIGNED (cleaned payroll/tx)');
   }
 
   // Seed initial wallet transaction for Driver 1
