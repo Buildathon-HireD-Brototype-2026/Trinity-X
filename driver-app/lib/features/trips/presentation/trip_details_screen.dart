@@ -4,8 +4,10 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import '../../../core/errors/error_messages.dart';
 import '../../../core/routing/route_names.dart';
 import '../../../core/theme/app_theme_colors.dart';
+import '../../../core/widgets/app_error_view.dart';
 import '../../../core/widgets/app_loading_indicator.dart';
 import '../domain/trip_model.dart';
 import '../application/navigation_launcher_service.dart';
@@ -794,16 +796,22 @@ class _TripDetailsScreenState extends ConsumerState<TripDetailsScreen> {
                       : selectedCategory;
 
                   Navigator.of(dialogCtx).pop();
-                  await ref.read(tripRepositoryProvider).addExpense(trip.tripId, desc, amt);
+                  try {
+                    await ref.read(tripRepositoryProvider).addExpense(trip.tripId, desc, amt);
 
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text('Added $desc: ₹${amt.toStringAsFixed(2)}'),
-                        backgroundColor: const Color(0xFF10B981),
-                        behavior: SnackBarBehavior.floating,
-                      ),
-                    );
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Added $desc: ₹${amt.toStringAsFixed(2)}'),
+                          backgroundColor: const Color(0xFF10B981),
+                          behavior: SnackBarBehavior.floating,
+                        ),
+                      );
+                    }
+                  } catch (e) {
+                    if (context.mounted) {
+                      AppSnackBar.show(context, e);
+                    }
                   }
                 },
                 child: const Text('Save Expense', style: TextStyle(fontWeight: FontWeight.bold)),
@@ -857,14 +865,20 @@ class _TripDetailsScreenState extends ConsumerState<TripDetailsScreen> {
             onPressed: () async {
               Navigator.of(dialogCtx).pop();
               if (expense.expenseId != null) {
-                await ref.read(tripRepositoryProvider).deleteExpense(trip.tripId, expense.expenseId!);
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Deleted expense: ${expense.description}'),
-                      behavior: SnackBarBehavior.floating,
-                    ),
-                  );
+                try {
+                  await ref.read(tripRepositoryProvider).deleteExpense(trip.tripId, expense.expenseId!);
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Deleted expense: ${expense.description}'),
+                        behavior: SnackBarBehavior.floating,
+                      ),
+                    );
+                  }
+                } catch (e) {
+                  if (context.mounted) {
+                    AppSnackBar.show(context, e);
+                  }
                 }
               }
             },
@@ -1097,6 +1111,10 @@ class _TripDetailsScreenState extends ConsumerState<TripDetailsScreen> {
                                   ),
                                 );
                               }
+                            } catch (e) {
+                              if (context.mounted) {
+                                AppSnackBar.show(context, e);
+                              }
                             } finally {
                               if (sheetCtx.mounted) setSheetState(() => isStarting = false);
                             }
@@ -1264,8 +1282,8 @@ class _TripDetailsScreenState extends ConsumerState<TripDetailsScreen> {
                                 final attempts = (trip.otpAttempts + 1).clamp(0, 3);
                                 setSheetState(() {
                                   otpError = attempts >= 3
-                                      ? 'Maximum OTP attempts reached (3/3). Trip locked.'
-                                      : 'Invalid OTP code. Attempt $attempts of 3.';
+                                      ? '${ErrorMessages.otpLocked}\n${ErrorMessages.formatRef(ErrorMessages.refOtpLocked)}'
+                                      : '${ErrorMessages.otpInvalid}\n${ErrorMessages.formatRef(ErrorMessages.refOtpInvalid)}';
                                 });
                                 return;
                               }
@@ -1283,6 +1301,10 @@ class _TripDetailsScreenState extends ConsumerState<TripDetailsScreen> {
                                     duration: const Duration(seconds: 4),
                                   ),
                                 );
+                              }
+                            } catch (e) {
+                              if (context.mounted) {
+                                AppSnackBar.show(context, e);
                               }
                             } finally {
                               if (sheetCtx.mounted) {

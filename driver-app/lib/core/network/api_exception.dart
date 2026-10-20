@@ -17,8 +17,23 @@ class ApiException implements Exception {
   factory ApiException.fromDioError(DioException error) {
     if (error.type == DioExceptionType.connectionTimeout ||
         error.type == DioExceptionType.sendTimeout ||
-        error.type == DioExceptionType.receiveTimeout ||
-        error.type == DioExceptionType.connectionError) {
+        error.type == DioExceptionType.receiveTimeout) {
+      return const ApiException(
+        statusCode: 0,
+        errorCode: 'TIMEOUT',
+        message: 'This is taking longer than usual. Please try again.',
+      );
+    }
+
+    if (error.type == DioExceptionType.connectionError) {
+      final inner = (error.error?.toString() ?? error.message ?? '').toLowerCase();
+      if (inner.contains('refused') || inner.contains('111')) {
+        return const ApiException(
+          statusCode: 0,
+          errorCode: 'CONNECTION_REFUSED',
+          message: 'We could not connect right now. Please try again in a moment.',
+        );
+      }
       return const ApiException(
         statusCode: 0,
         errorCode: 'NETWORK_ERROR',
@@ -39,7 +54,7 @@ class ApiException implements Exception {
           (data['error'] is Map ? data['error']['message'] as String? : null);
       errCode = data['code'] as String? ??
           (data['error'] is Map ? data['error']['code'] as String? : null);
-      details = data['details'];
+      details = data['details'] ?? (data['error'] is Map ? data['error']['details'] : null);
     }
 
     switch (statusCode) {
@@ -47,35 +62,42 @@ class ApiException implements Exception {
         return ApiException(
           statusCode: 401,
           errorCode: errCode ?? 'UNAUTHORIZED',
-          message: serverMsg ?? 'Session expired. Please log in again.',
+          message: serverMsg ?? 'Phone number or password is not correct.',
           details: details,
         );
       case 403:
         return ApiException(
           statusCode: 403,
           errorCode: errCode ?? 'FORBIDDEN',
-          message: serverMsg ?? 'You do not have permission to perform this action.',
+          message: serverMsg ?? 'This account cannot be used right now. Please contact the HireD office.',
           details: details,
         );
       case 404:
         return ApiException(
           statusCode: 404,
           errorCode: errCode ?? 'NOT_FOUND',
-          message: serverMsg ?? 'The requested item was not found.',
+          message: serverMsg ?? 'We could not find this. Please refresh and try again.',
+          details: details,
+        );
+      case 409:
+        return ApiException(
+          statusCode: 409,
+          errorCode: errCode ?? 'CONFLICT',
+          message: serverMsg ?? 'This action is not possible right now.',
           details: details,
         );
       case 422:
         return ApiException(
           statusCode: 422,
           errorCode: errCode ?? 'VALIDATION_ERROR',
-          message: serverMsg ?? 'Invalid data submitted. Please check your inputs.',
+          message: serverMsg ?? 'Please check the details and try again.',
           details: details,
         );
       case 429:
         return ApiException(
           statusCode: 429,
           errorCode: errCode ?? 'RATE_LIMITED',
-          message: serverMsg ?? 'Too many requests. Please wait a moment.',
+          message: serverMsg ?? 'Please wait a few seconds and try again.',
           details: details,
         );
       case 500:
@@ -85,14 +107,14 @@ class ApiException implements Exception {
         return ApiException(
           statusCode: statusCode,
           errorCode: errCode ?? 'SERVER_ERROR',
-          message: serverMsg ?? 'Server encountered an error. Please try again later.',
+          message: serverMsg ?? 'Something went wrong on our side. Please try again later.',
           details: details,
         );
       default:
         return ApiException(
           statusCode: statusCode,
           errorCode: errCode ?? 'UNKNOWN_ERROR',
-          message: serverMsg ?? (error.message ?? 'An unexpected error occurred.'),
+          message: serverMsg ?? 'Something went wrong. Please try again.',
           details: details,
         );
     }

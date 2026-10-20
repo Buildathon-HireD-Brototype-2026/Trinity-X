@@ -95,15 +95,20 @@ app.use((req, res) => {
 // Centralized error handling middleware
 app.use(errorHandler);
 
-const server = app.listen(PORT, async () => {
-  console.log(`[server] Server listening on port ${PORT} (${process.env.NODE_ENV || 'development'})`);
-  try {
-    await prisma.$queryRawUnsafe('SELECT 1');
-    console.log('[database] PostgreSQL connected successfully (database: hired_dev)');
-  } catch (error) {
-    console.error('[database] Database connection failed:', error.message);
-  }
-});
+let server = null;
+const isTestRun = process.env.NODE_ENV === 'test' || (process.argv[1] && process.argv[1].includes('test.js'));
+
+if (!isTestRun) {
+  server = app.listen(PORT, async () => {
+    console.log(`[server] Server listening on port ${PORT} (${process.env.NODE_ENV || 'development'})`);
+    try {
+      await prisma.$queryRawUnsafe('SELECT 1');
+      console.log('[database] PostgreSQL connected successfully');
+    } catch (error) {
+      console.error('[database] Database connection failed:', error.message);
+    }
+  });
+}
 
 // Graceful shutdown handler
 const handleShutdown = (signal) => {

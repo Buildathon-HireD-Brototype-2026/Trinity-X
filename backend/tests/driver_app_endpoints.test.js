@@ -1,9 +1,14 @@
 import app from '../src/server.js';
 import prisma from '../src/config/db.js';
-import { seedInitialData } from '../src/seed.js';
+import { hashPassword } from '../src/shared/security.js';
 
 let server;
 let baseUrl;
+
+const testPhone1 = '+919100000001';
+const testPhone2 = '+919100000002';
+const testPassword = 'TestDriver@123';
+const testCompanyEmail = 'testdriverlogistics@example.com';
 
 function assert(condition, message) {
   if (!condition) {
@@ -43,7 +48,115 @@ async function runTests() {
   console.log('   HIRED DRIVER APP INTEGRATION ENDPOINT TEST SUITE              ');
   console.log('=================================================================\n');
 
-  await seedInitialData();
+  // Setup self-contained test fixtures
+  const testPasswordHash = await hashPassword(testPassword);
+  let office = await prisma.office.findFirst();
+  if (!office) {
+    office = await prisma.office.create({
+      data: {
+        officeName: 'Trinity X HQ Kochi',
+        officeLocation: 'Infopark, Kakkanad, Kochi, Kerala'
+      }
+    });
+  }
+
+  let testCompany = await prisma.company.findFirst({ where: { emailId: testCompanyEmail } });
+  if (!testCompany) {
+    testCompany = await prisma.company.create({
+      data: {
+        name: 'Test Driver Logistics',
+        emailId: testCompanyEmail,
+        phoneNo: '+919100000000',
+        contactPerson: 'Test Manager',
+        officeId: office.officeId,
+        passwordHash: testPasswordHash,
+        status: 'ACTIVE',
+        hiredSplit: 70.00,
+        driverSplit: 30.00
+      }
+    });
+  }
+
+  let testDriver1 = await prisma.driver.findFirst({ where: { phoneNo: testPhone1 } });
+  if (!testDriver1) {
+    testDriver1 = await prisma.driver.create({
+      data: {
+        name: 'Test Driver Alpha',
+        phoneNo: testPhone1,
+        passwordHash: testPasswordHash,
+        status: 'ACTIVE',
+        isOnline: true,
+        currentLocation: 'Infopark, Kakkanad, Kochi'
+      }
+    });
+  } else {
+    await prisma.driver.update({
+      where: { driverId: testDriver1.driverId },
+      data: { status: 'ACTIVE', passwordHash: testPasswordHash, isOnline: true }
+    });
+  }
+
+  let testDriver2 = await prisma.driver.findFirst({ where: { phoneNo: testPhone2 } });
+  if (!testDriver2) {
+    testDriver2 = await prisma.driver.create({
+      data: {
+        name: 'Test Driver Beta',
+        phoneNo: testPhone2,
+        passwordHash: testPasswordHash,
+        status: 'ACTIVE',
+        isOnline: false,
+        currentLocation: 'Edapally, Kochi'
+      }
+    });
+  } else {
+    await prisma.driver.update({
+      where: { driverId: testDriver2.driverId },
+      data: { status: 'ACTIVE', passwordHash: testPasswordHash, isOnline: false }
+    });
+  }
+
+  // Clear previous test records for clean slate
+  await prisma.tripPayroll.deleteMany({ where: { driverId: testDriver1.driverId } });
+  await prisma.driverWalletTransaction.deleteMany({ where: { driverId: testDriver1.driverId } });
+  await prisma.expense.deleteMany({ where: { driverId: testDriver1.driverId } });
+  await prisma.driverDocument.deleteMany({ where: { driverId: testDriver1.driverId } });
+  await prisma.driverLeave.deleteMany({ where: { driverId: testDriver1.driverId } });
+  await prisma.driverLocation.deleteMany({ where: { driverId: testDriver1.driverId } });
+  await prisma.driverLocationHistory.deleteMany({ where: { driverId: testDriver1.driverId } });
+  await prisma.trip.deleteMany({ where: { driverId: testDriver1.driverId } });
+  await prisma.order.deleteMany({ where: { companyId: testCompany.companyId } });
+
+  const admin = await prisma.admin.findFirst();
+
+  const testOrder = await prisma.order.create({
+    data: {
+      companyId: testCompany.companyId,
+      pickupSpot: 'Infopark Phase 1, Kakkanad, Kochi',
+      dropoffSpot: 'Cochin International Airport (COK), Nedumbassery',
+      pickupTime: new Date(Date.now() + 2 * 60 * 60 * 1000),
+      contactName: 'Deepak Nambiar',
+      contactPhone: '+919800000001',
+      status: 'ACCEPTED',
+      source: 'PORTAL',
+      decidedByAdminId: admin ? admin.adminId : undefined,
+      decidedAt: new Date()
+    }
+  });
+
+  const testTrip = await prisma.trip.create({
+    data: {
+      orderId: testOrder.orderId,
+      driverId: testDriver1.driverId,
+      amount: 2500.00,
+      otp: '482910',
+      otpAttempts: 0,
+      expensesConfirmed: false,
+      tripStatus: 'ASSIGNED',
+      assignedAt: new Date(),
+      eta: new Date(Date.now() + 45 * 60 * 1000)
+    }
+  });
+
 
   await new Promise((resolve) => {
     server = app.listen(0, () => {
@@ -56,7 +169,7 @@ async function runTests() {
 
   let driver1Token = '';
   let driver2Token = '';
-  let seededTripId = null;
+  let seededTripId = testTrip.tripId;
   let testLeaveId = null;
   let testExpenseId = null;
 
@@ -72,18 +185,50 @@ async function runTests() {
     console.log('  PASS - /api/v1/health verified database connectivity.');
 
     // -------------------------------------------------------------
-    // TEST 2: Driver 1 Login
+    // TEST 2: Driver 1 Login (All Phone Formats: +91, 91, 10-digit, spaces, dashes)
     // -------------------------------------------------------------
-    console.log('TEST 2: Driver 1 login with known password');
+    console.log('TEST 2: Driver 1 login with known password (+91 format)');
     const d1LoginRes = await request('/api/v1/auth/driver/login', {
       method: 'POST',
-      body: { phone: '+919876543210', password: 'Driver@123' }
+      body: { phone: testPhone1, password: testPassword }
     });
     assert(d1LoginRes.status === 200, `Driver 1 login failed with status ${d1LoginRes.status}: ${JSON.stringify(d1LoginRes.data)}`);
     assert(d1LoginRes.data.success, 'Login response must indicate success');
     driver1Token = d1LoginRes.data.data.access_token;
     assert(driver1Token, 'Access token must be returned');
-    console.log('  PASS - Driver 1 authenticated successfully.');
+    console.log('  PASS - Driver 1 authenticated with +91 format.');
+
+    // Subtest 2a: 12-digit format without plus (91XXXXXXXXXX)
+    const d1Format91 = await request('/api/v1/auth/driver/login', {
+      method: 'POST',
+      body: { phone: '919100000001', password: testPassword }
+    });
+    assert(d1Format91.status === 200, `Login with 91XXXXXXXXXX failed: ${d1Format91.status}`);
+    console.log('  PASS - Driver 1 login with 91XXXXXXXXXX (no +).');
+
+    // Subtest 2b: 10-digit format (XXXXXXXXXX)
+    const d1Format10 = await request('/api/v1/auth/driver/login', {
+      method: 'POST',
+      body: { phone: '9100000001', password: testPassword }
+    });
+    assert(d1Format10.status === 200, `Login with 10-digit phone failed: ${d1Format10.status}`);
+    console.log('  PASS - Driver 1 login with 10-digit phone.');
+
+    // Subtest 2c: Phone with spaces (+91 91000 00001)
+    const d1FormatSpaces = await request('/api/v1/auth/driver/login', {
+      method: 'POST',
+      body: { phone: '+91 91000 00001', password: testPassword }
+    });
+    assert(d1FormatSpaces.status === 200, `Login with spaces failed: ${d1FormatSpaces.status}`);
+    console.log('  PASS - Driver 1 login with spaces (+91 91000 00001).');
+
+    // Subtest 2d: Phone with dashes (+91-91000-00001)
+    const d1FormatDashes = await request('/api/v1/auth/driver/login', {
+      method: 'POST',
+      body: { phone: '+91-91000-00001', password: testPassword }
+    });
+    assert(d1FormatDashes.status === 200, `Login with dashes failed: ${d1FormatDashes.status}`);
+    console.log('  PASS - Driver 1 login with dashes (+91-91000-00001).');
 
     // -------------------------------------------------------------
     // TEST 3: Driver 2 Login
@@ -91,7 +236,7 @@ async function runTests() {
     console.log('TEST 3: Driver 2 login with known password');
     const d2LoginRes = await request('/api/v1/auth/driver/login', {
       method: 'POST',
-      body: { phone: '+919876543211', password: 'Driver@123' }
+      body: { phone: testPhone2, password: testPassword }
     });
     assert(d2LoginRes.status === 200, `Driver 2 login failed: ${JSON.stringify(d2LoginRes.data)}`);
     driver2Token = d2LoginRes.data.data.access_token;
@@ -435,6 +580,19 @@ async function runTests() {
     if (server) {
       server.close();
     }
+    try {
+      await prisma.tripPayroll.deleteMany({ where: { driver: { phoneNo: { in: [testPhone1, testPhone2] } } } });
+      await prisma.driverWalletTransaction.deleteMany({ where: { driver: { phoneNo: { in: [testPhone1, testPhone2] } } } });
+      await prisma.expense.deleteMany({ where: { driver: { phoneNo: { in: [testPhone1, testPhone2] } } } });
+      await prisma.driverDocument.deleteMany({ where: { driver: { phoneNo: { in: [testPhone1, testPhone2] } } } });
+      await prisma.driverLeave.deleteMany({ where: { driver: { phoneNo: { in: [testPhone1, testPhone2] } } } });
+      await prisma.driverLocation.deleteMany({ where: { driver: { phoneNo: { in: [testPhone1, testPhone2] } } } });
+      await prisma.driverLocationHistory.deleteMany({ where: { driver: { phoneNo: { in: [testPhone1, testPhone2] } } } });
+      await prisma.trip.deleteMany({ where: { driver: { phoneNo: { in: [testPhone1, testPhone2] } } } });
+      await prisma.driver.deleteMany({ where: { phoneNo: { in: [testPhone1, testPhone2] } } });
+      await prisma.order.deleteMany({ where: { company: { emailId: testCompanyEmail } } });
+      await prisma.company.deleteMany({ where: { emailId: testCompanyEmail } });
+    } catch (_) {}
     await prisma.$disconnect();
   }
 }

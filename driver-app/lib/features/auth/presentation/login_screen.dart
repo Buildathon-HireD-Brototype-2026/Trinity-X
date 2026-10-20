@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -16,10 +15,11 @@ import 'controllers/driver_profile_controller.dart';
 /// Page 1: Driver Partner Login Screen (`PRD D-01`).
 ///
 /// Ergonomically designed for mobile drivers:
-/// - 10-digit phone input with fixed +91 prefix and numeric keypad constraint.
-/// - Obscured password input with visibility toggle (TC-P01-07).
-/// - 5-attempt security lockout banner with live countdown timer (TC-P01-05).
-/// - Supportive guidance banner for PENDING / INACTIVE accounts (TC-P01-06).
+/// - 10-digit phone input with +91 indicator and flexible input normalization.
+/// - Obscured password input with visibility toggle.
+/// - Clear, friendly error messaging placed UNDER the form with grey support reference codes.
+/// - Preserves typed phone number and clears only password on error, keeping focus on password.
+/// - Never shows session expired banner on login screen.
 /// - Large 52dp touch target styled with HireD brand theme (#6A379F).
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -31,10 +31,11 @@ class LoginScreen extends ConsumerStatefulWidget {
 class _LoginScreenState extends ConsumerState<LoginScreen> {
   // Global form key for client-side field validation triggers
   final _formKey = GlobalKey<FormState>();
-  
+
   // Controllers for form fields
   final _phoneController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _passwordFocusNode = FocusNode();
 
   // State variable controlling password visibility toggle
   bool _obscurePassword = true;
@@ -43,6 +44,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   void dispose() {
     _phoneController.dispose();
     _passwordController.dispose();
+    _passwordFocusNode.dispose();
     super.dispose();
   }
 
@@ -56,7 +58,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           _passwordController.text,
         );
 
-    if (success && mounted) {
+    if (!mounted) return;
+
+    if (success) {
       final session = await ref.read(secureStorageServiceProvider).getStoredSession();
       final driver = ref.read(loginControllerProvider).driver;
       if (session != null && driver != null) {
@@ -69,15 +73,22 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       await ref.read(driverProfileProvider.notifier).initProfile();
       if (!mounted) return;
       context.go(RouteNames.home);
+    } else {
+      // Clear ONLY password field, preserve typed phone number, and keep focus on password
+      _passwordController.clear();
+      _passwordFocusNode.requestFocus();
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final authState = ref.watch(authControllerProvider);
     final loginState = ref.watch(loginControllerProvider);
     final themeColors = context.appColors;
     final isDark = context.isDarkMode;
+
+    final appError = loginState.appError;
+    final displayErrorMessage = appError?.userMessage ?? loginState.errorMessage;
+    final displayRefCode = appError?.formattedRef ?? 'Ref: HD-AUTH-01';
 
     return Scaffold(
       backgroundColor: themeColors.pageBackground,
@@ -132,97 +143,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     ),
                     const SizedBox(height: 32),
 
-                    // Session Expired Banner (Server 401 Rejection)
-                    if (authState.sessionExpiredMessage != null) ...[
-                      Container(
-                        key: const Key('session_expired_banner'),
-                        padding: const EdgeInsets.all(14),
-                        decoration: BoxDecoration(
-                          color: AppColors.errorBg,
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: AppColors.error.withValues(alpha: 0.3)),
-                        ),
-                        child: Row(
-                          children: [
-                            const Icon(Icons.warning_amber_rounded, color: AppColors.error, size: 24),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Text(
-                                authState.sessionExpiredMessage!,
-                                style: const TextStyle(
-                                  color: AppColors.error,
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: 13,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                    ],
-
-                    // Inactive / Pending Account Banner
-                    if (loginState.warningMessage != null) ...[
-                      Container(
-                        key: const Key('warning_banner'),
-                        padding: const EdgeInsets.all(14),
-                        decoration: BoxDecoration(
-                          color: AppColors.warningBg,
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: AppColors.warning.withValues(alpha: 0.3)),
-                        ),
-                        child: Row(
-                          children: [
-                            const Icon(Icons.info_outline, color: AppColors.warning, size: 24),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Text(
-                                loginState.warningMessage!,
-                                style: const TextStyle(
-                                  color: Color(0xFF92400E),
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: 13,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                    ],
-
-                    // General Error Banner
-                    if (loginState.errorMessage != null) ...[
-                      Container(
-                        key: const Key('error_banner'),
-                        padding: const EdgeInsets.all(14),
-                        decoration: BoxDecoration(
-                          color: AppColors.errorBg,
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: AppColors.error.withValues(alpha: 0.3)),
-                        ),
-                        child: Row(
-                          children: [
-                            const Icon(Icons.error_outline, color: AppColors.error, size: 22),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Text(
-                                loginState.errorMessage!,
-                                style: const TextStyle(
-                                  color: AppColors.error,
-                                  fontWeight: FontWeight.w500,
-                                  fontSize: 13,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                    ],
-
-                    // Phone Number Input Card
+                    // Phone & Password Input Card
                     Container(
                       decoration: BoxDecoration(
                         color: themeColors.cardBackground,
@@ -258,11 +179,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             textInputAction: TextInputAction.next,
                             enabled: !loginState.isLoading,
                             inputFormatters: [
-                              FilteringTextInputFormatter.digitsOnly,
-                              LengthLimitingTextInputFormatter(10),
+                              FilteringTextInputFormatter.allow(RegExp(r'[\d\+\s\-]')),
+                              LengthLimitingTextInputFormatter(16),
                             ],
                             decoration: InputDecoration(
-                              hintText: '98765 43210',
+                              hintText: '90000 00001',
                               prefixIcon: Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
                                 child: Text(
@@ -296,6 +217,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           TextFormField(
                             key: const Key('password_input_field'),
                             controller: _passwordController,
+                            focusNode: _passwordFocusNode,
                             obscureText: _obscurePassword,
                             textInputAction: TextInputAction.done,
                             enabled: !loginState.isLoading,
@@ -322,7 +244,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         ],
                       ),
                     ),
-                    const SizedBox(height: 28),
+                    const SizedBox(height: 24),
 
                     // Submit Button
                     SizedBox(
@@ -353,32 +275,92 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                               ),
                       ),
                     ),
-                    const SizedBox(height: 24),
 
-                    // Demo Helper Credentials - only visible in debug/testing builds
-                    if (kDebugMode) ...[
+                    // UNDER THE FORM: Error and Warning Banners
+                    if (displayErrorMessage != null) ...[
+                      const SizedBox(height: 20),
                       Container(
-                        padding: const EdgeInsets.all(12),
+                        key: const Key('error_banner'),
+                        padding: const EdgeInsets.all(14),
                         decoration: BoxDecoration(
-                          color: themeColors.purpleTint,
+                          color: AppColors.errorBg,
                           borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: themeColors.border),
+                          border: Border.all(color: AppColors.error.withValues(alpha: 0.3)),
                         ),
-                        child: Column(
+                        child: Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(
-                              'Demo Partner Credentials:',
-                              style: AppTextStyles.labelSmall.copyWith(
-                                color: themeColors.purpleAccent,
-                                fontWeight: FontWeight.bold,
+                            const Icon(Icons.error_outline_rounded, color: AppColors.error, size: 22),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    displayErrorMessage,
+                                    style: const TextStyle(
+                                      color: AppColors.error,
+                                      fontWeight: FontWeight.w600,
+                                      fontSize: 13,
+                                      height: 1.3,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    displayRefCode,
+                                    key: const Key('login_error_ref_code'),
+                                    style: TextStyle(
+                                      color: Colors.grey.shade600,
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
-                            const SizedBox(height: 4),
-                            Text(
-                              '• Active: 9876543210 | Driver@123\n• Pending: 9876543211 | Driver@123',
-                              style: AppTextStyles.bodySmall.copyWith(
-                                color: themeColors.textSecondary,
+                          ],
+                        ),
+                      ),
+                    ],
+
+                    if (loginState.warningMessage != null) ...[
+                      const SizedBox(height: 20),
+                      Container(
+                        key: const Key('warning_banner'),
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: AppColors.warningBg,
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: AppColors.warning.withValues(alpha: 0.3)),
+                        ),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Icon(Icons.info_outline, color: AppColors.warning, size: 22),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    loginState.warningMessage!,
+                                    style: const TextStyle(
+                                      color: Color(0xFF92400E),
+                                      fontWeight: FontWeight.w600,
+                                      fontSize: 13,
+                                      height: 1.3,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    'Ref: HD-AUTH-03',
+                                    style: TextStyle(
+                                      color: Colors.grey.shade600,
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
                           ],

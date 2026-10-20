@@ -129,7 +129,7 @@ class DriverProfileController extends StateNotifier<AsyncValue<DriverModel?>> {
     } catch (e) {
       // Revert optimistic update
       state = AsyncValue.data(current);
-      return false;
+      rethrow;
     }
   }
 

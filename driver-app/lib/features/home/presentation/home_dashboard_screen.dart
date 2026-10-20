@@ -8,6 +8,7 @@ import '../../../core/location/location_tracking_service.dart';
 import '../../../core/routing/route_names.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_theme_colors.dart';
+import '../../../core/widgets/app_error_view.dart';
 import '../../../core/widgets/app_loading_indicator.dart';
 import '../../../core/widgets/live_map.dart';
 import '../../auth/presentation/controllers/auth_controller.dart';
@@ -28,6 +29,16 @@ class HomeDashboardScreen extends ConsumerStatefulWidget {
 
 class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
   int _selectedNavIndex = 0;
+
+  Future<void> _handleToggleDuty(BuildContext context, WidgetRef ref) async {
+    try {
+      await ref.read(driverProfileProvider.notifier).toggleDuty();
+    } catch (e) {
+      if (context.mounted) {
+        AppSnackBar.show(context, e);
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -391,7 +402,7 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
               if (hasOngoingTrip) {
                 _showOngoingTripOfflineDialog(context, ref);
               } else if (!isOnline) {
-                ref.read(driverProfileProvider.notifier).toggleDuty();
+                _handleToggleDuty(context, ref);
               } else {
                 _showGoOfflineDialog(context, ref);
               }
@@ -550,7 +561,7 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
                           key: const Key('confirm_go_offline_button'),
                           onTap: () {
                             Navigator.of(dialogContext).pop();
-                            ref.read(driverProfileProvider.notifier).toggleDuty();
+                            _handleToggleDuty(context, ref);
                           },
                           borderRadius: BorderRadius.circular(14),
                           child: Container(

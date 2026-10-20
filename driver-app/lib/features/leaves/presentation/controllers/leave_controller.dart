@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../../core/errors/error_mapper.dart';
 import 'package:driver_app/core/config/leave_config.dart';
 import 'package:driver_app/features/trips/domain/trip_model.dart';
 import 'package:driver_app/features/trips/presentation/controllers/current_trip_provider.dart';
@@ -205,10 +206,10 @@ class LeaveCalendarNotifier extends StateNotifier<LeaveCalendarState> {
       );
       return true;
     } catch (e) {
-      final message = e.toString().replaceFirst('Exception: ', '');
+      final appError = ErrorMapper.map(e);
       state = state.copyWith(
         isApplying: false,
-        errorMessage: () => message,
+        errorMessage: () => appError.userMessage,
       );
       return false;
     }
@@ -220,8 +221,8 @@ class LeaveCalendarNotifier extends StateNotifier<LeaveCalendarState> {
       await repo.cancelLeave(leaveId);
       return true;
     } catch (e) {
-      final message = e.toString().replaceFirst('Exception: ', '');
-      state = state.copyWith(errorMessage: () => message);
+      final appError = ErrorMapper.map(e);
+      state = state.copyWith(errorMessage: () => appError.userMessage);
       return false;
     }
   }

@@ -214,9 +214,21 @@ class TripModel {
   };
 
   factory TripModel.fromJson(Map<String, dynamic> json) {
+    double parseDouble(dynamic val, [double fallback = 0.0]) {
+      if (val == null) return fallback;
+      if (val is num) return val.toDouble();
+      return double.tryParse(val.toString()) ?? fallback;
+    }
+
+    int parseInt(dynamic val, [int fallback = 0]) {
+      if (val == null) return fallback;
+      if (val is num) return val.toInt();
+      return int.tryParse(val.toString()) ?? fallback;
+    }
+
     return TripModel(
       tripId: json['trip_id']?.toString() ?? '',
-      orderId: (json['order_id'] as num?)?.toInt() ?? 0,
+      orderId: parseInt(json['order_id']),
       status: json['status']?.toString() ?? 'ASSIGNED',
       companyName: json['company_name']?.toString() ?? 'HireD B2B Partner',
       pickupSpot: json['pickup_spot']?.toString() ?? '',
@@ -224,14 +236,14 @@ class TripModel {
       pickupTime: json['pickup_time'] != null
           ? DateTime.parse(json['pickup_time'].toString())
           : DateTime.now().toUtc(),
-      estimatedReachMinutes: (json['estimated_reach_minutes'] as num?)?.toInt() ?? 18,
+      estimatedReachMinutes: parseInt(json['estimated_reach_minutes'], 18),
       contactName: json['contact_name']?.toString() ?? '',
       contactPhone: json['contact_phone']?.toString() ?? '',
       notes: json['notes']?.toString(),
-      amount: (json['amount'] as num?)?.toDouble() ?? 0.0,
-      driverShare: (json['driver_share'] as num?)?.toDouble() ?? 0.0,
+      amount: parseDouble(json['amount']),
+      driverShare: parseDouble(json['driver_share']),
       otp: json['otp']?.toString() ?? '',
-      otpAttempts: (json['otp_attempts'] as num?)?.toInt() ?? 0,
+      otpAttempts: parseInt(json['otp_attempts']),
       expensesConfirmed: json['expenses_confirmed'] == true,
       expenses: (json['expenses'] as List<dynamic>?)
               ?.map((e) => TripExpenseModel.fromJson(e as Map<String, dynamic>))
@@ -242,10 +254,10 @@ class TripModel {
       startedAt: json['started_at'] != null ? DateTime.tryParse(json['started_at'].toString()) : null,
       destinationReachedAt: json['destination_reached_at'] != null ? DateTime.tryParse(json['destination_reached_at'].toString()) : null,
       closedAt: json['closed_at'] != null ? DateTime.tryParse(json['closed_at'].toString()) : null,
-      pickupLat: (json['pickup_lat'] as num?)?.toDouble() ?? 12.9716,
-      pickupLng: (json['pickup_lng'] as num?)?.toDouble() ?? 77.5946,
-      dropoffLat: (json['dropoff_lat'] as num?)?.toDouble() ?? 13.1986,
-      dropoffLng: (json['dropoff_lng'] as num?)?.toDouble() ?? 77.7066,
+      pickupLat: parseDouble(json['pickup_lat'], 12.9716),
+      pickupLng: parseDouble(json['pickup_lng'], 77.5946),
+      dropoffLat: parseDouble(json['dropoff_lat'], 13.1986),
+      dropoffLng: parseDouble(json['dropoff_lng'], 77.7066),
       routePolyline: json['route_polyline']?.toString(),
     );
   }

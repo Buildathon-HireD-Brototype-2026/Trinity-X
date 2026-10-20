@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
+import '../errors/error_messages.dart';
 
 /// State model representing the device location status and coordinates.
 class DriverLocationState {
@@ -80,7 +81,7 @@ class DriverLocationNotifier extends StateNotifier<DriverLocationState> {
         state = state.copyWith(
           isGpsEnabled: false,
           isLoading: false,
-          errorMessage: 'Location services are disabled on your device.',
+          errorMessage: '${ErrorMessages.gpsDisabled}\n${ErrorMessages.formatRef(ErrorMessages.refGpsDisabled)}',
         );
       }
 
@@ -93,7 +94,7 @@ class DriverLocationNotifier extends StateNotifier<DriverLocationState> {
         state = state.copyWith(
           permission: permission,
           isLoading: false,
-          errorMessage: 'Location permission was denied.',
+          errorMessage: '${ErrorMessages.gpsPermissionDenied}\n${ErrorMessages.formatRef(ErrorMessages.refGpsPermission)}',
         );
         return;
       }
@@ -102,8 +103,7 @@ class DriverLocationNotifier extends StateNotifier<DriverLocationState> {
         state = state.copyWith(
           permission: permission,
           isLoading: false,
-          errorMessage:
-              'Location permission permanently denied. Please enable in Settings.',
+          errorMessage: '${ErrorMessages.gpsPermissionDenied}\n${ErrorMessages.formatRef(ErrorMessages.refGpsPermission)}',
         );
         return;
       }
@@ -138,7 +138,7 @@ class DriverLocationNotifier extends StateNotifier<DriverLocationState> {
       if (mounted) {
         state = state.copyWith(
           isLoading: false,
-          errorMessage: 'Failed to initialize location: $e',
+          errorMessage: '${ErrorMessages.unknown}\n${ErrorMessages.formatRef(ErrorMessages.refUnknown)}',
         );
       }
     }
@@ -173,7 +173,7 @@ class DriverLocationNotifier extends StateNotifier<DriverLocationState> {
         debugPrint('[DriverLocation] Position stream error: $error');
         if (!mounted) return;
         state = state.copyWith(
-          errorMessage: 'GPS stream error: $error',
+          errorMessage: '${ErrorMessages.gpsDisabled}\n${ErrorMessages.formatRef(ErrorMessages.refGpsDisabled)}',
         );
       },
     );

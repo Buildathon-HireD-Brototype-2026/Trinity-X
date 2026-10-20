@@ -52,20 +52,26 @@ export async function loginUser({ identityType, identifier, password, ipAddress 
     });
     idField = 'companyId';
   } else if (userType === 'DRIVER') {
-    const phone = identifier.trim();
-    user = await prisma.driver.findUnique({
-      where: { phoneNo: phone }
+    const rawPhone = identifier.trim();
+    const digits = rawPhone.replace(/\D/g, '');
+    let normalizedPhone = rawPhone;
+    if (digits.length === 10) {
+      normalizedPhone = `+91${digits}`;
+    } else if (digits.length === 12 && digits.startsWith('91')) {
+      normalizedPhone = `+${digits}`;
+    }
+
+    user = await prisma.driver.findFirst({
+      where: {
+        OR: [
+          { phoneNo: normalizedPhone },
+          { phoneNo: rawPhone },
+          ...(digits.length === 10 ? [{ phoneNo: digits }] : []),
+          ...(digits.length === 12 && digits.startsWith('91') ? [{ phoneNo: digits.slice(2) }, { phoneNo: digits }, { phoneNo: `+${digits}` }] : []),
+          ...(rawPhone.startsWith('+91') ? [{ phoneNo: rawPhone.slice(3) }] : [])
+        ]
+      }
     });
-    if (!user && !phone.startsWith('+')) {
-      user = await prisma.driver.findUnique({
-        where: { phoneNo: `+91${phone}` }
-      });
-    }
-    if (!user && phone.startsWith('+91')) {
-      user = await prisma.driver.findUnique({
-        where: { phoneNo: phone.slice(3) }
-      });
-    }
     idField = 'driverId';
   } else {
     throw new AppError(400, 'BAD_REQUEST', 'Invalid identity type.');
@@ -85,7 +91,8 @@ export async function loginUser({ identityType, identifier, password, ipAddress 
     throw new AppError(
       403,
       'ACCOUNT_LOCKED',
-      'Account is locked (5 failed logins, 15 minutes) or not active.'
+      'Account is locked (5 failed logins, 15 minutes) or not active.',
+      [{ locked_until: user.lockedUntil }]
     );
   }
 
@@ -131,7 +138,8 @@ export async function loginUser({ identityType, identifier, password, ipAddress 
       throw new AppError(
         403,
         'ACCOUNT_LOCKED',
-        'Account has been temporarily locked for 15 minutes due to multiple failed login attempts.'
+        'Account has been temporarily locked for 15 minutes due to multiple failed login attempts.',
+        [{ locked_until: updateData.lockedUntil }]
       );
     }
 
