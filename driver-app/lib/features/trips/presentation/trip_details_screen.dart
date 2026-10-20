@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -35,6 +36,7 @@ class _TripDetailsScreenState extends ConsumerState<TripDetailsScreen> {
   final _otpController = TextEditingController();
   bool _isContactSheetOpen = false;
   DateTime? _lastContactTapTime;
+  Timer? _autoRefreshTimer;
 
   @override
   void initState() {
@@ -44,11 +46,19 @@ class _TripDetailsScreenState extends ConsumerState<TripDetailsScreen> {
         ref.read(selectedTripIdProvider.notifier).select(widget.tripId!);
       }
       ref.read(tripMiniOverlayControllerProvider.notifier).setTripPageForeground(true);
+      ref.read(tripRepositoryProvider).getTrips();
+    });
+
+    _autoRefreshTimer = Timer.periodic(const Duration(seconds: 4), (_) {
+      if (mounted) {
+        ref.read(tripRepositoryProvider).getTrips();
+      }
     });
   }
 
   @override
   void dispose() {
+    _autoRefreshTimer?.cancel();
     _otpController.dispose();
     if (_isContactSheetOpen) {
       _closeContactSheet();

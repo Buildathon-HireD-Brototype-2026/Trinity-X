@@ -19,12 +19,25 @@ class TripExpenseModel {
     if (createdAt != null) 'created_at': createdAt!.toIso8601String(),
   };
 
-  factory TripExpenseModel.fromJson(Map<String, dynamic> json) => TripExpenseModel(
-    expenseId: json['expense_id'] as int?,
-    description: json['description'] as String? ?? '',
-    amount: (json['amount'] as num?)?.toDouble() ?? 0.0,
-    createdAt: json['created_at'] != null ? DateTime.tryParse(json['created_at'] as String) : null,
-  );
+  factory TripExpenseModel.fromJson(Map<String, dynamic> json) {
+    double parseDouble(dynamic val) {
+      if (val == null) return 0.0;
+      if (val is num) return val.toDouble();
+      return double.tryParse(val.toString()) ?? 0.0;
+    }
+    int? parseInt(dynamic val) {
+      if (val == null) return null;
+      if (val is num) return val.toInt();
+      return int.tryParse(val.toString());
+    }
+
+    return TripExpenseModel(
+      expenseId: parseInt(json['expense_id']),
+      description: json['description'] as String? ?? '',
+      amount: parseDouble(json['amount']),
+      createdAt: json['created_at'] != null ? DateTime.tryParse(json['created_at'].toString()) : null,
+    );
+  }
 
   TripExpenseModel copyWith({
     int? expenseId,
@@ -241,7 +254,9 @@ class TripModel {
       contactPhone: json['contact_phone']?.toString() ?? '',
       notes: json['notes']?.toString(),
       amount: parseDouble(json['amount']),
-      driverShare: parseDouble(json['driver_share']),
+      driverShare: parseDouble(json['driver_share']) > 0
+          ? parseDouble(json['driver_share'])
+          : (parseDouble(json['amount']) * 0.35),
       otp: json['otp']?.toString() ?? '',
       otpAttempts: parseInt(json['otp_attempts']),
       expensesConfirmed: json['expenses_confirmed'] == true,

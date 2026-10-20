@@ -523,6 +523,7 @@ export function formatDriverTripResponse(trip) {
     status: trip.tripStatus,
     trip_status: trip.tripStatus,
     amount: Number(trip.amount).toFixed(2),
+    driver_share: (Number(trip.amount) * 0.35).toFixed(2),
     eta: trip.eta ? trip.eta.toISOString() : null,
     pickup_spot: trip.order ? trip.order.pickupSpot : 'N/A',
     dropoff_spot: trip.order ? trip.order.dropoffSpot : 'N/A',

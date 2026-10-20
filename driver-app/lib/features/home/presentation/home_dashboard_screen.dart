@@ -106,7 +106,10 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
 
             return RefreshIndicator(
               color: themeColors.purpleAccent,
-              onRefresh: () => ref.read(driverProfileProvider.notifier).refresh(),
+              onRefresh: () async {
+                await ref.read(driverProfileProvider.notifier).refresh();
+                await ref.read(tripRepositoryProvider).getTrips();
+              },
               child: SingleChildScrollView(
                 physics: const AlwaysScrollableScrollPhysics(),
                 padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
@@ -1196,7 +1199,7 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
             icon: Icons.directions_car_rounded,
             title: 'Trip History',
             subtitle: 'View past trips ›',
-            onTap: () => setState(() => _selectedNavIndex = 1),
+            onTap: () => context.push(RouteNames.trips),
           ),
         ),
         const SizedBox(width: 10),
@@ -1206,7 +1209,7 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
             icon: Icons.account_balance_wallet_outlined,
             title: 'Wallet',
             subtitle: 'Check balance ›',
-            onTap: () => setState(() => _selectedNavIndex = 2),
+            onTap: () => context.push(RouteNames.wallet),
           ),
         ),
         const SizedBox(width: 10),
@@ -2197,7 +2200,15 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
     }
 
     return InkWell(
-      onTap: () => setState(() => _selectedNavIndex = index),
+      onTap: () {
+        if (index == 1) {
+          context.push(RouteNames.trips);
+        } else if (index == 2) {
+          context.push(RouteNames.wallet);
+        } else {
+          setState(() => _selectedNavIndex = index);
+        }
+      },
       borderRadius: BorderRadius.circular(16),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
