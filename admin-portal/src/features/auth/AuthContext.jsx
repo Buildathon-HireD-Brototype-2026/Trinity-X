@@ -3,35 +3,39 @@ import { useIdleTimer } from '../../hooks/useIdleTimer';
 
 const AuthContext = createContext(null);
 
-const DEFAULT_ADMINS = [
-  {
-    id: 'ADM-001',
-    name: 'Admin One',
-    email: 'admin1@hired.com',
-    phone: '+91 98450 11223',
-    password: 'Password@123',
-    role: 'Admin',
-    status: 'ACTIVE',
-  },
-  {
-    id: 'ADM-002',
-    name: 'Neha Sharma',
-    email: 'admin2@hired.com',
-    phone: '+91 98765 43210',
-    password: 'Password@123',
-    role: 'Admin',
-    status: 'ACTIVE',
-  },
-  {
-    id: 'ADM-003',
-    name: 'Inactive Admin',
-    email: 'inactive@hired.com',
-    phone: '+91 98111 22334',
-    password: 'Password@123',
-    role: 'Admin',
-    status: 'INACTIVE',
-  },
-];
+// Security Safeguard (OWASP ASVS): In production environments, mock administrative credentials
+// must never be bundled or shipped to clients.
+const DEFAULT_ADMINS = import.meta.env.PROD
+  ? []
+  : [
+      {
+        id: 'ADM-001',
+        name: 'Admin One',
+        email: 'admin1@hired.com',
+        phone: '+91 98450 11223',
+        password: 'Password@123',
+        role: 'Admin',
+        status: 'ACTIVE',
+      },
+      {
+        id: 'ADM-002',
+        name: 'Neha Sharma',
+        email: 'admin2@hired.com',
+        phone: '+91 98765 43210',
+        password: 'Password@123',
+        role: 'Admin',
+        status: 'ACTIVE',
+      },
+      {
+        id: 'ADM-003',
+        name: 'Inactive Admin',
+        email: 'inactive@hired.com',
+        phone: '+91 98111 22334',
+        password: 'Password@123',
+        role: 'Admin',
+        status: 'INACTIVE',
+      },
+    ];
 
 const MAX_SESSION_DURATION_MS = 8 * 60 * 60 * 1000; // 8 hours absolute token validity
 const SESSION_STORAGE_KEY = 'hired_admin_session';
