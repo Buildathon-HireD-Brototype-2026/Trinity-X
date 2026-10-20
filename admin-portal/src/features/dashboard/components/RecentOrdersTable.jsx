@@ -221,6 +221,7 @@ export default function RecentOrdersTable({ onNavigate }) {
             <input
               type="text"
               placeholder="Search booking, location, passenger..."
+              maxLength={100}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="orders-search-input"
