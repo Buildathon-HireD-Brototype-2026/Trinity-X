@@ -8,12 +8,13 @@ import AdminManagementPage from '../../features/admin-management/AdminManagement
 import DriverOnboardingPage from '../../features/driver-onboarding/DriverOnboardingPage';
 import CompanyDirectoryPage from '../../features/company-directory/CompanyDirectoryPage';
 import OrdersInboxPage from '../../features/orders-inbox/OrdersInboxPage';
+import TripsAssignmentPage from '../../features/trips-assignment/TripsAssignmentPage';
 
 const VIEW_TITLES = {
   dashboard: 'Dashboard Overview',
   company: 'Company Directory',
   orders: 'Orders Inbox',
-  trips: 'Ongoing Trips',
+  trips: 'Trips & Driver Assignment',
   drivers: 'Driver Onboarding',
   admins: 'Admin Onboarding',
   invoices: 'Invoice Verification',
@@ -88,6 +89,8 @@ export default function AdminShell() {
             <CompanyDirectoryPage />
           ) : currentView === 'orders' ? (
             <OrdersInboxPage />
+          ) : currentView === 'trips' ? (
+            <TripsAssignmentPage />
           ) : (
             <BlankPage title={activeTitle} />
           )}
