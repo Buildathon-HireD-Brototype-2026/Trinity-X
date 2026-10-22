@@ -60,7 +60,7 @@ export function StatementDetailModal({ statement, onClose }) {
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--success)', fontWeight: 600, fontSize: '0.875rem' }}>
             <ShieldCheck size={20} />
-            <span>Verified Month-End Statement (PRD B-06)</span>
+            <span>Verified Month-End Statement</span>
           </div>
 
           <div style={{ display: 'flex', gap: '0.5rem' }}>

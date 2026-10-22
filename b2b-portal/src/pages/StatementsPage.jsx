@@ -40,7 +40,7 @@ export function StatementsPage() {
         <div>
           <h1 className="page-title">Month-End Statements</h1>
           <p className="page-subtitle">
-            Consolidated monthly billing statements viewable exclusively after two-person administrator verification (PRD B-06).
+            Consolidated monthly billing statements viewable exclusively after two-person administrator verification.
           </p>
         </div>
 

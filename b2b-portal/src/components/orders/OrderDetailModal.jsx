@@ -206,7 +206,7 @@ export function OrderDetailModal({ order, onClose }) {
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.75rem', fontWeight: 700, color: 'var(--primary)', textTransform: 'uppercase' }}>
                   <KeyRound size={14} />
-                  <span>Trip-Close OTP (PRD D-09)</span>
+                  <span>Trip-Close OTP</span>
                 </div>
                 <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.15rem' }}>
                   Share this 6-digit code with the driver upon drop-off to verify trip completion.
