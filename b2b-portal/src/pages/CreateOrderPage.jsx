@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import orderService from '../services/orderService';
+import { LocationPickerField } from '../components/orders/LocationPickerField';
 import {
   MapPin,
   Calendar,
@@ -40,14 +41,37 @@ export function CreateOrderPage() {
     }
   };
 
+  const handleLocationChange = (name, value) => {
+    setFormData((prev) => ({ ...prev, [name]: value }));
+    if (errors[name]) {
+      setErrors((prev) => ({ ...prev, [name]: '' }));
+    }
+  };
+
   // Validation
   const validateForm = () => {
     const errs = {};
-    if (!formData.pickup_spot.trim()) {
-      errs.pickup_spot = 'Pickup location is required.';
+    const trimmedPickup = formData.pickup_spot.trim();
+    const trimmedDropoff = formData.dropoff_spot.trim();
+
+    if (!trimmedPickup) {
+      errs.pickup_spot = 'Please select the pickup location.';
+    } else if (trimmedPickup.length > 300) {
+      errs.pickup_spot = 'Location is too long. Please shorten it.';
     }
-    if (!formData.dropoff_spot.trim()) {
-      errs.dropoff_spot = 'Drop-off destination is required.';
+
+    if (!trimmedDropoff) {
+      errs.dropoff_spot = 'Please select the drop location.';
+    } else if (trimmedDropoff.length > 300) {
+      errs.dropoff_spot = 'Location is too long. Please shorten it.';
+    }
+
+    if (
+      trimmedPickup &&
+      trimmedDropoff &&
+      trimmedPickup.toLowerCase() === trimmedDropoff.toLowerCase()
+    ) {
+      errs.dropoff_spot = 'Pickup and drop locations must be different.';
     }
     if (!formData.pickup_time) {
       errs.pickup_time = 'Scheduled pickup date and time are required.';
@@ -224,46 +248,30 @@ export function CreateOrderPage() {
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1.5rem' }}>
             {/* Pickup Location */}
-            <div className="form-group" style={{ gridColumn: 'span 2' }}>
-              <label className="form-label" htmlFor="pickup_spot">
-                Pickup Spot & Address *
-              </label>
-              <div style={{ position: 'relative' }}>
-                <MapPin size={18} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--primary)' }} />
-                <input
-                  id="pickup_spot"
-                  name="pickup_spot"
-                  type="text"
-                  className="form-control"
-                  style={{ paddingLeft: '38px' }}
-                  placeholder="e.g. DLF Cyber City, Tower B, Gurugram"
-                  value={formData.pickup_spot}
-                  onChange={handleChange}
-                />
-              </div>
-              {errors.pickup_spot && <span style={{ color: 'var(--danger)', fontSize: '0.75rem', marginTop: '0.25rem', display: 'block' }}>{errors.pickup_spot}</span>}
-            </div>
+            <LocationPickerField
+              id="pickup_spot"
+              name="pickup_spot"
+              label="Pickup location"
+              value={formData.pickup_spot}
+              onChange={handleLocationChange}
+              error={errors.pickup_spot}
+              placeholder="e.g. DLF Cyber City, Tower B, Gurugram"
+              pinColor="var(--primary)"
+              required={true}
+            />
 
             {/* Drop-off Location */}
-            <div className="form-group" style={{ gridColumn: 'span 2' }}>
-              <label className="form-label" htmlFor="dropoff_spot">
-                Drop-off Destination *
-              </label>
-              <div style={{ position: 'relative' }}>
-                <MapPin size={18} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#0D9488' }} />
-                <input
-                  id="dropoff_spot"
-                  name="dropoff_spot"
-                  type="text"
-                  className="form-control"
-                  style={{ paddingLeft: '38px' }}
-                  placeholder="e.g. Indira Gandhi International Airport, Terminal 3"
-                  value={formData.dropoff_spot}
-                  onChange={handleChange}
-                />
-              </div>
-              {errors.dropoff_spot && <span style={{ color: 'var(--danger)', fontSize: '0.75rem', marginTop: '0.25rem', display: 'block' }}>{errors.dropoff_spot}</span>}
-            </div>
+            <LocationPickerField
+              id="dropoff_spot"
+              name="dropoff_spot"
+              label="Drop location"
+              value={formData.dropoff_spot}
+              onChange={handleLocationChange}
+              error={errors.dropoff_spot}
+              placeholder="e.g. Indira Gandhi International Airport, Terminal 3"
+              pinColor="#0D9488"
+              required={true}
+            />
 
             {/* Pickup Date & Time */}
             <div className="form-group" style={{ gridColumn: 'span 2' }}>
