@@ -7,6 +7,7 @@ import AdminProfilePage from '../../features/profile/AdminProfilePage';
 import AdminManagementPage from '../../features/admin-management/AdminManagementPage';
 import DriverOnboardingPage from '../../features/driver-onboarding/DriverOnboardingPage';
 import CompanyDirectoryPage from '../../features/company-directory/CompanyDirectoryPage';
+import OrdersInboxPage from '../../features/orders-inbox/OrdersInboxPage';
 
 const VIEW_TITLES = {
   dashboard: 'Dashboard Overview',
@@ -85,6 +86,8 @@ export default function AdminShell() {
             <DriverOnboardingPage />
           ) : currentView === 'company' ? (
             <CompanyDirectoryPage />
+          ) : currentView === 'orders' ? (
+            <OrdersInboxPage />
           ) : (
             <BlankPage title={activeTitle} />
           )}
