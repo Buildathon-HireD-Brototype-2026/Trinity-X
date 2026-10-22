@@ -7,3 +7,7 @@ Features covered: Login, Profile, KYC document upload, View assigned trip, Start
 Part 2: Trip Completion & Settlement
 Features covered: Passenger OTP verification, Trip completion, Wallet balance & earnings update
 🔗 Video Link: [https://youtube.com/shorts/Uy4VEWklg7M?feature=share](https://www.youtube.com/shorts/Uy4VEWklg7M)
+
+B2B portal - Demo video
+
+Video Link : [https://youtu.be/aOY-JtUL3GI](https://www.youtube.com/watch?v=aOY-JtUL3GI)
