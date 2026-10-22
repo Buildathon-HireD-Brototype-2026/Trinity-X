@@ -368,13 +368,55 @@ export async function getUserById(userType, userId) {
 }
 
 /**
- * Return safe profile object removing sensitive credentials.
+ * Return a safe profile object with only the fields each user type needs.
+ * Explicitly whitelists fields instead of spreading the full DB row —
+ * prevents leaking internal fields like failedLoginAttempts, lockedUntil,
+ * passwordHash, driverSplit, hiredSplit, etc.
  */
 export function getSafeUserProfile(user, userType) {
   if (!user) return null;
-  const { passwordHash, ...safe } = user;
-  return {
-    ...safe,
-    userType
-  };
+
+  if (userType === 'ADMIN') {
+    return {
+      adminId: user.adminId,
+      adminName: user.adminName,
+      emailId: user.emailId,
+      status: user.status,
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt,
+      userType
+    };
+  }
+
+  if (userType === 'PARTNER') {
+    return {
+      companyId: user.companyId,
+      name: user.name,
+      emailId: user.emailId,
+      contactPerson: user.contactPerson,
+      status: user.status,
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt,
+      userType
+    };
+  }
+
+  if (userType === 'DRIVER') {
+    return {
+      driverId: user.driverId,
+      name: user.name,
+      phoneNo: user.phoneNo,
+      status: user.status,
+      isOnline: user.isOnline,
+      hasPhoto: Boolean(user.photoURL),
+      currentLocation: user.currentLocation || null,
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt,
+      userType
+    };
+  }
+
+  // Fallback for unknown userType: at minimum strip all known sensitive fields.
+  const { passwordHash, failedLoginAttempts, lockedUntil, driverSplit, hiredSplit, ...safe } = user;
+  return { ...safe, userType };
 }

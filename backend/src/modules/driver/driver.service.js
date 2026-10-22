@@ -107,8 +107,9 @@ export async function listDrivers({ status, is_online, available_on, page = 1, l
   }
 
   if (available_on) {
+    const isIsoDate = /^\d{4}-\d{2}-\d{2}$/.test(String(available_on).trim());
     const targetDate = new Date(available_on);
-    if (isNaN(targetDate.getTime())) {
+    if (!isIsoDate || isNaN(targetDate.getTime())) {
       throw new AppError(422, 'VALIDATION_ERROR', 'Invalid date format for available_on. Must be YYYY-MM-DD.', [
         { field: 'available_on', message: 'must be a valid date YYYY-MM-DD' }
       ]);
@@ -561,7 +562,12 @@ export async function listDriverTrips(driverId, { status, page = 1, limit = 50 }
   };
 
   if (status) {
-    where.tripStatus = status.toUpperCase();
+    const validStatuses = ['UNASSIGNED', 'ASSIGNED', 'ONGOING', 'CLOSED', 'CANCELLED'];
+    const upStatus = status.toUpperCase();
+    if (!validStatuses.includes(upStatus)) {
+      throw new AppError(422, 'VALIDATION_ERROR', `Invalid trip status '${status}'. Must be one of: ${validStatuses.join(', ')}.`);
+    }
+    where.tripStatus = upStatus;
   }
 
   const take = Math.min(Math.max(Number(limit) || 20, 1), 100);
@@ -741,13 +747,21 @@ export async function closeDriverTrip(driverId, tripId, { otp } = {}, ipAddress)
       throw new AppError(409, 'CONFLICT', `Cannot close trip in ${trip.tripStatus} status. Must be ONGOING.`);
     }
 
-    // Verify OTP
+    // Verify OTP brute-force protection (security issue #4)
+    if (trip.otpAttempts >= 5) {
+      throw new AppError(429, 'MAX_OTP_ATTEMPTS_EXCEEDED', 'Maximum OTP verification attempts exceeded. Please contact dispatch.');
+    }
+
     if (otp.trim() !== trip.otp.trim()) {
+      const updatedAttempts = trip.otpAttempts + 1;
       await tx.trip.update({
         where: { tripId: trip.tripId },
         data: { otpAttempts: { increment: 1 } }
       });
-      throw new AppError(400, 'INVALID_OTP', 'Invalid trip completion OTP. Please verify with passenger.');
+      if (updatedAttempts >= 5) {
+        throw new AppError(429, 'MAX_OTP_ATTEMPTS_EXCEEDED', 'Maximum OTP verification attempts exceeded. Please contact dispatch.');
+      }
+      throw new AppError(400, 'INVALID_OTP', `Invalid trip completion OTP. Attempts remaining: ${5 - updatedAttempts}.`);
     }
 
     // Calculate payouts
@@ -1293,7 +1307,18 @@ export async function recordBatchLocations(driverId, { pings = [] } = {}) {
     if (isNaN(lat) || lat < -90 || lat > 90 || isNaN(lng) || lng < -180 || lng > 180) {
       continue;
     }
-    const recordedAt = ping.recorded_at ? new Date(ping.recorded_at) : new Date();
+    let recordedAt = ping.recorded_at ? new Date(ping.recorded_at) : new Date();
+    const now = new Date();
+    // Clamp/validate: ignore invalid dates, clamp timestamps older than 24 hours or >5 minutes into the future
+    if (isNaN(recordedAt.getTime())) {
+      recordedAt = now;
+    } else {
+      const maxAgeMs = 24 * 60 * 60 * 1000; // 24 hours
+      const maxFutureMs = 5 * 60 * 1000; // 5 minutes clock skew
+      if (now.getTime() - recordedAt.getTime() > maxAgeMs || recordedAt.getTime() - now.getTime() > maxFutureMs) {
+        recordedAt = now;
+      }
+    }
     const tripId = ping.trip_id ? Number(ping.trip_id) : null;
     const speed = ping.speed !== undefined && ping.speed !== null ? parseFloat(ping.speed) : null;
 
