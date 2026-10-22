@@ -35,6 +35,8 @@ flowchart LR
 | **Page 2 & 3** | **Onboarding & KYC Documents** | `D-02`, `D-11`, `A-09` | `[✓ Passed]` | [02_documents_kyc.md](02_documents_kyc.md) |
 | **Page 4** | **Home Dashboard & Duty Status** | `D-03`, `D-04` | `[✓ Passed]` | [03_home_dashboard.md](03_home_dashboard.md) |
 | **Page 12** | **Driver Profile & Operations** | `D-12`, `D-02` | `[✓ Passed]` | [04_profile.md](04_profile.md) |
+| **Reference** | **Backend API Integration & Route Status** | `D-01`–`D-12` | `[✓ Connected]` | [05_api_integration.md](05_api_integration.md) |
+| **Reference** | **Field Mapping Audit (API ↔ DB ↔ Dart)** | All | `[✓ Audited]` | [06_field_mapping.md](06_field_mapping.md) |
 
 ---
 
