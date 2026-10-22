@@ -1,9 +1,12 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 final secureStorageServiceProvider = Provider<SecureStorageService>((ref) {
   return SecureStorageService(
     const FlutterSecureStorage(
+      aOptions: AndroidOptions(encryptedSharedPreferences: true),
+      iOptions: IOSOptions(accessibility: KeychainAccessibility.first_unlock),
       webOptions: WebOptions(
         dbName: 'hired_driver_auth',
         publicKey: 'hired_driver_auth_key',
@@ -36,7 +39,10 @@ class SecureStorageService {
         _storage.write(key: _keyDriverId, value: driverId.toString()),
         _storage.write(key: _keyDriverName, value: driverName),
       ]);
-    } catch (_) {}
+    } catch (e, stackTrace) {
+      debugPrint('[SecureStorageService] Error writing session to secure storage: $e\n$stackTrace');
+      rethrow;
+    }
   }
 
   Future<String?> getAccessToken() async {

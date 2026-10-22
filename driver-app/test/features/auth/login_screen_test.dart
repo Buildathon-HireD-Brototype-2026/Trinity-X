@@ -160,7 +160,16 @@ void main() {
       await tester.pump(const Duration(milliseconds: 700)); // Complete mock latency
       await tester.pumpAndSettle();
 
-      expect(find.text('Invalid phone number or password.'), findsOneWidget);
+      expect(find.text('Phone number or password is not correct.'), findsOneWidget);
+      expect(find.text('Ref: HD-AUTH-01'), findsOneWidget);
+
+      // Phone is preserved
+      final phoneField = tester.widget<TextFormField>(find.byKey(const Key('phone_input_field')));
+      expect(phoneField.controller?.text, equals('9876543210'));
+
+      // Password is cleared
+      final passwordField = tester.widget<TextFormField>(find.byKey(const Key('password_input_field')));
+      expect(passwordField.controller?.text, isEmpty);
     });
 
     testWidgets('TC-P01-02: Happy path login saves session and displays driver details',

@@ -6,6 +6,7 @@ import 'package:permission_handler/permission_handler.dart';
 import '../../../core/routing/route_names.dart';
 import '../../../core/storage/local_cache_service.dart';
 import '../../../core/theme/app_theme_colors.dart';
+import '../../../core/widgets/app_error_view.dart';
 import 'controllers/driver_documents_provider.dart';
 import '../domain/driver_document_model.dart';
 
@@ -780,13 +781,7 @@ class _DocumentsScreenState extends ConsumerState<DocumentsScreen> {
       return;
     }
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(error),
-        backgroundColor: const Color(0xFFDC2626),
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
+    AppSnackBar.show(context, error);
   }
 
   void _showPermissionDeniedDialog(BuildContext context) {

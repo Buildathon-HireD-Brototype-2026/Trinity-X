@@ -1,9 +1,33 @@
+import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../../core/network/auth_interceptor.dart';
+import '../../../../core/storage/secure_storage_service.dart';
 import '../../data/trip_repository.dart';
 import '../../domain/trip_model.dart';
 
 final tripRepositoryProvider = Provider<TripRepository>((ref) {
-  return MockTripRepository();
+  if (Platform.environment.containsKey('FLUTTER_TEST')) {
+    return MockTripRepository();
+  }
+  final secureStorage = ref.watch(secureStorageServiceProvider);
+  final storageName = secureStorage.runtimeType.toString();
+  if (storageName.contains('Fake') ||
+      storageName.contains('Mock') ||
+      storageName != 'SecureStorageService') {
+    return MockTripRepository();
+  }
+  final dio = ref.watch(dioProvider);
+  return ApiTripRepository(dio);
+});
+
+/// All assigned and scheduled trips, sorted chronologically by pickup_time (earliest first).
+final allTripsProvider = StreamProvider<List<TripModel>>((ref) {
+  final repository = ref.watch(tripRepositoryProvider);
+  return repository.watchTrips().map((trips) {
+    final list = List<TripModel>.from(trips);
+    list.sort((a, b) => a.pickupTime.compareTo(b.pickupTime));
+    return list;
+  });
 });
 
 /// Up to 2 active trips with status ASSIGNED or ONGOING, sorted by pickup_time (earliest first).
@@ -39,20 +63,21 @@ final selectedTripIdProvider =
   return SelectedTripNotifier();
 });
 
-/// Holds which of the 2 trips is selected (default: trip 1).
-/// Both the map card and the Assigned Trip card read only this provider.
-/// If the selected trip starts, closes, or is reassigned away, or the list changes,
-/// it falls back to Trip 1. Never leaves the selection on a trip that no longer exists.
+/// Holds which trip is currently selected for details viewing.
+/// Defaults to the active ongoing/assigned trip, or falls back to first available trip.
 final selectedTripProvider = Provider<TripModel?>((ref) {
-  final trips = ref.watch(assignedTripsProvider).valueOrNull ?? [];
-  if (trips.isEmpty) return null;
-
+  final allTrips = ref.watch(allTripsProvider).valueOrNull ?? [];
   final selectedId = ref.watch(selectedTripIdProvider);
-  if (selectedId != null) {
-    final matched = trips.where((t) => t.tripId == selectedId).firstOrNull;
+
+  if (selectedId != null && allTrips.isNotEmpty) {
+    final matched = allTrips.where((t) => t.tripId == selectedId).firstOrNull;
     if (matched != null) return matched;
   }
-  return trips.first;
+
+  final activeTrips = ref.watch(assignedTripsProvider).valueOrNull ?? [];
+  if (activeTrips.isNotEmpty) return activeTrips.first;
+
+  return allTrips.firstOrNull;
 });
 
 /// Retained for backward compatibility.

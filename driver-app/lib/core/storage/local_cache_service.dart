@@ -88,13 +88,21 @@ class LocalCacheService {
     await _prefs.setString(_keyLastCacheTime, DateTime.now().toIso8601String());
   }
 
-  /// Wipes all cached driver data (invoked upon logout).
+  /// Wipes all cached driver data, duty status, and document upload sessions (invoked upon logout).
   Future<void> clearAllCache() async {
-    await Future.wait([
-      _prefs.remove(_keyCachedTrips),
-      _prefs.remove(_keyCachedWallet),
-      _prefs.remove(_keyCachedProfile),
-      _prefs.remove(_keyLastCacheTime),
-    ]);
+    final keys = _prefs.getKeys();
+    final toRemove = <String>[];
+    for (final key in keys) {
+      if (key.startsWith('driver_duty_status_') ||
+          key.startsWith('cache_driver_') ||
+          key == _keyLastCacheTime ||
+          key == 'cached_driver_documents' ||
+          key == 'pending_upload_doc_type' ||
+          key == 'pending_upload_is_front' ||
+          key == 'active_route') {
+        toRemove.add(key);
+      }
+    }
+    await Future.wait(toRemove.map((k) => _prefs.remove(k)));
   }
 }
