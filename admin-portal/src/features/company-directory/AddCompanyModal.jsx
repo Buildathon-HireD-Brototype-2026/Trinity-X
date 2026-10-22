@@ -562,7 +562,7 @@ export default function AddCompanyModal({ isOpen, onClose, onSubmit }) {
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.5rem' }}>
                 <Percent size={14} style={{ color: 'var(--primary)' }} />
                 <span style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--text-main)' }}>
-                  Revenue Payout Split Ratio (PRD A-11)
+                  Revenue Payout Split Ratio
                 </span>
               </div>
 
