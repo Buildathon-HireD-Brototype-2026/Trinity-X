@@ -1,3 +1,6 @@
+If the YouTube video links do not work, please use this Google Drive link instead. It has the application demo videos: [[https://drive.google.com/drive/folders/1H6K2TACfqkhCbi0UFWYVRq7Y5TVJIoMP?usp=sharing](https://drive.google.com/drive/folders/1H6K2TACfqkhCbi0UFWYVRq7Y5TVJIoMP)]
+
+
 📱 HireD Driver App — Demo Videos
 
 Part 1: Driver Onboarding & Trip Operations
