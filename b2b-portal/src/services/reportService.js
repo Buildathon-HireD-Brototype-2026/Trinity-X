@@ -2,7 +2,7 @@
  * Post-Trip Reporting Service
  * Implements PRD B-05 and database_updated0.2.md Section 12.1
  * - Filterable reports for CLOSED trips
- * - Sanitized data: strictly excludes driver commission/split (only revealed in PUBLISHED invoices)
+ * - Sanitized data: partner trip reports and corporate spend details
  */
 
 import apiClient from './apiClient';

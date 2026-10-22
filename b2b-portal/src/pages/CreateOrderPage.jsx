@@ -200,7 +200,7 @@ export function CreateOrderPage() {
         <div>
           <h1 className="page-title">Create Transport Order</h1>
           <p className="page-subtitle">
-            Request an on-demand or scheduled commercial driver for corporate transfers (PRD B-02).
+            Request an on-demand or scheduled commercial driver for corporate transfers.
           </p>
         </div>
         <button

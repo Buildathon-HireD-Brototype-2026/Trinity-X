@@ -128,7 +128,7 @@ npm run build
 | **My Orders & Trips** | `B-03` | **P0** | Unified tabbed list (All, Pending Orders, Active Trips, Completed Trips). Real-time search by ID, location, or passenger. |
 | **ETA & Route Estimation** | `B-04` | **P1** | Route duration & distance display in order detail view. |
 | **Trip-Close OTP Display** | `D-09` | **P0** | Prominently displays the system-generated 6-digit OTP for the partner to provide to the driver upon drop-off to close the trip. |
-| **Closed Trip Reports** | `B-05` | **P0** | Filterable completion reports for closed trips with duration, driver details, fare breakdown, and itemized out-of-pocket expenses. Excludes internal driver commission/split. One-click CSV export and print view. |
+| **Closed Trip Reports** | `B-05` | **P0** | Filterable completion reports for closed trips with duration, driver details, fare breakdown, and itemized out-of-pocket expenses. Excludes internal driver operational details. One-click CSV export and print view. |
 | **Verified Month-End Statements** | `B-06` | **P0** | Strictly requires **Two-Person Administrator Verification** (creator + secondary controller). Only `PUBLISHED` statements are viewable by partners. Trip-wise breakdown ledger and direct offline remittance guidance. |
 | **Email & System Notifications** | `B-07` | **P1** | In-app notification center tracking order acceptances, rejections with reasons, and statement publications, with simulated email delivery status. |
 
