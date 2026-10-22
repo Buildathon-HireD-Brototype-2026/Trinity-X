@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useImperativeHandle, forwardRef } from 'react';
 import { MapPin, ExternalLink, CheckCircle2, Compass, AlertCircle, Trash2 } from 'lucide-react';
 import {
   checkPlaceWithPhoton,
@@ -6,55 +6,115 @@ import {
   buildGoogleMapsSearchUrl,
   combinePlaceAndLandmark,
 } from '../../utils/geocodingService.js';
-import { parseGoogleMapsInput } from '../../utils/googleMapsParser.js';
+import { parseGoogleMapsInput, normalizeLinkInput } from '../../utils/googleMapsParser.js';
 
-export function LocationPickerField({
-  id,
-  name,
-  label,
-  value,
-  onChange,
-  error,
-  placeholder = 'Type a place name or paste a Google Maps link',
-  pinColor = 'var(--primary, #2563eb)',
-  required = true,
-}) {
-  const [inputText, setInputText] = useState(value || '');
+export const LocationPickerField = forwardRef(function LocationPickerField(
+  {
+    id,
+    name,
+    label,
+    value,
+    onChange,
+    error,
+    placeholder = 'Type a place name or paste a Google Maps link',
+    pinColor = 'var(--primary, #2563eb)',
+    required = true,
+  },
+  ref
+) {
+  // Three separate values for place and landmark
+  const [placeText, setPlaceText] = useState(value || '');
+  const [landmark, setLandmark] = useState(''); // Applied landmark only
+  const [landmarkDraft, setLandmarkDraft] = useState(''); // Live draft in landmark box
   const [isTyping, setIsTyping] = useState(false);
   const [confirmedText, setConfirmedText] = useState(value ? value.trim().replace(/\s+/g, ' ') : '');
   const [checkStatus, setCheckStatus] = useState('idle'); // 'idle' | 'checking' | 'found' | 'not_found'
-  const [landmark, setLandmark] = useState('');
   const [activeGoogleLink, setActiveGoogleLink] = useState('');
   const [notfoundLinkInput, setNotfoundLinkInput] = useState('');
   const [linkFeedbackMessage, setLinkFeedbackMessage] = useState('');
-  const [linkFeedbackType, setLinkFeedbackType] = useState(''); // 'success' | 'warning' | 'error'
+  const [linkFeedbackType, setLinkFeedbackType] = useState(''); // 'info' | 'success' | 'error'
   const [popupBlocked, setPopupBlocked] = useState(false);
   const [coordFallbackMessage, setCoordFallbackMessage] = useState('');
 
   const inputRef = useRef(null);
   const activeAbortRef = useRef(null);
   const debounceLinkTimerRef = useRef(null);
+  const isPastingRef = useRef(false);
 
-  // Sync external changes (e.g. sample route or form reset)
+  // Keep refs for live values in async/event handlers
+  const placeTextRef = useRef(placeText);
+  const landmarkRef = useRef(landmark);
+  const landmarkDraftRef = useRef(landmarkDraft);
+  const onChangeRef = useRef(onChange);
+  const lastSentValueRef = useRef(value || '');
+
+  placeTextRef.current = placeText;
+  landmarkRef.current = landmark;
+  landmarkDraftRef.current = landmarkDraft;
+  onChangeRef.current = onChange;
+
+  // Apply draft landmark helper
+  const applyDraft = useCallback(() => {
+    const draft = (landmarkDraftRef.current || '').trim().slice(0, 100);
+    if (draft && !landmarkRef.current) {
+      setLandmark(draft);
+      const combined = combinePlaceAndLandmark(placeTextRef.current, draft);
+      lastSentValueRef.current = combined;
+      onChangeRef.current?.(name, combined);
+      return combined;
+    }
+    return combinePlaceAndLandmark(placeTextRef.current, landmarkRef.current);
+  }, [name]);
+
+  // Expose imperative methods to parent form (e.g. submit handler)
+  useImperativeHandle(ref, () => ({
+    applyDraft,
+    getFinalValue: () => {
+      const draft = (landmarkDraftRef.current || '').trim().slice(0, 100);
+      const effectiveLandmark = landmarkRef.current || draft;
+      return combinePlaceAndLandmark(placeTextRef.current, effectiveLandmark);
+    },
+  }));
+
+  // Sync external changes (e.g. sample route auto-fill or form reset)
   useEffect(() => {
-    if (value !== undefined && !isTyping) {
-      if (value !== inputText && value !== confirmedText) {
-        setInputText(value);
-        const cleaned = (value || '').trim().replace(/\s+/g, ' ');
-        setConfirmedText(cleaned);
-        if (!cleaned) {
-          setCheckStatus('idle');
-          setLandmark('');
-          setActiveGoogleLink('');
-          setNotfoundLinkInput('');
-          setLinkFeedbackMessage('');
-          setCoordFallbackMessage('');
-        }
+    if (value !== undefined) {
+      if (value === lastSentValueRef.current) {
+        // Echo of our own onChange update - do not overwrite local placeText or draft
+        return;
+      }
+      lastSentValueRef.current = value;
+      const cleaned = (value || '').trim().replace(/\s+/g, ' ');
+      setPlaceText(cleaned);
+      setConfirmedText(cleaned);
+      if (!cleaned) {
+        setCheckStatus('idle');
+        setLandmark('');
+        setLandmarkDraft('');
+        setActiveGoogleLink('');
+        setNotfoundLinkInput('');
+        setLinkFeedbackMessage('');
+        setCoordFallbackMessage('');
       }
     }
-  }, [value, isTyping, inputText, confirmedText]);
+  }, [value]);
 
-  // Clean up timers on unmount
+  // Apply unapplied landmark draft if the enclosing form submits
+  useEffect(() => {
+    const form = inputRef.current?.closest('form');
+    if (!form) return;
+
+    const handleFormSubmit = () => {
+      applyDraft();
+    };
+
+    form.addEventListener('submit', handleFormSubmit, true);
+    return () => {
+      form.removeEventListener('submit', handleFormSubmit, true);
+    };
+  }, [applyDraft]);
+
+  // Clean up timers and abort controller on unmount
   useEffect(() => {
     return () => {
       if (activeAbortRef.current) {
@@ -86,36 +146,48 @@ export function LocationPickerField({
       try {
         const result = await checkPlaceWithPhoton(cleaned, { signal: controller.signal });
         if (result.found) {
+          // If found, drop applied landmark and hide not-found landmark box
           setCheckStatus('found');
           setLandmark('');
+          setLandmarkDraft('');
+          lastSentValueRef.current = cleaned;
           onChange(name, cleaned);
         } else {
           setCheckStatus('not_found');
-          const combined = combinePlaceAndLandmark(cleaned, landmark);
+          const combined = combinePlaceAndLandmark(cleaned, landmarkRef.current);
+          lastSentValueRef.current = combined;
           onChange(name, combined);
         }
       } catch (err) {
         if (err.name === 'AbortError') return;
         setCheckStatus('not_found');
-        const combined = combinePlaceAndLandmark(cleaned, landmark);
+        const combined = combinePlaceAndLandmark(cleaned, landmarkRef.current);
+        lastSentValueRef.current = combined;
         onChange(name, combined);
       }
     },
-    [landmark, name, onChange]
+    [name, onChange]
   );
 
   // Core link processing routine shared by primary input and not-found link input
   const processLinkString = async (rawUrl, source = 'main') => {
-    const parsed = parseGoogleMapsInput(rawUrl);
+    const normalized = normalizeLinkInput(rawUrl);
+    const parsed = parseGoogleMapsInput(normalized);
 
-    if (parsed.type === 'short_link') {
-      const msg = 'This is a short link. Please open it, copy the place name from Google Maps, and type it in the place box.';
+    // Share link (maps.app.goo.gl or goo.gl/maps)
+    if (parsed.type === 'share_link') {
+      setActiveGoogleLink(parsed.rawUrl);
+      setNotfoundLinkInput(parsed.rawUrl);
+
+      const hasPlaceText = Boolean((confirmedText || placeText).trim());
+      const msg = hasPlaceText
+        ? 'Link added.'
+        : 'Link added. Please type the place name in the box above so the driver can find it.';
+
       setLinkFeedbackMessage(msg);
-      setLinkFeedbackType('warning');
-      if (source === 'notfound') {
-        setActiveGoogleLink(parsed.rawUrl);
-      }
-      return false;
+      setLinkFeedbackType('info');
+      setCoordFallbackMessage('');
+      return true;
     }
 
     if (parsed.type === 'invalid_link') {
@@ -126,21 +198,25 @@ export function LocationPickerField({
     }
 
     if (parsed.type === 'place_link') {
-      const placeName = parsed.placeName;
-      setInputText(placeName);
-      setConfirmedText(placeName);
+      const extractedPlace = parsed.placeName;
+      setPlaceText(extractedPlace);
+      setConfirmedText(extractedPlace);
       setActiveGoogleLink(parsed.rawUrl);
-      setLinkFeedbackMessage(`Place: ${placeName}`);
+      setNotfoundLinkInput(parsed.rawUrl);
+      setLinkFeedbackMessage(`Place: ${extractedPlace}`);
       setLinkFeedbackType('success');
       setCoordFallbackMessage('');
       setCheckStatus('found');
       setLandmark('');
-      onChange(name, placeName);
+      setLandmarkDraft('');
+      lastSentValueRef.current = extractedPlace;
+      onChange(name, extractedPlace);
       return true;
     }
 
     if (parsed.type === 'coordinates_link') {
       setActiveGoogleLink(parsed.rawUrl);
+      setNotfoundLinkInput(parsed.rawUrl);
       const coords = parsed.coordinates;
       let resolvedAddress = null;
 
@@ -151,22 +227,25 @@ export function LocationPickerField({
       }
 
       if (resolvedAddress) {
-        setInputText(resolvedAddress);
+        setPlaceText(resolvedAddress);
         setConfirmedText(resolvedAddress);
         setLinkFeedbackMessage(`Place: ${resolvedAddress}`);
         setLinkFeedbackType('success');
         setCoordFallbackMessage('');
         setCheckStatus('found');
         setLandmark('');
+        setLandmarkDraft('');
+        lastSentValueRef.current = resolvedAddress;
         onChange(name, resolvedAddress);
         return true;
       } else {
         const coordText = `${coords.lat}, ${coords.lng}`;
-        setInputText(coordText);
+        setPlaceText(coordText);
         setConfirmedText(coordText);
         setCoordFallbackMessage('Please add the area or a landmark so the driver can find it.');
         setCheckStatus('not_found');
-        const combined = combinePlaceAndLandmark(coordText, landmark);
+        const combined = combinePlaceAndLandmark(coordText, landmarkRef.current);
+        lastSentValueRef.current = combined;
         onChange(name, combined);
         return true;
       }
@@ -178,35 +257,47 @@ export function LocationPickerField({
   // Primary place text input change
   const handleInputChange = (e) => {
     const val = e.target.value;
-    setInputText(val);
+    setPlaceText(val);
     setIsTyping(true);
     setLinkFeedbackMessage('');
     setCoordFallbackMessage('');
-    onChange(name, val);
+    const combined = combinePlaceAndLandmark(val, landmark);
+    lastSentValueRef.current = combined;
+    onChange(name, combined);
   };
 
-  // Primary input paste
+  // Primary input paste: one paste = one link
   const handleInputPaste = (e) => {
     const pasted = e.clipboardData?.getData('text') || '';
-    const parsed = parseGoogleMapsInput(pasted);
+    const normalized = normalizeLinkInput(pasted);
+    const parsed = parseGoogleMapsInput(normalized);
+
     if (parsed.isLink) {
       e.preventDefault();
-      processLinkString(pasted, 'main');
+      isPastingRef.current = true;
+      setTimeout(() => {
+        isPastingRef.current = false;
+      }, 50);
+
+      setNotfoundLinkInput(normalized);
+      processLinkString(normalized, 'main');
     }
   };
 
   // Primary input commit on blur or Enter
   const handleInputCommit = () => {
     setIsTyping(false);
-    const text = inputText.trim();
+    const text = placeText.trim();
 
     if (!text) {
       setConfirmedText('');
       setCheckStatus('idle');
       setLandmark('');
+      setLandmarkDraft('');
       setActiveGoogleLink('');
       setLinkFeedbackMessage('');
       setCoordFallbackMessage('');
+      lastSentValueRef.current = '';
       onChange(name, '');
       return;
     }
@@ -221,7 +312,9 @@ export function LocationPickerField({
     const cleaned = text.replace(/\s+/g, ' ');
     setConfirmedText(cleaned);
 
+    // Keep applied landmark when editing place text
     const combined = combinePlaceAndLandmark(cleaned, landmark);
+    lastSentValueRef.current = combined;
     onChange(name, combined);
 
     runQuietPlaceCheck(cleaned);
@@ -234,17 +327,40 @@ export function LocationPickerField({
     }
   };
 
-  // Landmark input change
-  const handleLandmarkChange = (e) => {
-    const newLandmark = e.target.value.slice(0, 100);
-    setLandmark(newLandmark);
-    const combined = combinePlaceAndLandmark(confirmedText || inputText, newLandmark);
+  // Landmark draft input change: changes ONLY landmarkDraft, nothing else
+  const handleLandmarkDraftChange = (e) => {
+    const newDraft = e.target.value.slice(0, 100);
+    setLandmarkDraft(newDraft);
+  };
+
+  // Landmark is applied ONLY when pressing Enter or clicking "Add"
+  const handleApplyLandmark = () => {
+    const trimmed = (landmarkDraft || '').trim().slice(0, 100);
+    setLandmark(trimmed);
+    const combined = combinePlaceAndLandmark(confirmedText || placeText, trimmed);
+    lastSentValueRef.current = combined;
+    onChange(name, combined);
+  };
+
+  const handleLandmarkKeyDown = (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault(); // Enter must not submit the form
+      handleApplyLandmark();
+    }
+  };
+
+  // "Remove" action in result row clears landmark
+  const handleRemoveLandmark = () => {
+    setLandmark('');
+    setLandmarkDraft('');
+    const combined = (confirmedText || placeText).trim();
+    lastSentValueRef.current = combined;
     onChange(name, combined);
   };
 
   // "View on map" action
   const handleViewOnMap = () => {
-    const targetUrl = activeGoogleLink || buildGoogleMapsSearchUrl(confirmedText || inputText);
+    const targetUrl = activeGoogleLink || buildGoogleMapsSearchUrl(confirmedText || placeText);
     const newTab = window.open(targetUrl, '_blank', 'noopener,noreferrer');
     if (!newTab || newTab.closed || typeof newTab.closed === 'undefined') {
       setPopupBlocked(true);
@@ -271,7 +387,7 @@ export function LocationPickerField({
 
   // "Open Google Maps" button in not-found state
   const handleOpenGoogleMapsSearch = () => {
-    const searchUrl = buildGoogleMapsSearchUrl(confirmedText || inputText);
+    const searchUrl = buildGoogleMapsSearchUrl(confirmedText || placeText);
     const newTab = window.open(searchUrl, '_blank', 'noopener,noreferrer');
     if (!newTab || newTab.closed || typeof newTab.closed === 'undefined') {
       setPopupBlocked(true);
@@ -282,45 +398,56 @@ export function LocationPickerField({
 
   // Not-found Google Maps link input handlers
   const handleNotfoundLinkChange = (e) => {
+    if (isPastingRef.current) return;
     const val = e.target.value;
-    setNotfoundLinkInput(val);
+    const normalized = normalizeLinkInput(val);
+    setNotfoundLinkInput(normalized);
     setLinkFeedbackMessage('');
 
     if (debounceLinkTimerRef.current) {
       clearTimeout(debounceLinkTimerRef.current);
     }
 
-    if (val.trim()) {
+    if (normalized.trim()) {
       debounceLinkTimerRef.current = setTimeout(() => {
-        processLinkString(val, 'notfound');
+        processLinkString(normalized, 'notfound');
       }, 300);
     }
   };
 
   const handleNotfoundLinkPaste = (e) => {
+    e.preventDefault();
+    isPastingRef.current = true;
+    setTimeout(() => {
+      isPastingRef.current = false;
+    }, 50);
+
     const pasted = e.clipboardData?.getData('text') || '';
-    if (pasted) {
-      setNotfoundLinkInput(pasted);
-      if (debounceLinkTimerRef.current) {
-        clearTimeout(debounceLinkTimerRef.current);
-      }
-      processLinkString(pasted, 'notfound');
+    const normalized = normalizeLinkInput(pasted);
+    setNotfoundLinkInput(normalized);
+
+    if (debounceLinkTimerRef.current) {
+      clearTimeout(debounceLinkTimerRef.current);
+    }
+
+    if (normalized.trim()) {
+      processLinkString(normalized, 'notfound');
     }
   };
 
   // Computed layout states
   const showResultRow = !isTyping && confirmedText.length > 0;
   const showNotFoundBlock = showResultRow && checkStatus === 'not_found';
-  const effectiveViewMapUrl = activeGoogleLink || buildGoogleMapsSearchUrl(confirmedText || inputText);
+  const effectiveViewMapUrl = activeGoogleLink || buildGoogleMapsSearchUrl(confirmedText || placeText);
 
-  // Shorten URL for display in the small link row (e.g. "maps.google.com/.../Lulu+Mall")
+  // Shorten URL for display in the small link row
   const displayShortenedLink = activeGoogleLink
     ? activeGoogleLink.replace(/^https?:\/\//i, '').slice(0, 48) + (activeGoogleLink.length > 55 ? '...' : '')
     : '';
 
-  const currentCombined = combinePlaceAndLandmark(confirmedText || inputText, landmark);
-  const isNearLimit = currentCombined.length >= 260 || landmark.length >= 80;
-  const remainingChars = Math.max(0, 300 - currentCombined.length);
+  const currentDerived = combinePlaceAndLandmark(confirmedText || placeText, landmark);
+  const isNearLimit = landmarkDraft.length >= 80 || (currentDerived.length + landmarkDraft.length) >= 260;
+  const remainingLandmarkChars = Math.max(0, 100 - landmarkDraft.length);
 
   return (
     <div className="form-group" style={{ gridColumn: 'span 2' }}>
@@ -349,8 +476,8 @@ export function LocationPickerField({
           type="text"
           className="form-control"
           style={{ paddingLeft: '38px', height: '44px' }}
-          placeholder="Type a place name or paste a Google Maps link"
-          value={inputText}
+          placeholder={placeholder}
+          value={placeText}
           maxLength={300}
           onChange={handleInputChange}
           onPaste={handleInputPaste}
@@ -395,17 +522,51 @@ export function LocationPickerField({
             fontSize: '0.8125rem',
           }}
         >
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.4rem',
-              color: 'var(--success, #059669)',
-              fontWeight: 600,
-            }}
-          >
-            <CheckCircle2 size={15} style={{ flexShrink: 0 }} aria-hidden="true" />
-            <span>Selected: {confirmedText}</span>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.4rem',
+                color: 'var(--success, #059669)',
+                fontWeight: 600,
+              }}
+            >
+              <CheckCircle2 size={15} style={{ flexShrink: 0 }} aria-hidden="true" />
+              <span>Selected: {currentDerived}</span>
+            </div>
+
+            {landmark && (
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem',
+                  fontSize: '0.75rem',
+                  paddingLeft: '1.35rem',
+                }}
+              >
+                <span style={{ color: 'var(--text-secondary, #475569)' }}>
+                  Landmark added: <strong>{landmark}</strong>
+                </span>
+                <button
+                  type="button"
+                  onClick={handleRemoveLandmark}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: 'var(--danger, #ef4444)',
+                    cursor: 'pointer',
+                    padding: 0,
+                    fontSize: '0.75rem',
+                    fontWeight: 600,
+                    textDecoration: 'underline',
+                  }}
+                >
+                  Remove
+                </button>
+              </div>
+            )}
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
@@ -607,7 +768,7 @@ export function LocationPickerField({
                 </button>
               ) : (
                 <a
-                  href={buildGoogleMapsSearchUrl(confirmedText || inputText)}
+                  href={buildGoogleMapsSearchUrl(confirmedText || placeText)}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="btn btn-secondary"
@@ -683,12 +844,12 @@ export function LocationPickerField({
                   color:
                     linkFeedbackType === 'error'
                       ? 'var(--danger, #ef4444)'
-                      : linkFeedbackType === 'warning'
-                      ? 'var(--warning, #f59e0b)'
+                      : linkFeedbackType === 'info'
+                      ? 'var(--text-secondary, #475569)'
                       : 'var(--success, #059669)',
                 }}
               >
-                {linkFeedbackType === 'error' || linkFeedbackType === 'warning' ? (
+                {linkFeedbackType === 'error' ? (
                   <AlertCircle size={13} style={{ flexShrink: 0 }} aria-hidden="true" />
                 ) : (
                   <CheckCircle2 size={13} style={{ flexShrink: 0 }} aria-hidden="true" />
@@ -712,32 +873,48 @@ export function LocationPickerField({
             >
               Landmark or nearby place (optional)
             </label>
-            <input
-              id={`${id}-landmark`}
-              type="text"
-              className="form-control"
-              placeholder="For example: near Bypass Road"
-              value={landmark}
-              maxLength={100}
-              onChange={handleLandmarkChange}
-              style={{
-                height: '38px',
-                fontSize: '0.8125rem',
-                backgroundColor: 'var(--bg-surface, #ffffff)',
-              }}
-              aria-label="Landmark or nearby place (optional)"
-            />
+            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+              <input
+                id={`${id}-landmark`}
+                type="text"
+                className="form-control"
+                placeholder="For example: near Bypass Road"
+                value={landmarkDraft}
+                maxLength={100}
+                onChange={handleLandmarkDraftChange}
+                onKeyDown={handleLandmarkKeyDown}
+                style={{
+                  height: '38px',
+                  fontSize: '0.8125rem',
+                  backgroundColor: 'var(--bg-surface, #ffffff)',
+                }}
+                aria-label="Landmark or nearby place (optional)"
+              />
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={handleApplyLandmark}
+                style={{
+                  height: '38px',
+                  padding: '0 0.875rem',
+                  fontSize: '0.8125rem',
+                  flexShrink: 0,
+                }}
+              >
+                Add
+              </button>
+            </div>
 
             {isNearLimit && (
               <div
                 style={{
                   marginTop: '0.25rem',
                   fontSize: '0.7rem',
-                  color: remainingChars < 10 ? 'var(--danger, #ef4444)' : 'var(--text-muted, #64748b)',
+                  color: remainingLandmarkChars < 10 ? 'var(--danger, #ef4444)' : 'var(--text-muted, #64748b)',
                   textAlign: 'right',
                 }}
               >
-                {remainingChars} characters remaining
+                {remainingLandmarkChars} characters remaining
               </div>
             )}
           </div>
@@ -745,6 +922,6 @@ export function LocationPickerField({
       )}
     </div>
   );
-}
+});
 
 export default LocationPickerField;

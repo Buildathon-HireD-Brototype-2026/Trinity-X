@@ -4,6 +4,91 @@
  * Never fetches URLs, never follows redirects, never renders pasted text as HTML, strips control characters.
  */
 
+/**
+ * Normalizes input text containing a potential Google Maps link:
+ * - Trims whitespace
+ * - Strips control characters and zero-width characters
+ * - If text contains the same URL repeated (joined like https://xhttps://x, or separated by spaces/newlines), keeps one copy
+ * - If text contains several different URLs or extra words, picks the first valid Google Maps URL and ignores the rest
+ * - Collapses spaces
+ */
+export function normalizeLinkInput(rawText) {
+  if (!rawText || typeof rawText !== 'string') {
+    return '';
+  }
+
+  // 1. Strip control characters and zero-width characters
+  const stripped = rawText
+    .replace(/[\x00-\x1F\x7F\u200B-\u200D\uFEFF]/g, '')
+    .trim();
+
+  if (!stripped) {
+    return '';
+  }
+
+  // 2. Separate joined URLs (e.g. https://xhttps://x or https://xhttp://x or www.xhttps://x)
+  const separated = stripped
+    .replace(/([^\s:/])(https?:\/\/)/gi, '$1 $2')
+    .replace(/([^\s:/])(www\.[a-z0-9-]+\.[a-z]{2,})/gi, '$1 $2');
+
+  const tokens = separated.split(/\s+/).filter(Boolean);
+
+  if (tokens.length === 0) {
+    return '';
+  }
+
+  const isValidGoogleMapsUrl = (token) => {
+    let parsed;
+    try {
+      const isHttp = /^https?:\/\//i.test(token);
+      parsed = new URL(isHttp ? token : `https://${token}`);
+    } catch {
+      return false;
+    }
+
+    const host = parsed.hostname.toLowerCase();
+    const proto = parsed.protocol.toLowerCase();
+
+    if (proto !== 'https:') {
+      return false;
+    }
+
+    if (host === 'maps.app.goo.gl' || (host === 'goo.gl' && parsed.pathname.startsWith('/maps'))) {
+      return true;
+    }
+
+    const isGoogleHost =
+      host === 'maps.google.com' ||
+      host === 'www.google.com' ||
+      host === 'google.com' ||
+      host === 'www.google.co.in' ||
+      host === 'google.co.in' ||
+      host.endsWith('.google.com') ||
+      host.endsWith('.google.co.in');
+
+    if (isGoogleHost && (parsed.pathname.startsWith('/maps') || host.startsWith('maps.google.'))) {
+      return true;
+    }
+
+    return false;
+  };
+
+  // 3. If the text contains valid Google Maps URLs, pick the first one and ignore the rest
+  const firstValidGoogleUrl = tokens.find(isValidGoogleMapsUrl);
+  if (firstValidGoogleUrl) {
+    return firstValidGoogleUrl;
+  }
+
+  // 4. If all tokens are identical URLs (e.g., duplicated non-Google URLs), keep one copy
+  const firstToken = tokens[0];
+  if (tokens.every((t) => t === firstToken)) {
+    return firstToken;
+  }
+
+  // 5. Otherwise return collapsed spaces
+  return tokens.join(' ');
+}
+
 export function parseGoogleMapsInput(rawInput) {
   if (!rawInput || typeof rawInput !== 'string') {
     return {
@@ -33,10 +118,11 @@ export function parseGoogleMapsInput(rawInput) {
   let parsedUrl = null;
   const isHttpUrl = /^https?:\/\//i.test(cleaned);
   const isWwwUrl = /^www\.[a-z0-9-]+\.[a-z]{2,}/i.test(cleaned);
+  const isSchemeUrl = /^(javascript|data|file|ftp|blob):/i.test(cleaned);
 
-  if (isHttpUrl || isWwwUrl) {
+  if (isHttpUrl || isWwwUrl || isSchemeUrl) {
     try {
-      parsedUrl = new URL(isHttpUrl ? cleaned : `https://${cleaned}`);
+      parsedUrl = new URL(isHttpUrl || isSchemeUrl ? cleaned : `https://${cleaned}`);
     } catch {
       parsedUrl = null;
     }
@@ -68,38 +154,38 @@ export function parseGoogleMapsInput(rawInput) {
     };
   }
 
-  // 4. Input IS a URL: inspect hostname
+  // 4. Input IS a URL: inspect hostname and protocol
   const hostname = parsedUrl.hostname.toLowerCase();
+  const protocol = parsedUrl.protocol.toLowerCase();
 
-  // Short links check (maps.app.goo.gl, goo.gl/maps)
-  if (
-    hostname === 'maps.app.goo.gl' ||
-    hostname === 'goo.gl' ||
-    hostname.endsWith('.goo.gl') ||
-    (hostname.includes('google.') && parsedUrl.pathname.startsWith('/maps') && hostname.startsWith('goo.gl'))
-  ) {
+  // Accept Google Maps share links (maps.app.goo.gl or goo.gl/maps)
+  // Must be https and exact hostname
+  const isShareLink =
+    protocol === 'https:' &&
+    (hostname === 'maps.app.goo.gl' || (hostname === 'goo.gl' && parsedUrl.pathname.startsWith('/maps')));
+
+  if (isShareLink) {
     return {
-      success: false,
-      type: 'short_link',
+      success: true,
+      type: 'share_link',
       isLink: true,
-      isShortLink: true,
+      isShareLink: true,
       rawUrl: cleaned,
-      lineMessage:
-        'This is a short link. Please open it, copy the place name from Google Maps, and type it in the place box.',
-      error:
-        'This is a short link. Please open it, copy the place name from Google Maps, and type it in the place box.',
+      placeName: null,
+      lineMessage: 'Link added.',
     };
   }
 
-  // Allowed Google Maps domains
+  // Allowed Google Maps full domains
   const isGoogleMapsHost =
-    hostname === 'maps.google.com' ||
-    hostname === 'www.google.com' ||
-    hostname === 'google.com' ||
-    hostname === 'www.google.co.in' ||
-    hostname === 'google.co.in' ||
-    hostname.endsWith('.google.com') ||
-    hostname.endsWith('.google.co.in');
+    protocol === 'https:' &&
+    (hostname === 'maps.google.com' ||
+      hostname === 'www.google.com' ||
+      hostname === 'google.com' ||
+      hostname === 'www.google.co.in' ||
+      hostname === 'google.co.in' ||
+      hostname.endsWith('.google.com') ||
+      hostname.endsWith('.google.co.in'));
 
   if (!isGoogleMapsHost) {
     return {

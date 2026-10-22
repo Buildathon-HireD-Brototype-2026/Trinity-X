@@ -32,6 +32,9 @@ export function CreateOrderPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [createdOrder, setCreatedOrder] = useState(null);
 
+  const pickupPickerRef = React.useRef(null);
+  const dropoffPickerRef = React.useRef(null);
+
   // Field change handler
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -49,10 +52,10 @@ export function CreateOrderPage() {
   };
 
   // Validation
-  const validateForm = () => {
+  const validateForm = (data = formData) => {
     const errs = {};
-    const trimmedPickup = formData.pickup_spot.trim();
-    const trimmedDropoff = formData.dropoff_spot.trim();
+    const trimmedPickup = (data.pickup_spot || '').trim();
+    const trimmedDropoff = (data.dropoff_spot || '').trim();
 
     if (!trimmedPickup) {
       errs.pickup_spot = 'Please select the pickup location.';
@@ -73,20 +76,20 @@ export function CreateOrderPage() {
     ) {
       errs.dropoff_spot = 'Pickup and drop locations must be different.';
     }
-    if (!formData.pickup_time) {
+    if (!data.pickup_time) {
       errs.pickup_time = 'Scheduled pickup date and time are required.';
     } else {
-      const selected = new Date(formData.pickup_time).getTime();
+      const selected = new Date(data.pickup_time).getTime();
       if (isNaN(selected)) {
         errs.pickup_time = 'Please enter a valid date and time.';
       }
     }
-    if (!formData.contact_name.trim()) {
+    if (!data.contact_name.trim()) {
       errs.contact_name = 'Passenger or coordinator contact name is required.';
     }
-    if (!formData.contact_phone.trim()) {
+    if (!data.contact_phone.trim()) {
       errs.contact_phone = 'Contact phone number is required.';
-    } else if (!/^[0-9+ -]{8,15}$/.test(formData.contact_phone.trim())) {
+    } else if (!/^[0-9+ -]{8,15}$/.test(data.contact_phone.trim())) {
       errs.contact_phone = 'Please enter a valid phone number.';
     }
 
@@ -96,11 +99,22 @@ export function CreateOrderPage() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!validateForm()) return;
+
+    // Apply any unapplied landmark drafts on submit
+    const pickupFinal = pickupPickerRef.current?.applyDraft?.() ?? formData.pickup_spot;
+    const dropoffFinal = dropoffPickerRef.current?.applyDraft?.() ?? formData.dropoff_spot;
+
+    const currentFormData = {
+      ...formData,
+      pickup_spot: pickupFinal,
+      dropoff_spot: dropoffFinal,
+    };
+
+    if (!validateForm(currentFormData)) return;
 
     setIsSubmitting(true);
     try {
-      const result = await orderService.createOrder(formData);
+      const result = await orderService.createOrder(currentFormData);
       setCreatedOrder(result.order);
     } catch (err) {
       setErrors({ form: err.message || 'Failed to submit transport order.' });
@@ -249,6 +263,7 @@ export function CreateOrderPage() {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1.5rem' }}>
             {/* Pickup Location */}
             <LocationPickerField
+              ref={pickupPickerRef}
               id="pickup_spot"
               name="pickup_spot"
               label="Pickup location"
@@ -262,6 +277,7 @@ export function CreateOrderPage() {
 
             {/* Drop-off Location */}
             <LocationPickerField
+              ref={dropoffPickerRef}
               id="dropoff_spot"
               name="dropoff_spot"
               label="Drop location"
