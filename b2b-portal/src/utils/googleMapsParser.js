@@ -9,6 +9,7 @@ export function parseGoogleMapsInput(rawInput) {
     return {
       success: false,
       type: 'empty',
+      isLink: false,
       lineMessage: '',
       error: 'Please enter or paste an address.',
     };
@@ -20,6 +21,7 @@ export function parseGoogleMapsInput(rawInput) {
     return {
       success: false,
       type: 'empty',
+      isLink: false,
       lineMessage: '',
       error: 'Please enter or paste an address.',
     };
@@ -50,6 +52,7 @@ export function parseGoogleMapsInput(rawInput) {
       return {
         success: false,
         type: 'empty',
+        isLink: false,
         lineMessage: '',
         error: 'Please enter or paste a valid address.',
       };
@@ -78,11 +81,13 @@ export function parseGoogleMapsInput(rawInput) {
     return {
       success: false,
       type: 'short_link',
+      isLink: true,
       isShortLink: true,
+      rawUrl: cleaned,
       lineMessage:
-        'This is a short link. Please open it, copy the address from Google Maps, and paste the address in the box above.',
+        'This is a short link. Please open it, copy the place name from Google Maps, and type it in the place box.',
       error:
-        'This is a short link. Please open it, copy the address from Google Maps, and paste the address in the box above.',
+        'This is a short link. Please open it, copy the place name from Google Maps, and type it in the place box.',
     };
   }
 
@@ -100,8 +105,10 @@ export function parseGoogleMapsInput(rawInput) {
     return {
       success: false,
       type: 'invalid_link',
-      lineMessage: 'Please paste a Google Maps link.',
-      error: 'Please paste a Google Maps link.',
+      isLink: true,
+      rawUrl: cleaned,
+      lineMessage: 'Please paste a Google Maps link or type the place name.',
+      error: 'Please paste a Google Maps link or type the place name.',
     };
   }
 
@@ -111,8 +118,10 @@ export function parseGoogleMapsInput(rawInput) {
     return {
       success: false,
       type: 'invalid_link',
-      lineMessage: 'Please paste a Google Maps link.',
-      error: 'Please paste a Google Maps link.',
+      isLink: true,
+      rawUrl: cleaned,
+      lineMessage: 'Please paste a Google Maps link or type the place name.',
+      error: 'Please paste a Google Maps link or type the place name.',
     };
   }
 
@@ -170,8 +179,10 @@ export function parseGoogleMapsInput(rawInput) {
     return {
       success: false,
       type: 'invalid_link',
-      lineMessage: 'Please paste a Google Maps link.',
-      error: 'Could not extract place name from Google Maps link. Please type the address.',
+      isLink: true,
+      rawUrl: cleaned,
+      lineMessage: 'Please paste a Google Maps link or type the place name.',
+      error: 'Could not extract place name from Google Maps link.',
     };
   }
 
@@ -184,11 +195,12 @@ export function parseGoogleMapsInput(rawInput) {
     return {
       success: true,
       type: 'coordinates_link',
+      isLink: true,
+      isCoordinatesOnly: true,
+      rawUrl: cleaned,
       text: formattedCoordText,
       address: formattedCoordText,
       placeName: formattedCoordText,
-      isLink: true,
-      isCoordinatesOnly: true,
       coordinates: coordinateMatch,
       lineMessage: `Place: ${formattedCoordText}`,
     };
@@ -197,11 +209,12 @@ export function parseGoogleMapsInput(rawInput) {
   return {
     success: true,
     type: 'place_link',
+    isLink: true,
+    isCoordinatesOnly: false,
+    rawUrl: cleaned,
     text: finalPlaceText,
     address: finalPlaceText,
     placeName: finalPlaceText,
-    isLink: true,
-    isCoordinatesOnly: false,
     lineMessage: `Place: ${finalPlaceText}`,
   };
 }
@@ -210,6 +223,6 @@ export function parseGoogleMapsInput(rawInput) {
  * Builds Google Maps search URL from a location string or default Kerala fallback.
  */
 export function buildGoogleMapsSearchUrl(query) {
-  const q = query && query.trim() ? query.trim() : 'Kerala, India';
+  const q = query && query.trim() ? query.trim().replace(/\s+/g, ' ') : 'Kerala, India';
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}`;
 }
