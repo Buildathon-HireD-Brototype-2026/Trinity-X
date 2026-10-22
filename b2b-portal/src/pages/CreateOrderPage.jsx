@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import orderService from '../services/orderService';
 import { LocationPickerField } from '../components/orders/LocationPickerField';
+import { DateTimePicker12H } from '../components/orders/DateTimePicker12H';
 import {
   MapPin,
   Calendar,
@@ -289,25 +290,16 @@ export function CreateOrderPage() {
               required={true}
             />
 
-            {/* Pickup Date & Time */}
-            <div className="form-group" style={{ gridColumn: 'span 2' }}>
-              <label className="form-label" htmlFor="pickup_time">
-                Pickup Date & Time *
-              </label>
-              <div style={{ position: 'relative' }}>
-                <Calendar size={18} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
-                <input
-                  id="pickup_time"
-                  name="pickup_time"
-                  type="datetime-local"
-                  className="form-control"
-                  style={{ paddingLeft: '38px' }}
-                  value={formData.pickup_time}
-                  onChange={handleChange}
-                />
-              </div>
-              {errors.pickup_time && <span style={{ color: 'var(--danger)', fontSize: '0.75rem', marginTop: '0.25rem', display: 'block' }}>{errors.pickup_time}</span>}
-            </div>
+            {/* Pickup Date & Time (12-Hour) */}
+            <DateTimePicker12H
+              id="pickup_time"
+              name="pickup_time"
+              label="Pickup Date & Time"
+              value={formData.pickup_time}
+              onChange={handleChange}
+              error={errors.pickup_time}
+              required={true}
+            />
 
             {/* Passenger Contact Name */}
             <div className="form-group">
