@@ -5,12 +5,17 @@ import DashboardPage from '../../features/dashboard/DashboardPage';
 import BlankPage from '../common/BlankPage';
 import AdminProfilePage from '../../features/profile/AdminProfilePage';
 import AdminManagementPage from '../../features/admin-management/AdminManagementPage';
+import DriverOnboardingPage from '../../features/driver-onboarding/DriverOnboardingPage';
+import CompanyDirectoryPage from '../../features/company-directory/CompanyDirectoryPage';
+import OrdersInboxPage from '../../features/orders-inbox/OrdersInboxPage';
+import TripsAssignmentPage from '../../features/trips-assignment/TripsAssignmentPage';
+import TripReportsPage from '../../features/reports/TripReportsPage';
 
 const VIEW_TITLES = {
   dashboard: 'Dashboard Overview',
   company: 'Company Directory',
   orders: 'Orders Inbox',
-  trips: 'Ongoing Trips',
+  trips: 'Trips & Driver Assignment',
   drivers: 'Driver Onboarding',
   admins: 'Admin Onboarding',
   invoices: 'Invoice Verification',
@@ -79,6 +84,16 @@ export default function AdminShell() {
             <AdminProfilePage onNavigate={setCurrentView} />
           ) : currentView === 'admins' ? (
             <AdminManagementPage />
+          ) : currentView === 'drivers' ? (
+            <DriverOnboardingPage />
+          ) : currentView === 'company' ? (
+            <CompanyDirectoryPage />
+          ) : currentView === 'orders' ? (
+            <OrdersInboxPage />
+          ) : currentView === 'trips' ? (
+            <TripsAssignmentPage />
+          ) : currentView === 'reports' ? (
+            <TripReportsPage />
           ) : (
             <BlankPage title={activeTitle} />
           )}
