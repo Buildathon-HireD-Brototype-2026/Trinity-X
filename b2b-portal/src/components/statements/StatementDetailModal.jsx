@@ -158,7 +158,7 @@ export function StatementDetailModal({ statement, onClose }) {
                 <thead>
                   <tr>
                     <th>Component</th>
-                    <th>Rate / Split Ratio</th>
+                    <th>Details</th>
                     <th style={{ textAlign: 'right' }}>Amount (INR)</th>
                   </tr>
                 </thead>
@@ -171,21 +171,7 @@ export function StatementDetailModal({ statement, onClose }) {
                     </td>
                   </tr>
                   <tr>
-                    <td>Driver Allocated Share</td>
-                    <td>{statement.driver_share_pct || 30.0}% (PRD 5.4)</td>
-                    <td style={{ textAlign: 'right' }}>
-                      ₹{Number(statement.driver_share_total).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                    </td>
-                  </tr>
-                  <tr>
-                    <td>HireD Platform Share</td>
-                    <td>{statement.platform_share_pct || 70.0}% (PRD 5.4)</td>
-                    <td style={{ textAlign: 'right' }}>
-                      ₹{Number(statement.platform_share_total).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                    </td>
-                  </tr>
-                  <tr>
-                    <td>Reimbursable Driver Expenses</td>
+                    <td>Reimbursable Expenses</td>
                     <td>Tolls & Parking disbursements</td>
                     <td style={{ textAlign: 'right' }}>
                       ₹{Number(statement.expenses_total).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
@@ -214,9 +200,7 @@ export function StatementDetailModal({ statement, onClose }) {
                     <tr>
                       <th>Trip ID</th>
                       <th>Route Summary</th>
-                      <th>Total Fare</th>
-                      <th>Driver (30%)</th>
-                      <th>Platform (70%)</th>
+                      <th style={{ textAlign: 'right' }}>Total Fare</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -224,9 +208,7 @@ export function StatementDetailModal({ statement, onClose }) {
                       <tr key={t.trip_id}>
                         <td style={{ fontWeight: 600 }}>TRIP-{t.trip_id}</td>
                         <td>{t.pickup_spot} ➔ {t.dropoff_spot}</td>
-                        <td style={{ fontWeight: 600 }}>₹{t.amount.toFixed(2)}</td>
-                        <td>₹{t.driver_share.toFixed(2)}</td>
-                        <td>₹{t.platform_share.toFixed(2)}</td>
+                        <td style={{ fontWeight: 600, textAlign: 'right' }}>₹{Number(t.amount).toFixed(2)}</td>
                       </tr>
                     ))}
                   </tbody>
