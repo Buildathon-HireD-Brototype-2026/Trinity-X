@@ -3,8 +3,13 @@ import { MapContainer, TileLayer, Marker, useMap, useMapEvents } from 'react-lea
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { Search, MapPin, X, Check, ExternalLink, Loader2, AlertCircle } from 'lucide-react';
-import { GEOCODING_CONFIG } from '../../config/geocodingConfig';
-import { reverseGeocode, searchPlaces } from '../../utils/geocodingService';
+import { GEOCODING_CONFIG } from '../../config/geocodingConfig.js';
+import {
+  reverseGeocode,
+  searchPlaces,
+  parseCoordinatesString,
+} from '../../utils/geocodingService.js';
+import { parseGoogleMapsInput } from '../../utils/googleMapsParser.js';
 
 // Custom SVG Pin Icon for Leaflet map - 100% self-contained without asset 404s
 const mapPinIcon = L.divIcon({
@@ -37,12 +42,11 @@ const mapPinIcon = L.divIcon({
   popupAnchor: [0, -34],
 });
 
-// Map Controller for resizing and moving center
+// Map Controller for resizing and animating center
 function MapController({ center }) {
   const map = useMap();
 
   useEffect(() => {
-    // Invalidate map size after modal transitions into view
     const timer = setTimeout(() => {
       map.invalidateSize();
     }, 150);
@@ -58,8 +62,10 @@ function MapController({ center }) {
   return null;
 }
 
-// Map Click and Marker Drag Handler
+// Map Click and Marker Drag Handler with 300ms drag debounce
 function MapInteraction({ position, onPositionChange }) {
+  const dragTimeoutRef = useRef(null);
+
   useMapEvents({
     click(e) {
       onPositionChange(e.latlng.lat, e.latlng.lng);
@@ -74,7 +80,13 @@ function MapInteraction({ position, onPositionChange }) {
       eventHandlers={{
         dragend(e) {
           const latlng = e.target.getLatLng();
-          onPositionChange(latlng.lat, latlng.lng);
+          if (dragTimeoutRef.current) {
+            clearTimeout(dragTimeoutRef.current);
+          }
+          // Debounce drag end by 300ms per requirements
+          dragTimeoutRef.current = setTimeout(() => {
+            onPositionChange(latlng.lat, latlng.lng);
+          }, GEOCODING_CONFIG.DEBOUNCE_DRAG_MS);
         },
       }}
     />
@@ -94,67 +106,28 @@ export function LocationMapModal({
   const [fetchError, setFetchError] = useState(false);
   const [editableAddress, setEditableAddress] = useState('');
 
-  // Search state
+  // Search-as-you-type state
   const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState([]);
+  const [suggestions, setSuggestions] = useState([]);
   const [isSearching, setIsSearching] = useState(false);
-  const [searchError, setSearchError] = useState('');
+  const [searchFeedback, setSearchFeedback] = useState('');
+  const [activeSuggestionIndex, setActiveSuggestionIndex] = useState(-1);
+  const [showSuggestions, setShowSuggestions] = useState(false);
 
   const modalRef = useRef(null);
   const searchInputRef = useRef(null);
-  const activeAbortControllerRef = useRef(null);
+  const searchAbortRef = useRef(null);
+  const reverseAbortRef = useRef(null);
+  const searchDebounceTimerRef = useRef(null);
+  const searchRequestIdRef = useRef(0);
 
-  // Close on Escape key
-  useEffect(() => {
-    const handleKeyDown = (e) => {
-      if (e.key === 'Escape' && isOpen) {
-        onClose();
-      }
-    };
-    if (isOpen) {
-      document.addEventListener('keydown', handleKeyDown);
-      document.body.style.overflow = 'hidden';
-      // Auto-focus search input
-      setTimeout(() => {
-        searchInputRef.current?.focus();
-      }, 200);
-    }
-    return () => {
-      document.removeEventListener('keydown', handleKeyDown);
-      document.body.style.overflow = '';
-    };
-  }, [isOpen, onClose]);
-
-  // Initial geocoding or address sync when opening
-  useEffect(() => {
-    if (isOpen) {
-      if (initialAddress) {
-        setSelectedAddress(initialAddress);
-        setEditableAddress(initialAddress);
-        setSearchQuery(initialAddress);
-        // Automatically attempt to find the initial address coordinates if provided
-        searchPlaces(initialAddress)
-          .then((res) => {
-            if (res && res.length > 0) {
-              setPosition([res[0].lat, res[0].lng]);
-            }
-          })
-          .catch(() => {});
-      } else {
-        setPosition(GEOCODING_CONFIG.DEFAULT_CENTER);
-        handleReverseLookup(GEOCODING_CONFIG.DEFAULT_CENTER[0], GEOCODING_CONFIG.DEFAULT_CENTER[1]);
-      }
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen]);
-
-  // Reverse geocoding handler with cancellation of previous in-flight request
+  // Reverse geocoding handler (Photon /reverse first, Nominatim fallback)
   const handleReverseLookup = useCallback(async (lat, lng) => {
-    if (activeAbortControllerRef.current) {
-      activeAbortControllerRef.current.abort();
+    if (reverseAbortRef.current) {
+      reverseAbortRef.current.abort();
     }
     const controller = new AbortController();
-    activeAbortControllerRef.current = controller;
+    reverseAbortRef.current = controller;
 
     setIsFetchingAddress(true);
     setFetchError(false);
@@ -177,36 +150,208 @@ export function LocationMapModal({
     handleReverseLookup(lat, lng);
   };
 
-  // Search places handler (only runs on explicit Search click or Enter key)
-  const handleSearchSubmit = async (e) => {
-    if (e) e.preventDefault();
-    const query = searchQuery.trim();
-    if (!query) return;
+  // Keyboard accessibility: Escape and Arrow navigation
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (!isOpen) return;
 
-    setIsSearching(true);
-    setSearchError('');
-    setSearchResults([]);
-
-    try {
-      const results = await searchPlaces(query);
-      setIsSearching(false);
-      if (results.length === 0) {
-        setSearchError('No places found for this search. Try a nearby town or area.');
-      } else {
-        setSearchResults(results);
+      if (e.key === 'Escape') {
+        if (showSuggestions) {
+          setShowSuggestions(false);
+        } else {
+          onClose();
+        }
+      } else if (e.key === 'ArrowDown' && showSuggestions && suggestions.length > 0) {
+        e.preventDefault();
+        setActiveSuggestionIndex((prev) => (prev + 1 < suggestions.length ? prev + 1 : 0));
+      } else if (e.key === 'ArrowUp' && showSuggestions && suggestions.length > 0) {
+        e.preventDefault();
+        setActiveSuggestionIndex((prev) => (prev - 1 >= 0 ? prev - 1 : suggestions.length - 1));
       }
-    } catch {
+    };
+
+    if (isOpen) {
+      document.addEventListener('keydown', handleKeyDown);
+      document.body.style.overflow = 'hidden';
+      setTimeout(() => {
+        searchInputRef.current?.focus();
+      }, 200);
+    }
+
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+      document.body.style.overflow = '';
+    };
+  }, [isOpen, onClose, showSuggestions, suggestions]);
+
+  // Initial geocoding or address sync when opening modal
+  useEffect(() => {
+    if (isOpen) {
+      setSuggestions([]);
+      setShowSuggestions(false);
+      setSearchFeedback('');
+      setActiveSuggestionIndex(-1);
+
+      if (initialAddress) {
+        setSelectedAddress(initialAddress);
+        setEditableAddress(initialAddress);
+        setSearchQuery(initialAddress);
+
+        // Pre-locate initial address
+        searchPlaces(initialAddress)
+          .then((res) => {
+            if (res && res.length > 0) {
+              setPosition([res[0].lat, res[0].lng]);
+            }
+          })
+          .catch(() => {});
+      } else {
+        setPosition(GEOCODING_CONFIG.DEFAULT_CENTER);
+        handleReverseLookup(GEOCODING_CONFIG.DEFAULT_CENTER[0], GEOCODING_CONFIG.DEFAULT_CENTER[1]);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen]);
+
+  // Core Search Execution (called by debounced typing or explicit Search click)
+  const executeSearch = useCallback(
+    async (text) => {
+      const query = (text || '').trim();
+      if (!query) {
+        setSuggestions([]);
+        setShowSuggestions(false);
+        setSearchFeedback('');
+        setIsSearching(false);
+        return;
+      }
+
+      // Check 1: Is query raw coordinates (e.g. "10.0158, 76.3418")?
+      const coords = parseCoordinatesString(query);
+      if (coords) {
+        setPosition([coords.lat, coords.lng]);
+        handleReverseLookup(coords.lat, coords.lng);
+        setSuggestions([]);
+        setShowSuggestions(false);
+        setSearchFeedback('');
+        setIsSearching(false);
+        return;
+      }
+
+      // Check 2: Is query a pasted Google Maps link?
+      const parsedGoogle = parseGoogleMapsInput(query);
+      if (parsedGoogle.isLink) {
+        if (parsedGoogle.isCoordinatesOnly && parsedGoogle.coordinates) {
+          setPosition([parsedGoogle.coordinates.lat, parsedGoogle.coordinates.lng]);
+          handleReverseLookup(parsedGoogle.coordinates.lat, parsedGoogle.coordinates.lng);
+          setSuggestions([]);
+          setShowSuggestions(false);
+          setSearchFeedback('');
+          setIsSearching(false);
+          return;
+        } else if (parsedGoogle.placeName) {
+          // Use extracted place name for search
+          return executeSearch(parsedGoogle.placeName);
+        }
+      }
+
+      // Need minimum characters for text search
+      if (query.length < GEOCODING_CONFIG.MIN_SEARCH_CHARS) {
+        setSuggestions([]);
+        setShowSuggestions(false);
+        setSearchFeedback('');
+        setIsSearching(false);
+        return;
+      }
+
+      // Cancel previous in-flight request
+      if (searchAbortRef.current) {
+        searchAbortRef.current.abort();
+      }
+      const controller = new AbortController();
+      searchAbortRef.current = controller;
+
+      const currentReqId = ++searchRequestIdRef.current;
+      setIsSearching(true);
+      setSearchFeedback('');
+
+      try {
+        const results = await searchPlaces(query, { signal: controller.signal });
+
+        // Ignore stale responses if user typed further
+        if (currentReqId !== searchRequestIdRef.current) return;
+
+        setIsSearching(false);
+        if (results.length === 0) {
+          setSuggestions([]);
+          setShowSuggestions(true);
+          setSearchFeedback('No places found. Try adding the town or district name, or tap the map to place the pin.');
+        } else {
+          setSuggestions(results);
+          setShowSuggestions(true);
+          setSearchFeedback('');
+          setActiveSuggestionIndex(-1);
+        }
+      } catch (err) {
+        if (err.name === 'AbortError') return;
+        if (currentReqId !== searchRequestIdRef.current) return;
+
+        setIsSearching(false);
+        setSuggestions([]);
+        setShowSuggestions(true);
+        setSearchFeedback('No places found. Try adding the town or district name, or tap the map to place the pin.');
+      }
+    },
+    [handleReverseLookup]
+  );
+
+  // Search-as-you-type input change handler (debounced 400ms)
+  const handleSearchInputChange = (e) => {
+    const val = e.target.value;
+    setSearchQuery(val);
+
+    if (searchDebounceTimerRef.current) {
+      clearTimeout(searchDebounceTimerRef.current);
+    }
+
+    if (val.trim().length >= GEOCODING_CONFIG.MIN_SEARCH_CHARS) {
+      searchDebounceTimerRef.current = setTimeout(() => {
+        executeSearch(val);
+      }, GEOCODING_CONFIG.DEBOUNCE_TYPING_MS);
+    } else {
+      setSuggestions([]);
+      setShowSuggestions(false);
+      setSearchFeedback('');
       setIsSearching(false);
-      setSearchError('Search failed. Please check your connection.');
     }
   };
 
-  const handleSelectSearchResult = (item) => {
+  // Submit on Enter or Search Button
+  const handleSearchSubmit = (e) => {
+    if (e) e.preventDefault();
+
+    if (searchDebounceTimerRef.current) {
+      clearTimeout(searchDebounceTimerRef.current);
+    }
+
+    // If an item is active in the list with Arrow keys, select it
+    if (activeSuggestionIndex >= 0 && activeSuggestionIndex < suggestions.length) {
+      handleSelectSuggestion(suggestions[activeSuggestionIndex]);
+      return;
+    }
+
+    executeSearch(searchQuery);
+  };
+
+  // Select suggestion: moves map/pin and sets address directly without waiting
+  const handleSelectSuggestion = (item) => {
     setPosition([item.lat, item.lng]);
-    setSelectedAddress(item.shortenedAddress);
-    setEditableAddress(item.shortenedAddress);
-    setSearchResults([]);
+    const chosenAddress = item.shortenedAddress || item.displayName;
+    setSelectedAddress(chosenAddress);
+    setEditableAddress(chosenAddress);
+    setShowSuggestions(false);
+    setSuggestions([]);
     setSearchQuery('');
+    setSearchFeedback('');
   };
 
   const handleConfirm = () => {
@@ -237,16 +382,16 @@ export function LocationMapModal({
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        padding: '1rem',
-        backdropFilter: 'blur(2px)',
+        padding: '0.75rem',
+        backdropFilter: 'blur(3px)',
       }}
     >
       <div
         className="card"
         style={{
           width: '100%',
-          maxWidth: '820px',
-          maxHeight: '92vh',
+          maxWidth: '840px',
+          maxHeight: '94vh',
           display: 'flex',
           flexDirection: 'column',
           padding: 0,
@@ -293,25 +438,51 @@ export function LocationMapModal({
           </button>
         </div>
 
-        {/* Search Bar */}
-        <div style={{ padding: '0.875rem 1.25rem', borderBottom: '1px solid var(--border-subtle, #e2e8f0)' }}>
+        {/* Search Bar with Search-As-You-Type */}
+        <div
+          style={{
+            position: 'relative',
+            padding: '0.875rem 1.25rem',
+            borderBottom: '1px solid var(--border-subtle, #e2e8f0)',
+            zIndex: 1000,
+          }}
+        >
           <form onSubmit={handleSearchSubmit} style={{ display: 'flex', gap: '0.5rem' }}>
             <div style={{ position: 'relative', flex: 1 }}>
               <input
                 ref={searchInputRef}
                 type="text"
                 className="form-control"
-                placeholder="Search place, town or landmark in Kerala, India..."
+                placeholder="Search place, town, landmark or coordinates in Kerala..."
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={handleSearchInputChange}
+                onFocus={() => {
+                  if (suggestions.length > 0) setShowSuggestions(true);
+                }}
                 style={{
                   height: '42px',
                   paddingLeft: '1rem',
-                  paddingRight: '1rem',
+                  paddingRight: '2.5rem',
                   fontSize: '0.875rem',
                 }}
+                aria-autocomplete="list"
+                aria-controls="location-suggestions-list"
               />
+              {isSearching && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    right: '12px',
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    color: 'var(--primary, #2563eb)',
+                  }}
+                >
+                  <Loader2 size={16} className="spin" />
+                </div>
+              )}
             </div>
+
             <button
               type="submit"
               className="btn btn-primary"
@@ -327,59 +498,122 @@ export function LocationMapModal({
                 justifyContent: 'center',
               }}
             >
-              {isSearching ? <Loader2 size={16} className="spin" /> : <Search size={16} />}
+              <Search size={16} />
               <span>Search</span>
             </button>
           </form>
 
-          {/* Search Results Dropdown */}
-          {searchResults.length > 0 && (
+          {/* Autocomplete Suggestions Dropdown */}
+          {showSuggestions && (
             <div
+              id="location-suggestions-list"
+              role="listbox"
               style={{
-                marginTop: '0.5rem',
-                maxHeight: '160px',
+                position: 'absolute',
+                top: 'calc(100% - 2px)',
+                left: '1.25rem',
+                right: '1.25rem',
+                maxHeight: '260px',
                 overflowY: 'auto',
                 border: '1px solid var(--border-subtle, #e2e8f0)',
                 borderRadius: 'var(--radius-md, 8px)',
                 background: 'var(--bg-surface, #ffffff)',
+                boxShadow: '0 12px 28px rgba(0,0,0,0.18)',
+                zIndex: 2000,
               }}
             >
-              {searchResults.map((item) => (
-                <button
-                  key={item.placeId || `${item.lat},${item.lng}`}
-                  type="button"
-                  onClick={() => handleSelectSearchResult(item)}
+              {isSearching && suggestions.length === 0 && (
+                <div
                   style={{
-                    display: 'flex',
-                    alignItems: 'flex-start',
-                    gap: '0.5rem',
-                    width: '100%',
-                    padding: '0.625rem 0.875rem',
-                    border: 'none',
-                    borderBottom: '1px solid var(--border-subtle, #e2e8f0)',
-                    background: 'transparent',
-                    textAlign: 'left',
-                    cursor: 'pointer',
+                    padding: '0.875rem 1rem',
                     fontSize: '0.8125rem',
-                    color: 'var(--text-primary, #1e293b)',
+                    color: 'var(--text-muted, #64748b)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem',
                   }}
-                  onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--bg-muted, #f8fafc)')}
-                  onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
                 >
-                  <MapPin size={16} color="var(--primary, #2563eb)" style={{ flexShrink: 0, marginTop: '2px' }} />
-                  <div>
-                    <div style={{ fontWeight: 600 }}>{item.shortenedAddress}</div>
-                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted, #64748b)' }}>{item.displayName}</div>
-                  </div>
-                </button>
-              ))}
-            </div>
-          )}
+                  <Loader2 size={15} className="spin" />
+                  <span>Searching...</span>
+                </div>
+              )}
 
-          {searchError && (
-            <p style={{ margin: '0.375rem 0 0', fontSize: '0.75rem', color: 'var(--danger, #ef4444)' }}>
-              {searchError}
-            </p>
+              {suggestions.map((item, idx) => {
+                const isActive = idx === activeSuggestionIndex;
+                return (
+                  <button
+                    key={item.placeId || `${item.lat},${item.lng}-${idx}`}
+                    role="option"
+                    aria-selected={isActive}
+                    type="button"
+                    onClick={() => handleSelectSuggestion(item)}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'flex-start',
+                      gap: '0.625rem',
+                      width: '100%',
+                      minHeight: '48px', // Large tap targets for mobile
+                      padding: '0.65rem 0.875rem',
+                      border: 'none',
+                      borderBottom: '1px solid var(--border-subtle, #f1f5f9)',
+                      background: isActive ? 'var(--bg-muted, #f1f5f9)' : 'transparent',
+                      textAlign: 'left',
+                      cursor: 'pointer',
+                      color: 'var(--text-primary, #1e293b)',
+                    }}
+                    onMouseEnter={() => setActiveSuggestionIndex(idx)}
+                  >
+                    <MapPin
+                      size={17}
+                      color="var(--primary, #2563eb)"
+                      style={{ flexShrink: 0, marginTop: '2px' }}
+                      aria-hidden="true"
+                    />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div
+                        style={{
+                          fontWeight: 700,
+                          fontSize: '0.875rem',
+                          color: 'var(--text-primary, #0f172a)',
+                          whiteSpace: 'nowrap',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                        }}
+                      >
+                        {item.primaryText}
+                      </div>
+                      {item.secondaryText && (
+                        <div
+                          style={{
+                            fontSize: '0.75rem',
+                            color: 'var(--text-muted, #64748b)',
+                            whiteSpace: 'nowrap',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            marginTop: '2px',
+                          }}
+                        >
+                          {item.secondaryText}
+                        </div>
+                      )}
+                    </div>
+                  </button>
+                );
+              })}
+
+              {searchFeedback && suggestions.length === 0 && !isSearching && (
+                <div
+                  style={{
+                    padding: '0.875rem 1rem',
+                    fontSize: '0.8125rem',
+                    color: 'var(--text-secondary, #475569)',
+                    lineHeight: '1.4',
+                  }}
+                >
+                  {searchFeedback}
+                </div>
+              )}
+            </div>
           )}
         </div>
 
@@ -418,19 +652,19 @@ export function LocationMapModal({
             ) : fetchError ? (
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--danger, #ef4444)' }}>
                 <AlertCircle size={16} />
-                <span>Could not find the address. Please try again or type it.</span>
+                <span>Could not find the address. You can type it yourself.</span>
               </div>
             ) : (
               <div>
                 <span style={{ fontWeight: 600, color: 'var(--text-secondary, #475569)' }}>Selected: </span>
-                <span style={{ fontWeight: 600, color: 'var(--text-primary, #0f172a)' }}>
+                <span style={{ fontWeight: 700, color: 'var(--text-primary, #0f172a)' }}>
                   {editableAddress || selectedAddress || 'No location selected'}
                 </span>
               </div>
             )}
           </div>
 
-          {/* Editable fallback address input if address needs quick typing/tweaking */}
+          {/* Editable fallback address input */}
           <div style={{ marginTop: '0.5rem' }}>
             <input
               type="text"
@@ -461,7 +695,12 @@ export function LocationMapModal({
               gap: '0.5rem',
             }}
           >
-            <span>{GEOCODING_CONFIG.ATTRIBUTION_TEXT}</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <span>{GEOCODING_CONFIG.ATTRIBUTION_TEXT}</span>
+              <span>•</span>
+              <span style={{ fontStyle: 'italic' }}>{GEOCODING_CONFIG.PHOTON_CREDIT_TEXT}</span>
+            </div>
+
             <a
               href={googleMapsUrl}
               target="_blank"

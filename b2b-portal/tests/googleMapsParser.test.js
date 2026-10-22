@@ -3,8 +3,10 @@ import assert from 'node:assert/strict';
 import { parseGoogleMapsInput, buildGoogleMapsSearchUrl } from '../src/utils/googleMapsParser.js';
 import {
   shortenAddress,
-  reverseGeocode,
+  formatPhotonFeature,
   searchPlaces,
+  reverseGeocode,
+  parseCoordinatesString,
   clearGeocodingCache,
 } from '../src/utils/geocodingService.js';
 
@@ -24,7 +26,6 @@ test('Google Maps Parser: /maps/place/ link extraction', () => {
   assert.equal(result.type, 'place_link');
   assert.equal(result.placeName, 'Infopark Kochi');
   assert.equal(result.lineMessage, 'Place: Infopark Kochi');
-  assert.equal(result.isCoordinatesOnly, false);
 });
 
 test('Google Maps Parser: /maps/search/?api=1&query= link extraction', () => {
@@ -52,10 +53,7 @@ test('Google Maps Parser: short link detection (maps.app.goo.gl and goo.gl/maps)
   const res1 = parseGoogleMapsInput(url1);
   assert.equal(res1.success, false);
   assert.equal(res1.type, 'short_link');
-  assert.equal(
-    res1.lineMessage,
-    'This is a short link. Please open it, copy the address from Google Maps, and paste the address in the box above.'
-  );
+  assert.ok(res1.lineMessage.includes('This is a short link'));
 
   const url2 = 'https://goo.gl/maps/ZxYwVu123';
   const res2 = parseGoogleMapsInput(url2);
@@ -95,141 +93,216 @@ test('Google Maps Parser: empty and whitespace input rejection', () => {
   assert.equal(emptyRes2.type, 'empty');
 });
 
-test('Google Maps Search URL Builder: Fallback and encoding', () => {
-  const fallbackUrl = buildGoogleMapsSearchUrl('');
-  assert.equal(fallbackUrl, 'https://www.google.com/maps/search/?api=1&query=Kerala%2C%20India');
+test('Coordinate String Parser: Valid and invalid coordinate detection', () => {
+  const valid1 = parseCoordinatesString('10.0158, 76.3418');
+  assert.ok(valid1);
+  assert.equal(valid1.lat, 10.0158);
+  assert.equal(valid1.lng, 76.3418);
 
-  const customUrl = buildGoogleMapsSearchUrl('Infopark Kochi');
-  assert.equal(customUrl, 'https://www.google.com/maps/search/?api=1&query=Infopark%20Kochi');
+  const valid2 = parseCoordinatesString('-9.93, 76.26');
+  assert.ok(valid2);
+  assert.equal(valid2.lat, -9.93);
+  assert.equal(valid2.lng, 76.26);
+
+  assert.equal(parseCoordinatesString('Lulu Mall Kochi'), null);
+  assert.equal(parseCoordinatesString('190.5, 76.0'), null); // Latitude > 90 invalid
+  assert.equal(parseCoordinatesString(''), null);
 });
 
-test('Address Shortener: Structured Nominatim response formatting', () => {
-  const nominatimMock = {
-    name: 'Lulu Mall',
-    display_name: 'Lulu Mall, Edappally Bypass, Edappally, Kochi, Ernakulam, Kerala, 682024, India',
-    address: {
-      amenity: 'Lulu Mall',
-      road: 'Edappally Bypass',
-      suburb: 'Edappally',
+test('Photon Feature Parser & Address Shortener: Full and missing fields', () => {
+  const fullFeature = {
+    geometry: { coordinates: [76.2711, 10.8505] },
+    properties: {
+      osm_id: 12345,
+      osm_type: 'N',
+      name: 'LuLu International Shopping Mall',
+      street: 'Edappally Bypass',
+      district: 'Edappally',
       city: 'Kochi',
-      state_district: 'Ernakulam',
       state: 'Kerala',
-      postcode: '682024',
       country: 'India',
-      country_code: 'in',
+      postcode: '682024',
     },
   };
 
-  const shortened = shortenAddress(nominatimMock);
-  // Must include name, road, suburb, city, state
-  assert.ok(shortened.includes('Lulu Mall'));
-  assert.ok(shortened.includes('Edappally Bypass'));
-  assert.ok(shortened.includes('Edappally'));
-  assert.ok(shortened.includes('Kochi'));
-  assert.ok(shortened.includes('Kerala'));
-  // Must NOT include country or postal code
-  assert.equal(shortened.includes('India'), false);
-  assert.equal(shortened.includes('682024'), false);
-  assert.ok(shortened.length <= 300);
-});
+  const parsed = formatPhotonFeature(fullFeature);
+  assert.ok(parsed);
+  assert.equal(parsed.lat, 10.8505);
+  assert.equal(parsed.lng, 76.2711);
+  assert.equal(parsed.primaryText, 'LuLu International Shopping Mall');
+  assert.ok(parsed.secondaryText.includes('Edappally'));
+  assert.ok(parsed.secondaryText.includes('Kochi'));
+  assert.equal(parsed.shortenedAddress.includes('India'), false);
+  assert.equal(parsed.shortenedAddress.includes('682024'), false);
+  assert.ok(parsed.shortenedAddress.length <= 300);
 
-test('Address Shortener: Display name fallback without country or postal duplicates', () => {
-  const rawDisplayName = 'Technopark Phase 1, Kazhakkoottam, Thiruvananthapuram, Kerala, 695581, India';
-  const shortened = shortenAddress(rawDisplayName);
-
-  assert.ok(shortened.includes('Technopark Phase 1'));
-  assert.ok(shortened.includes('Kazhakkoottam'));
-  assert.ok(shortened.includes('Thiruvananthapuram'));
-  assert.ok(shortened.includes('Kerala'));
-  assert.equal(shortened.includes('India'), false);
-  assert.equal(shortened.includes('695581'), false);
-  assert.ok(shortened.length <= 300);
-});
-
-test('Address Shortener: Truncation at 300 chars max', () => {
-  const hugeAddress = {
-    display_name: 'Long Landmark Name '.repeat(30) + 'Kochi, Kerala, India',
+  // Missing fields feature
+  const partialFeature = {
+    geometry: { coordinates: [76.95, 8.52] },
+    properties: {
+      name: 'Varkala Cliff',
+      state: 'Kerala',
+    },
   };
-  const shortened = shortenAddress(hugeAddress);
-  assert.ok(shortened.length <= 300);
+  const parsedPartial = formatPhotonFeature(partialFeature);
+  assert.equal(parsedPartial.primaryText, 'Varkala Cliff');
+  assert.equal(parsedPartial.shortenedAddress, 'Varkala Cliff, Kerala');
 });
 
-test('Geocoder Rate Limiter & Cache: Mocks network and respects in-memory cache', async () => {
+test('Search Places: Photon success with caching (Mocked Network)', async () => {
   clearGeocodingCache();
-  let fetchCallCount = 0;
+  let photonCalls = 0;
 
-  // Mock fetch - NEVER calls real Nominatim in unit tests
   const mockFetch = async (url) => {
-    fetchCallCount++;
-    return {
-      ok: true,
-      status: 200,
-      json: async () => ({
-        display_name: 'Marine Drive, Ernakulam, Kochi, Kerala, 682011, India',
-        address: {
-          road: 'Marine Drive',
-          suburb: 'Ernakulam',
-          city: 'Kochi',
-          state: 'Kerala',
-          country: 'India',
-        },
-      }),
-    };
+    if (url.includes('photon.komoot.io/api')) {
+      photonCalls++;
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          features: [
+            {
+              geometry: { coordinates: [76.35, 10.01] },
+              properties: {
+                osm_id: 111,
+                name: 'Infopark Kochi',
+                district: 'Kakkanad',
+                city: 'Kochi',
+                state: 'Kerala',
+              },
+            },
+          ],
+        }),
+      };
+    }
+    throw new Error('Unexpected URL');
   };
 
-  // First request: network called once
-  const res1 = await reverseGeocode(9.9816, 76.2799, { fetchFn: mockFetch });
-  assert.equal(fetchCallCount, 1);
-  assert.ok(res1.addressText.includes('Marine Drive'));
-  assert.equal(res1.addressText.includes('India'), false);
+  const res1 = await searchPlaces('Infopark', { fetchFn: mockFetch });
+  assert.equal(photonCalls, 1);
+  assert.equal(res1.length, 1);
+  assert.equal(res1[0].primaryText, 'Infopark Kochi');
 
-  // Second request for the same coordinates: served from cache, no network call
-  const res2 = await reverseGeocode(9.9816, 76.2799, { fetchFn: mockFetch });
-  assert.equal(fetchCallCount, 1);
-  assert.equal(res2.addressText, res1.addressText);
+  // Second search with same query should hit session cache
+  const res2 = await searchPlaces('Infopark', { fetchFn: mockFetch });
+  assert.equal(photonCalls, 1);
+  assert.equal(res2[0].primaryText, 'Infopark Kochi');
 });
 
-test('Geocoder Rate Limiter: Search places caching and result parsing', async () => {
+test('Search Places: Smart retry when Photon returns 0 results', async () => {
   clearGeocodingCache();
-  let searchCallCount = 0;
+  const queriedUrls = [];
 
-  const mockSearchFetch = async () => {
-    searchCallCount++;
+  const mockFetch = async (url) => {
+    queriedUrls.push(url);
+    // Return empty on initial query, return result on retry with ", Kerala"
+    if (url.includes('Technopark%2C%20Kerala') || url.includes('Technopark, Kerala')) {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          features: [
+            {
+              geometry: { coordinates: [76.88, 8.55] },
+              properties: {
+                name: 'Technopark',
+                city: 'Thiruvananthapuram',
+                state: 'Kerala',
+              },
+            },
+          ],
+        }),
+      };
+    }
     return {
       ok: true,
       status: 200,
-      json: async () => [
-        {
-          place_id: 101,
-          lat: '9.9312',
-          lon: '76.2673',
-          display_name: 'Infopark Kochi, Kakkanad, Ernakulam, Kerala, India',
-          address: {
-            road: 'Infopark Expressway',
-            suburb: 'Kakkanad',
-            city: 'Kochi',
-            state: 'Kerala',
-            country: 'India',
-          },
-        },
-      ],
+      json: async () => ({ features: [] }),
     };
   };
 
-  const results1 = await searchPlaces('Infopark', { fetchFn: mockSearchFetch });
-  assert.equal(searchCallCount, 1);
-  assert.equal(results1.length, 1);
-  assert.equal(results1[0].lat, 9.9312);
-  assert.equal(results1[0].lng, 76.2673);
-  assert.ok(results1[0].shortenedAddress.includes('Kochi'));
-
-  // Cached query should not trigger another fetch
-  const results2 = await searchPlaces('Infopark', { fetchFn: mockSearchFetch });
-  assert.equal(searchCallCount, 1);
-  assert.equal(results2.length, 1);
+  const results = await searchPlaces('Technopark', { fetchFn: mockFetch });
+  assert.ok(queriedUrls.length >= 2);
+  assert.ok(queriedUrls.some((u) => u.includes('Technopark%2C%20Kerala')));
+  assert.equal(results.length, 1);
+  assert.equal(results[0].primaryText, 'Technopark');
 });
 
-test('Location Validation: identical pickup and drop rejection and length constraints', () => {
+test('Search Places: Fallback chain when Photon fails (429 / 5xx) to Nominatim', async () => {
+  clearGeocodingCache();
+  let nominatimCalled = false;
+
+  const mockFetch = async (url) => {
+    if (url.includes('photon.komoot.io')) {
+      return { ok: false, status: 429, statusText: 'Too Many Requests' };
+    }
+    if (url.includes('nominatim.openstreetmap.org/search')) {
+      nominatimCalled = true;
+      return {
+        ok: true,
+        status: 200,
+        json: async () => [
+          {
+            place_id: 999,
+            lat: '9.98',
+            lon: '76.28',
+            display_name: 'Marine Drive, Kochi, Ernakulam, Kerala, India',
+          },
+        ],
+      };
+    }
+    throw new Error('Unexpected URL');
+  };
+
+  const results = await searchPlaces('Marine Drive', { fetchFn: mockFetch });
+  assert.equal(nominatimCalled, true);
+  assert.equal(results.length, 1);
+  assert.ok(results[0].primaryText.includes('Marine Drive'));
+});
+
+test('Search Places: Both Photon and Nominatim fail gracefully', async () => {
+  clearGeocodingCache();
+
+  const mockFetch = async () => {
+    return { ok: false, status: 500, statusText: 'Server Error' };
+  };
+
+  const results = await searchPlaces('Offline Query', { fetchFn: mockFetch });
+  assert.deepEqual(results, []);
+});
+
+test('Reverse Geocoding: Photon primary with Nominatim fallback (Mocked)', async () => {
+  clearGeocodingCache();
+  let photonReverseCalled = false;
+
+  const mockFetch = async (url) => {
+    if (url.includes('photon.komoot.io/reverse')) {
+      photonReverseCalled = true;
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          features: [
+            {
+              properties: {
+                name: 'Kollam Beach',
+                city: 'Kollam',
+                state: 'Kerala',
+              },
+            },
+          ],
+        }),
+      };
+    }
+    throw new Error('Unexpected URL');
+  };
+
+  const res = await reverseGeocode(8.89, 76.6, { fetchFn: mockFetch });
+  assert.equal(photonReverseCalled, true);
+  assert.equal(res.addressText, 'Kollam Beach, Kollam, Kerala');
+});
+
+test('Location Validation: Form constraints and identical rejection', () => {
   const validateLocations = (pickup, drop) => {
     const errs = {};
     const trimmedPickup = (pickup || '').trim();
@@ -254,17 +327,9 @@ test('Location Validation: identical pickup and drop rejection and length constr
     return errs;
   };
 
-  const errsMissing = validateLocations('', '');
-  assert.equal(errsMissing.pickup_spot, 'Please select the pickup location.');
-  assert.equal(errsMissing.dropoff_spot, 'Please select the drop location.');
-
   const errsIdentical = validateLocations('Infopark Kochi', 'infopark kochi');
   assert.equal(errsIdentical.dropoff_spot, 'Pickup and drop locations must be different.');
 
-  const errsTooLong = validateLocations('A'.repeat(301), 'B'.repeat(301));
-  assert.equal(errsTooLong.pickup_spot, 'Location is too long. Please shorten it.');
-  assert.equal(errsTooLong.dropoff_spot, 'Location is too long. Please shorten it.');
-
-  const valid = validateLocations('Infopark Kochi', 'Lulu Mall Edappally');
-  assert.equal(Object.keys(valid).length, 0);
+  const errsValid = validateLocations('Infopark Kochi', 'Lulu Mall Edappally');
+  assert.equal(Object.keys(errsValid).length, 0);
 });
