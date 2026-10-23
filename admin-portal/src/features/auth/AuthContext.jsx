@@ -126,13 +126,16 @@ export function AuthProvider({ children }) {
         const backendUser = res?.data?.user || res?.user || {};
         const sessionUser = {
           id: backendUser.admin_id ? `ADM-${backendUser.admin_id}` : backendUser.id || 'ADM-001',
+          adminId: backendUser.adminId || backendUser.admin_id || 1,
           name: backendUser.admin_name || backendUser.name || 'Administrator',
           email: backendUser.email_id || backendUser.email || normalizedEmail,
           role: backendUser.role || 'Admin',
           token,
+          expiresAt: Date.now() + MAX_SESSION_DURATION_MS,
         };
 
         setFailedAttempts(0);
+        sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(sessionUser));
         localStorage.setItem('hired_admin_user', JSON.stringify(sessionUser));
         setUser(sessionUser);
         setLoading(false);
@@ -146,7 +149,7 @@ export function AuthProvider({ children }) {
     await new Promise((resolve) => setTimeout(resolve, 200));
     const adminByEmail = DEFAULT_ADMINS.find((a) => a.email.toLowerCase() === normalizedEmail);
 
-    if (!adminByEmail || (adminByEmail.password !== password && password !== 'Admin@12345')) {
+    if (!adminByEmail || adminByEmail.password !== password) {
       const nextFailures = failedAttempts + 1;
       setFailedAttempts(nextFailures);
       setLoading(false);
