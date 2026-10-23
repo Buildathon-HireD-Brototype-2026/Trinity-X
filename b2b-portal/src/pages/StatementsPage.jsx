@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import statementService from '../services/statementService';
 import StatementDetailModal from '../components/statements/StatementDetailModal';
 import { StatusBadge } from '../components/common/StatusBadge';
+import useTableSubscription from '../hooks/useTableSubscription';
 import {
   Receipt,
   ShieldCheck,
@@ -10,7 +11,6 @@ import {
   Eye,
   Info,
   CreditCard,
-  RefreshCw,
   FileText,
 } from 'lucide-react';
 
@@ -19,19 +19,24 @@ export function StatementsPage() {
   const [loading, setLoading] = useState(true);
   const [selectedStatement, setSelectedStatement] = useState(null);
 
-  const fetchStatements = async () => {
-    setLoading(true);
+  const fetchStatements = async (isQuiet = false) => {
+    if (!isQuiet) setLoading(true);
     try {
       const data = await statementService.getPublishedStatements();
       setStatements(data);
     } finally {
-      setLoading(false);
+      if (!isQuiet) setLoading(false);
     }
   };
 
   useEffect(() => {
     fetchStatements();
   }, []);
+
+  // Real-time automatic subscription to database changes on invoices
+  useTableSubscription(['invoices'], () => {
+    fetchStatements(true);
+  });
 
   return (
     <div>
@@ -43,11 +48,6 @@ export function StatementsPage() {
             Consolidated monthly billing statements viewable exclusively after two-person administrator verification.
           </p>
         </div>
-
-        <button type="button" className="btn btn-secondary" onClick={fetchStatements} title="Refresh Statements">
-          <RefreshCw size={16} />
-          <span>Refresh</span>
-        </button>
       </div>
 
       {/* Two-Person Verification Policy Notice */}

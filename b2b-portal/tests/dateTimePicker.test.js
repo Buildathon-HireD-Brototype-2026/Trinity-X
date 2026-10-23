@@ -60,12 +60,11 @@ test('DateTimePicker12H: parseFromISOString extracts 12-hour components from ISO
   assert.equal(night.period, 'PM');
 });
 
-test('DateTimePicker12H: Empty ISO string returns valid defaults with today date and 10:00 AM', () => {
+test('DateTimePicker12H: Empty ISO string returns empty fields without auto-selection', () => {
   const empty = parseFromISOString('');
-  assert.ok(empty.date.length === 10);
-  assert.equal(empty.hour12, '10');
-  assert.equal(empty.minute, '00');
-  assert.equal(empty.period, 'AM');
+  assert.equal(empty.date, '');
+  assert.equal(empty.hour12, '');
+  assert.equal(empty.minute, '');
 });
 
 test('DateTimePicker12H: End-to-end round trip conversion consistency', () => {

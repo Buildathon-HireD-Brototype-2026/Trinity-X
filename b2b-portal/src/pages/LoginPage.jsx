@@ -92,8 +92,8 @@ export function LoginPage() {
   };
 
   const handleFillDemo = () => {
-    setEmail('partner@apexlogistics.com');
-    setPassword('PartnerPass123!');
+    setEmail('test-company@example.com');
+    setPassword('Partner@123');
     setError('');
   };
 
@@ -611,13 +611,13 @@ export function LoginPage() {
                 </div>
                 <div style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)', lineHeight: 1.4 }}>
                   <div>
-                    <strong>Email:</strong> <code>partner@apexlogistics.com</code>
+                    <strong>Email:</strong> <code>test-company@example.com</code>
                   </div>
                   <div>
-                    <strong>Password:</strong> <code>PartnerPass123!</code>
+                    <strong>Password:</strong> <code>Partner@123</code>
                   </div>
                   <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
-                    Enterprise Partner: Apex Global Logistics (ID #101)
+                    Partner: Kerala Test Travels Pvt Ltd (ID #1)
                   </div>
                 </div>
               </div>
@@ -637,7 +637,7 @@ export function LoginPage() {
               }}
             >
               <ShieldCheck size={14} color="var(--success)" />
-              <span>Strict Tenant Isolation • Company #101 Data Partitioning</span>
+              <span>Strict Tenant Isolation • Company Data Partitioning</span>
             </div>
           </div>
         </div>

@@ -11,8 +11,13 @@
  * - period: 'AM' or 'PM'
  */
 export function formatTo24HourTime(hour12, minute, period) {
+  if (!hour12 || minute === undefined || minute === null || minute === '') {
+    return '';
+  }
+
   let h = parseInt(hour12, 10);
-  if (isNaN(h)) h = 10;
+  if (isNaN(h)) return '';
+
   const m = String(minute).padStart(2, '0');
   const isPM = String(period).toUpperCase() === 'PM';
 
@@ -27,14 +32,14 @@ export function formatTo24HourTime(hour12, minute, period) {
 
 /**
  * Parses an ISO datetime string ("YYYY-MM-DDTHH:mm") into 12-hour components.
+ * When empty, returns empty fields without auto-selecting default date or time.
  */
 export function parseFromISOString(isoString) {
-  if (!isoString) {
-    const today = new Date().toISOString().split('T')[0];
+  if (!isoString || typeof isoString !== 'string' || !isoString.trim()) {
     return {
-      date: today,
-      hour12: '10',
-      minute: '00',
+      date: '',
+      hour12: '',
+      minute: '',
       period: 'AM',
     };
   }
@@ -43,15 +48,32 @@ export function parseFromISOString(isoString) {
   if (!timePart) {
     return {
       date: datePart,
-      hour12: '10',
-      minute: '00',
+      hour12: '',
+      minute: '',
       period: 'AM',
     };
   }
 
-  const [hStr = '10', mStr = '00'] = timePart.split(':');
+  const [hStr = '', mStr = ''] = timePart.split(':');
+  if (hStr === '' && mStr === '') {
+    return {
+      date: datePart,
+      hour12: '',
+      minute: '',
+      period: 'AM',
+    };
+  }
+
   let h24 = parseInt(hStr, 10);
-  if (isNaN(h24)) h24 = 10;
+  if (isNaN(h24)) {
+    return {
+      date: datePart,
+      hour12: '',
+      minute: '',
+      period: 'AM',
+    };
+  }
+
   const minute = mStr.slice(0, 2);
 
   let period = 'AM';
@@ -67,7 +89,7 @@ export function parseFromISOString(isoString) {
   return {
     date: datePart,
     hour12: String(hour12).padStart(2, '0'),
-    minute: String(minute).padStart(2, '0'),
+    minute: minute ? String(minute).padStart(2, '0') : '00',
     period,
   };
 }

@@ -14,28 +14,31 @@ export function DateTimePicker12H({
   required = true,
 }) {
   const initial = parseFromISOString(value);
-  const [date, setDate] = useState(initial.date);
-  const [hour12, setHour12] = useState(initial.hour12);
-  const [minute, setMinute] = useState(initial.minute);
-  const [period, setPeriod] = useState(initial.period);
+  const [date, setDate] = useState(initial.date || '');
+  const [hour12, setHour12] = useState(initial.hour12 || '');
+  const [minute, setMinute] = useState(initial.minute || '');
+  const [period, setPeriod] = useState(initial.period || 'AM');
 
-  // Sync when value changes externally (e.g. Auto-fill Sample Route or form reset)
+  // Sync when value changes externally (e.g. form reset or pre-population)
   useEffect(() => {
-    if (value) {
-      const parsed = parseFromISOString(value);
-      setDate(parsed.date);
-      setHour12(parsed.hour12);
-      setMinute(parsed.minute);
-      setPeriod(parsed.period);
-    }
+    const parsed = parseFromISOString(value);
+    setDate(parsed.date || '');
+    setHour12(parsed.hour12 || '');
+    setMinute(parsed.minute || '');
+    setPeriod(parsed.period || 'AM');
   }, [value]);
 
   const emitChange = (newDate, newHour, newMinute, newPeriod) => {
-    if (!newDate) {
+    // Only emit valid combined ISO if date, hour, and minute have all been actively selected
+    if (!newDate || !newHour || !newMinute) {
       onChange({ target: { name, value: '' } });
       return;
     }
     const time24 = formatTo24HourTime(newHour, newMinute, newPeriod);
+    if (!time24) {
+      onChange({ target: { name, value: '' } });
+      return;
+    }
     const combinedISO = `${newDate}T${time24}`;
     onChange({ target: { name, value: combinedISO } });
   };
@@ -68,13 +71,13 @@ export function DateTimePicker12H({
 
   // Generate minutes in 5-minute increments (00, 05, ..., 55)
   const standardMinutes = Array.from({ length: 12 }, (_, i) => String(i * 5).padStart(2, '0'));
-  const minuteOptions = standardMinutes.includes(minute)
-    ? standardMinutes
-    : [...standardMinutes, minute].sort((a, b) => parseInt(a, 10) - parseInt(b, 10));
+  const minuteOptions = minute && !standardMinutes.includes(minute)
+    ? [...standardMinutes, minute].sort((a, b) => parseInt(a, 10) - parseInt(b, 10))
+    : standardMinutes;
 
   // Friendly formatted preview string (e.g. "Fri, Oct 24, 2026 at 10:30 AM")
   let formattedPreview = '';
-  if (date) {
+  if (date && hour12 && minute) {
     try {
       const time24 = formatTo24HourTime(hour12, minute, period);
       const parsedDate = new Date(`${date}T${time24}`);
@@ -137,6 +140,7 @@ export function DateTimePicker12H({
               fontSize: '0.875rem',
               backgroundColor: 'var(--bg-surface, #ffffff)',
               cursor: 'pointer',
+              borderColor: error && !date ? 'var(--danger, #ef4444)' : undefined,
             }}
             aria-label="Pickup Date"
           />
@@ -158,7 +162,7 @@ export function DateTimePicker12H({
               alignItems: 'center',
               gap: '0.35rem',
               background: 'var(--bg-surface, #ffffff)',
-              border: '1px solid var(--border-subtle, #e2e8f0)',
+              border: `1px solid ${error && (!hour12 || !minute) ? 'var(--danger, #ef4444)' : 'var(--border-subtle, #e2e8f0)'}`,
               borderRadius: 'var(--radius-md, 8px)',
               padding: '0 0.5rem',
               height: '44px',
@@ -179,15 +183,17 @@ export function DateTimePicker12H({
               style={{
                 border: 'none',
                 background: 'transparent',
-                fontWeight: 600,
+                fontWeight: hour12 ? 600 : 400,
                 fontSize: '0.9375rem',
-                color: 'var(--text-main, #0f172a)',
+                color: hour12 ? 'var(--text-main, #0f172a)' : 'var(--text-muted, #94a3b8)',
                 cursor: 'pointer',
                 outline: 'none',
                 padding: '0 0.15rem',
+                flex: 1,
               }}
               aria-label="Select hour"
             >
+              <option value="">Hour</option>
               {hourOptions.map((h) => (
                 <option key={h} value={h}>
                   {h}
@@ -214,15 +220,17 @@ export function DateTimePicker12H({
               style={{
                 border: 'none',
                 background: 'transparent',
-                fontWeight: 600,
+                fontWeight: minute ? 600 : 400,
                 fontSize: '0.9375rem',
-                color: 'var(--text-main, #0f172a)',
+                color: minute ? 'var(--text-main, #0f172a)' : 'var(--text-muted, #94a3b8)',
                 cursor: 'pointer',
                 outline: 'none',
                 padding: '0 0.15rem',
+                flex: 1,
               }}
               aria-label="Select minute"
             >
+              <option value="">Min</option>
               {minuteOptions.map((m) => (
                 <option key={m} value={m}>
                   {m}
@@ -289,8 +297,8 @@ export function DateTimePicker12H({
         </div>
       </div>
 
-      {/* Readable Friendly Preview Badge */}
-      {formattedPreview && (
+      {/* Readable Friendly Preview Badge or Selection Prompt */}
+      {formattedPreview ? (
         <div
           style={{
             marginTop: '0.5rem',
@@ -307,6 +315,16 @@ export function DateTimePicker12H({
         >
           <Clock size={12} aria-hidden="true" />
           <span>Scheduled for {formattedPreview}</span>
+        </div>
+      ) : (
+        <div
+          style={{
+            marginTop: '0.375rem',
+            fontSize: '0.75rem',
+            color: 'var(--text-muted, #94a3b8)',
+          }}
+        >
+          Please select the pickup date, hour, and minute.
         </div>
       )}
 

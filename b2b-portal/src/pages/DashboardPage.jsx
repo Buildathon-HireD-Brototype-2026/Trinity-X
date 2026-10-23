@@ -4,7 +4,8 @@ import { useAuth } from '../context/AuthContext';
 import { StatusBadge } from '../components/common/StatusBadge';
 import orderService from '../services/orderService';
 import OrderDetailModal from '../components/orders/OrderDetailModal';
-import { INITIAL_INVOICES } from '../services/mockData';
+import statementService from '../services/statementService';
+import useTableSubscription from '../hooks/useTableSubscription';
 import {
   Car,
   Clock,
@@ -19,25 +20,38 @@ import {
 export function DashboardPage() {
   const { partner } = useAuth();
   const [orders, setOrders] = useState([]);
+  const [publishedStatementsCount, setPublishedStatementsCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [selectedOrder, setSelectedOrder] = useState(null);
 
-  useEffect(() => {
-    async function loadData() {
-      try {
-        const data = await orderService.getOrders();
-        setOrders(data);
-      } finally {
-        setLoading(false);
-      }
+  const loadData = async (isQuiet = false) => {
+    if (!isQuiet) setLoading(true);
+    try {
+      const [ordersData, statementsData] = await Promise.all([
+        orderService.getOrders(),
+        statementService.getPublishedStatements(),
+      ]);
+      setOrders(ordersData);
+      setPublishedStatementsCount(statementsData.length);
+    } catch (err) {
+      console.error('Error loading dashboard data:', err);
+    } finally {
+      if (!isQuiet) setLoading(false);
     }
+  };
+
+  useEffect(() => {
     loadData();
   }, []);
 
-  const ongoingTripsCount = orders.filter((o) => o.trip && o.trip.status === 'ONGOING').length;
+  // Real-time automatic subscription to database changes on orders, trips, and invoices
+  useTableSubscription(['orders', 'trips', 'invoices'], () => {
+    loadData(true);
+  });
+
+  const ongoingTripsCount = orders.filter((o) => o.trip && (o.trip.status === 'ONGOING' || o.trip.trip_status === 'ONGOING')).length;
   const pendingOrdersCount = orders.filter((o) => o.status === 'RECEIVED').length;
-  const closedTripsCount = orders.filter((o) => o.trip && o.trip.status === 'CLOSED').length;
-  const publishedStatementsCount = INITIAL_INVOICES.filter((i) => i.status === 'PUBLISHED').length;
+  const closedTripsCount = orders.filter((o) => o.trip && (o.trip.status === 'CLOSED' || o.trip.trip_status === 'CLOSED')).length;
 
   return (
     <div>

@@ -12,8 +12,9 @@ import {
   TrendingUp,
   Receipt,
   Car,
-  RefreshCw,
 } from 'lucide-react';
+
+import useTableSubscription from '../hooks/useTableSubscription';
 
 export function ReportsPage() {
   const [reports, setReports] = useState([]);
@@ -22,19 +23,24 @@ export function ReportsPage() {
   const [periodFilter, setPeriodFilter] = useState('ALL');
   const [selectedReport, setSelectedReport] = useState(null);
 
-  const fetchReports = async () => {
-    setLoading(true);
+  const fetchReports = async (isQuiet = false) => {
+    if (!isQuiet) setLoading(true);
     try {
       const data = await reportService.getClosedTripReports();
       setReports(data);
     } finally {
-      setLoading(false);
+      if (!isQuiet) setLoading(false);
     }
   };
 
   useEffect(() => {
     fetchReports();
   }, []);
+
+  // Real-time automatic subscription to database changes on trips and expenses
+  useTableSubscription(['trips', 'expenses'], () => {
+    fetchReports(true);
+  });
 
   // Filter logic
   const filteredReports = reports.filter((rep) => {
@@ -101,22 +107,16 @@ export function ReportsPage() {
           </p>
         </div>
 
-        <div style={{ display: 'flex', gap: '0.75rem' }}>
-          <button type="button" className="btn btn-secondary" onClick={fetchReports} title="Refresh">
-            <RefreshCw size={16} />
-            <span>Refresh</span>
-          </button>
-          <button
-            type="button"
-            className="btn btn-secondary"
-            onClick={handleExportCSV}
-            disabled={filteredReports.length === 0}
-            title="Download CSV"
-          >
-            <Download size={16} />
-            <span>Export CSV</span>
-          </button>
-        </div>
+        <button
+          type="button"
+          className="btn btn-secondary"
+          onClick={handleExportCSV}
+          disabled={filteredReports.length === 0}
+          title="Download CSV"
+        >
+          <Download size={16} />
+          <span>Export CSV</span>
+        </button>
       </div>
 
       {/* Metrics Cards */}

@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import orderService from '../services/orderService';
 import { StatusBadge } from '../components/common/StatusBadge';
 import OrderDetailModal from '../components/orders/OrderDetailModal';
+import useTableSubscription from '../hooks/useTableSubscription';
 import {
   Search,
   Filter,
@@ -12,7 +13,6 @@ import {
   Eye,
   KeyRound,
   AlertCircle,
-  RefreshCw,
 } from 'lucide-react';
 
 export function OrdersPage() {
@@ -23,19 +23,24 @@ export function OrdersPage() {
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [selectedOrder, setSelectedOrder] = useState(null);
 
-  const fetchOrders = async () => {
-    setLoading(true);
+  const fetchOrders = async (isQuiet = false) => {
+    if (!isQuiet) setLoading(true);
     try {
       const data = await orderService.getOrders();
       setOrders(data);
     } finally {
-      setLoading(false);
+      if (!isQuiet) setLoading(false);
     }
   };
 
   useEffect(() => {
     fetchOrders();
   }, []);
+
+  // Real-time automatic subscription to database changes on orders and trips
+  useTableSubscription(['orders', 'trips'], () => {
+    fetchOrders(true);
+  });
 
   // Filter logic
   const filteredOrders = orders.filter((order) => {
@@ -80,21 +85,10 @@ export function OrdersPage() {
             Track incoming transport requests, driver assignments, and live fulfillment.
           </p>
         </div>
-        <div style={{ display: 'flex', gap: '0.75rem' }}>
-          <button
-            type="button"
-            className="btn btn-secondary"
-            onClick={fetchOrders}
-            title="Refresh Orders"
-          >
-            <RefreshCw size={16} />
-            <span>Refresh</span>
-          </button>
-          <Link to="/orders/new" className="btn btn-primary">
-            <PlusCircle size={18} />
-            <span>Create New Order</span>
-          </Link>
-        </div>
+        <Link to="/orders/new" className="btn btn-primary">
+          <PlusCircle size={18} />
+          <span>Create New Order</span>
+        </Link>
       </div>
 
       {/* Tabs */}
