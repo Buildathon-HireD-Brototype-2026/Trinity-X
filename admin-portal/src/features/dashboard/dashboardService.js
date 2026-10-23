@@ -93,7 +93,7 @@ export const FALLBACK_ORDERS = [
 export function formatBackendOrder(order) {
   if (!order) return null;
 
-  const rawDate = order.scheduled_time || order.scheduledDate || order.created_at || new Date().toISOString();
+  const rawDate = order.pickup_time || order.scheduled_time || order.scheduledDate || order.created_at || new Date().toISOString();
   let displayDate = order.displayDate;
   if (!displayDate) {
     try {
@@ -115,25 +115,27 @@ export function formatBackendOrder(order) {
   let status = (order.status || 'PENDING').toUpperCase();
   if (status === 'IN_TRANSIT' || status === 'STARTED') {
     status = 'ONGOING';
+  } else if (status === 'RECEIVED') {
+    status = 'PENDING';
   }
 
   // Format fare
-  let formattedFare = order.fare;
+  let formattedFare = order.trip?.amount || order.fare || 1200;
   if (typeof formattedFare === 'number' || (typeof formattedFare === 'string' && !formattedFare.startsWith('₹'))) {
-    formattedFare = `₹${Number(order.fare || 0).toLocaleString('en-IN')}`;
+    formattedFare = `₹${Number(formattedFare || 0).toLocaleString('en-IN')}`;
   }
 
   return {
     id: order.order_code || (order.order_id ? `ORD-${order.order_id}` : order.id || 'ORD-000'),
     rawId: order.order_id || order.id,
     tripId: order.trip?.trip_code || (order.trip?.trip_id ? `TRIP-${order.trip.trip_id}` : order.tripId || null),
-    company: order.company?.company_name || order.company_name || order.company || 'Corporate Client',
-    pickup: order.pickup_location || order.pickup || 'Pickup Location',
-    dropoff: order.drop_location || order.dropoff || 'Dropoff Location',
+    company: order.company?.company_name || order.company?.name || order.company_name || order.company || 'Corporate Client',
+    pickup: order.pickup_spot || order.pickup_location || order.pickup || 'Pickup Location',
+    dropoff: order.dropoff_spot || order.drop_location || order.dropoff || 'Dropoff Location',
     scheduledDate: rawDate,
     displayDate,
-    passenger: order.passenger_name || order.passenger || 'Corporate Passenger',
-    passengerPhone: order.passenger_phone || order.passengerPhone || '+91 98000 00000',
+    passenger: order.contact_name || order.passenger_name || order.passenger || 'Corporate Passenger',
+    passengerPhone: order.contact_phone || order.passenger_phone || order.passengerPhone || '+91 98000 00000',
     status,
     fare: formattedFare || '₹0',
     vehicleType: order.vehicle_type || order.vehicleType || 'Sedan (Prime)',

@@ -28,6 +28,7 @@ export default function RecentOrdersTable({ onNavigate }) {
   const [orders, setOrders] = useState(FALLBACK_ORDERS);
   const [isLoading, setIsLoading] = useState(true);
   const [isActionLoading, setIsActionLoading] = useState(false);
+  const [fetchError, setFetchError] = useState(null);
   const [statusFilter, setStatusFilter] = useState('PENDING'); // Default to Pending Orders filter per request
   const [sortDirection, setSortDirection] = useState('desc'); // 'desc' = Newest first, 'asc' = Oldest first
   const [searchQuery, setSearchQuery] = useState('');
@@ -35,11 +36,13 @@ export default function RecentOrdersTable({ onNavigate }) {
 
   const fetchOrders = useCallback(async () => {
     setIsLoading(true);
+    setFetchError(null);
     try {
       const data = await getDashboardOrders();
       setOrders(data);
-    } catch {
+    } catch (err) {
       setOrders(FALLBACK_ORDERS);
+      setFetchError(err.message || 'Unable to connect to live server. Displaying cached operational records.');
     } finally {
       setIsLoading(false);
     }
@@ -230,6 +233,42 @@ export default function RecentOrdersTable({ onNavigate }) {
         </div>
       </div>
 
+      {/* Network Error / Offline Alert Banner */}
+      {fetchError && (
+        <div
+          className="orders-network-banner"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+            padding: '0.625rem 1rem',
+            background: 'rgba(239, 68, 68, 0.08)',
+            borderBottom: '1px solid rgba(239, 68, 68, 0.2)',
+            color: '#dc2626',
+            fontSize: '0.8125rem'
+          }}
+        >
+          <AlertCircle size={15} style={{ flexShrink: 0 }} />
+          <span>{fetchError}</span>
+          <button
+            type="button"
+            onClick={fetchOrders}
+            style={{
+              marginLeft: 'auto',
+              background: 'transparent',
+              border: 'none',
+              color: '#dc2626',
+              textDecoration: 'underline',
+              cursor: 'pointer',
+              fontWeight: 600,
+              fontSize: '0.78125rem'
+            }}
+          >
+            Retry Connection
+          </button>
+        </div>
+      )}
+
       {/* Orders Data Table */}
       <div className="orders-table-wrapper">
         <table className="orders-table">
@@ -250,7 +289,23 @@ export default function RecentOrdersTable({ onNavigate }) {
             </tr>
           </thead>
           <tbody>
-            {filteredOrders.length === 0 ? (
+            {isLoading ? (
+              Array.from({ length: 4 }).map((_, idx) => (
+                <tr key={`skeleton-${idx}`} className="orders-table-row">
+                  <td colSpan={7} style={{ padding: '1.25rem 1rem' }}>
+                    <div
+                      style={{
+                        height: '1.25rem',
+                        borderRadius: '4px',
+                        background: 'var(--border)',
+                        opacity: 0.5,
+                        animation: 'pulse 1.5s infinite ease-in-out'
+                      }}
+                    />
+                  </td>
+                </tr>
+              ))
+            ) : filteredOrders.length === 0 ? (
               <tr>
                 <td colSpan={7} className="orders-empty-state">
                   <AlertCircle size={28} className="empty-state-icon" />
