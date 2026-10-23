@@ -8,14 +8,16 @@ const DEFAULT_ADMINS = [
     id: 'ADM-001',
     name: 'Admin One',
     email: 'admin1@hired.com',
+    phone: '+91 98450 11223',
     password: 'Password@123',
     role: 'Admin',
     status: 'ACTIVE',
   },
   {
     id: 'ADM-002',
-    name: 'Admin Two',
+    name: 'Neha Sharma',
     email: 'admin2@hired.com',
+    phone: '+91 98765 43210',
     password: 'Password@123',
     role: 'Admin',
     status: 'ACTIVE',
@@ -24,6 +26,7 @@ const DEFAULT_ADMINS = [
     id: 'ADM-003',
     name: 'Inactive Admin',
     email: 'inactive@hired.com',
+    phone: '+91 98111 22334',
     password: 'Password@123',
     role: 'Admin',
     status: 'INACTIVE',
@@ -34,7 +37,14 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(() => {
     try {
       const saved = localStorage.getItem('hired_admin_user');
-      return saved ? JSON.parse(saved) : null;
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (!parsed.phone) {
+          parsed.phone = parsed.email === 'admin1@hired.com' ? '+91 98450 11223' : '+91 98765 43210';
+        }
+        return parsed;
+      }
+      return null;
     } catch {
       return null;
     }
@@ -114,6 +124,7 @@ export function AuthProvider({ children }) {
       id: adminByEmail.id,
       name: adminByEmail.name,
       email: adminByEmail.email,
+      phone: adminByEmail.phone,
       role: adminByEmail.role,
       token: `hired_admin_token_${Date.now()}`,
     };
@@ -129,6 +140,18 @@ export function AuthProvider({ children }) {
     setUser(null);
   };
 
+  const updateProfile = (updatedData) => {
+    setUser((prev) => {
+      const updated = { ...prev, ...updatedData };
+      localStorage.setItem('hired_admin_user', JSON.stringify(updated));
+      const idx = DEFAULT_ADMINS.findIndex((a) => a.id === updated.id || a.email === prev?.email);
+      if (idx !== -1) {
+        DEFAULT_ADMINS[idx] = { ...DEFAULT_ADMINS[idx], ...updatedData };
+      }
+      return updated;
+    });
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -136,6 +159,7 @@ export function AuthProvider({ children }) {
         isAuthenticated: !!user,
         login,
         logout,
+        updateProfile,
         loading,
       }}
     >

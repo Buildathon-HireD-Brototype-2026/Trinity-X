@@ -8,17 +8,24 @@ import {
 import { useAuth } from '../../features/auth/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
 
-export default function Navbar() {
+export default function Navbar({ onOpenProfile, currentView }) {
   const { user, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
 
   const adminName = user?.name || 'Lead Admin';
   const adminEmail = user?.email || 'admin1@hired.com';
+  const isProfileActive = currentView === 'profile';
 
   return (
     <header className="admin-topbar">
       <div className="topbar-left">
-        <div className="topbar-admin-profile">
+        <div
+          className={`topbar-admin-profile ${isProfileActive ? 'active' : ''}`}
+          onClick={onOpenProfile}
+          role="button"
+          tabIndex={0}
+          title="Click to view full Admin Profile"
+        >
           <span className="topbar-admin-name">{adminName}</span>
           <span className="topbar-admin-email">{adminEmail}</span>
         </div>
