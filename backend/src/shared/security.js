@@ -2,8 +2,14 @@ import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 
+const isProd = process.env.NODE_ENV === 'production';
+if (isProd && (!process.env.JWT_ACCESS_SECRET || !process.env.JWT_REFRESH_SECRET)) {
+  throw new Error('[FATAL SECURITY] Production deployment requires explicit JWT_ACCESS_SECRET and JWT_REFRESH_SECRET environment variables.');
+}
+
 const ACCESS_SECRET = process.env.JWT_ACCESS_SECRET || 'dev_jwt_access_secret_trinity_x';
 const REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || 'dev_jwt_refresh_secret_trinity_x';
+const FILE_SIGNING_SECRET = process.env.FILE_SIGNING_SECRET || ACCESS_SECRET;
 const ACCESS_EXPIRES_IN = process.env.JWT_ACCESS_EXPIRES_IN || '15m';
 const REFRESH_EXPIRES_IN = process.env.JWT_REFRESH_EXPIRES_IN || '7d';
 
@@ -71,4 +77,28 @@ export function verifyRefreshToken(token) {
  */
 export function normalizeEmail(email) {
   return typeof email === 'string' ? email.trim().toLowerCase() : '';
+}
+
+/**
+ * Generate a signed short-lived document access token (expires in 5 minutes / 300s).
+ */
+export function generateSignedFileToken({ driverId, documentId, expiresInSeconds = 300 }) {
+  const expiresAt = new Date(Date.now() + expiresInSeconds * 1000);
+  const token = jwt.sign(
+    {
+      driverId: Number(driverId),
+      documentId: Number(documentId)
+    },
+    FILE_SIGNING_SECRET,
+    { expiresIn: expiresInSeconds }
+  );
+
+  return { token, expiresAt };
+}
+
+/**
+ * Verify signed document token.
+ */
+export function verifySignedFileToken(token) {
+  return jwt.verify(token, FILE_SIGNING_SECRET);
 }
