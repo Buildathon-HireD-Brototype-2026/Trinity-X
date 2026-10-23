@@ -666,13 +666,20 @@ export async function closeDriverTrip(driverId, tripId, { otp } = {}, ipAddress)
       throw new AppError(409, 'CONFLICT', `Cannot close trip in ${trip.tripStatus} status. Must be ONGOING.`);
     }
 
+    const maxAttempts = 5;
+    if ((trip.otpAttempts || 0) >= maxAttempts) {
+      throw new AppError(403, 'OTP_LOCKED', 'Maximum OTP verification attempts exceeded. Trip requires administrative review.');
+    }
+
     // Verify OTP
     if (otp.trim() !== trip.otp.trim()) {
-      await tx.trip.update({
+      const updatedAttempts = (trip.otpAttempts || 0) + 1;
+      await prisma.trip.update({
         where: { tripId: trip.tripId },
         data: { otpAttempts: { increment: 1 } }
       });
-      throw new AppError(400, 'INVALID_OTP', 'Invalid trip completion OTP. Please verify with passenger.');
+      const remaining = Math.max(0, maxAttempts - updatedAttempts);
+      throw new AppError(400, 'INVALID_OTP', `Invalid trip completion OTP. ${remaining} attempt(s) remaining.`);
     }
 
     // Calculate payouts

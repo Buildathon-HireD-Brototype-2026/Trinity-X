@@ -18,13 +18,23 @@ import { errorResponse } from './shared/response.js';
 const app = express();
 const PORT = process.env.PORT || 5000;
 
+const allowedOrigins = process.env.ALLOWED_ORIGINS
+  ? process.env.ALLOWED_ORIGINS.split(',').map(s => s.trim())
+  : ['http://localhost:3000', 'http://127.0.0.1:3000', 'http://localhost:5173', 'http://127.0.0.1:5173'];
+
 // Essential security & parsing middlewares
 app.use(helmet());
 app.use(cors({
-  origin: true,
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(null, false);
+    }
+  },
   credentials: true
 }));
-app.use(express.json());
+app.use(express.json({ limit: '1mb' }));
 app.use(cookieParser());
 
 // Signed document retrieval endpoint
@@ -35,8 +45,8 @@ app.get('/files/signed', downloadSignedFileHandler);
 app.use('/api/v1/auth', authRouter);
 app.use('/auth', authRouter);
 
-app.use('/api/v1/admin', adminRouter);
-app.use('/admin', adminRouter);
+app.use('/api/v1/driver', driverRouter);
+app.use('/driver', driverRouter);
 
 app.use('/api/v1/orders', orderRouter);
 app.use('/orders', orderRouter);
@@ -56,8 +66,9 @@ app.use('/partner/trips', reportRouter);
 app.use('/api/v1/notifications', notificationRouter);
 app.use('/notifications', notificationRouter);
 
-app.use('/api/v1/driver', driverRouter);
-app.use('/driver', driverRouter);
+app.use('/api/v1/admin', adminRouter);
+app.use('/admin', adminRouter);
+app.use('/api/v1', adminRouter);
 
 // Health check endpoint to verify server and database connectivity
 app.get('/health', async (req, res) => {

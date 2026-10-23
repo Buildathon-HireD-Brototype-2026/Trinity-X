@@ -236,10 +236,10 @@ export async function updateAdminProfile(adminId, data, actor = {}, ipAddress = 
       if (duplicate) {
         throw new AppError(409, 'DUPLICATE_EMAIL', 'A user with this email_id already exists.');
       }
-      updateData.emailId = cleanEmail;
-      oldValue.email_id = admin.emailId;
-      newValue.email_id = cleanEmail;
     }
+    updateData.emailId = cleanEmail;
+    oldValue.email_id = admin.emailId;
+    newValue.email_id = cleanEmail;
   }
 
   const officeId = data.office_id !== undefined ? data.office_id : data.officeId;
