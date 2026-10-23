@@ -3005,4 +3005,34 @@ body {
   transform: translateY(-1px);
 }
 
+.profile-btn-primary:disabled,
+.profile-btn-secondary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
 
+/* Spinner icon used in Save button loading state */
+.spin-icon {
+  animation: spin 0.7s linear infinite;
+}
+
+/* API-level error banner below the edit form fields */
+.profile-save-error {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 0.875rem;
+  border-radius: var(--radius-sm);
+  background: var(--danger-light);
+  border: 1px solid #fca5a5;
+  color: var(--danger);
+  font-size: 0.8rem;
+  margin-bottom: 0.25rem;
+}
+
+[data-theme="dark"] .profile-save-error {
+  background: rgba(248, 113, 113, 0.1);
+  border-color: rgba(248, 113, 113, 0.3);
+  color: #f87171;
+}

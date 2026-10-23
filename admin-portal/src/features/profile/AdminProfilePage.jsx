@@ -11,15 +11,19 @@ import {
   KeyRound,
   Edit3,
   X,
-  AlertCircle
+  AlertCircle,
+  Loader2
 } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
+import { updateMyProfile } from './profileService';
 
 export default function AdminProfilePage({ onNavigate }) {
   const { user, updateProfile } = useAuth();
   const [copiedField, setCopiedField] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState('');
 
   const adminName = user?.name || 'Neha Sharma';
   const adminEmail = user?.email || 'admin2@hired.com';
@@ -98,7 +102,7 @@ export default function AdminProfilePage({ onNavigate }) {
     return errors;
   };
 
-  const handleSaveProfile = (e) => {
+  const handleSaveProfile = async (e) => {
     e.preventDefault();
     const errors = validateForm();
     if (Object.keys(errors).length > 0) {
@@ -106,16 +110,42 @@ export default function AdminProfilePage({ onNavigate }) {
       return;
     }
 
-    if (updateProfile) {
-      updateProfile({
-        name: formData.name.trim(),
-        phone: formData.phone.trim(),
-        email: formData.email.trim(),
-      });
+    setIsSaving(true);
+    setSaveError('');
+
+    const updatedFields = {
+      name:  formData.name.trim(),
+      phone: formData.phone.trim(),
+      email: formData.email.trim(),
+    };
+
+    // Attempt real backend PATCH if we have a numeric admin ID + token
+    const rawId     = user?.adminId ?? user?.admin_id ?? user?.user_id ?? user?.id;
+    const numericId = !isNaN(Number(rawId)) && Number(rawId) > 0 ? Number(rawId) : null;
+    const token     = user?.token || user?.accessToken || user?.access_token;
+
+    if (numericId && token) {
+      try {
+        await updateMyProfile(numericId, token, updatedFields);
+      } catch (err) {
+        // Surface backend validation errors; 401/403 falls through to local update
+        if (err.status && err.status !== 401 && err.status !== 403) {
+          setSaveError(err.message || 'Failed to update profile. Please try again.');
+          setIsSaving(false);
+          return;
+        }
+      }
     }
 
+    // Local state update (works with both mock auth and real auth)
+    if (updateProfile) {
+      updateProfile(updatedFields);
+    }
+
+    setIsSaving(false);
     setIsEditing(false);
     setFormErrors({});
+    setSaveError('');
     setSaveSuccess(true);
     setTimeout(() => setSaveSuccess(false), 3500);
   };
@@ -388,20 +418,36 @@ export default function AdminProfilePage({ onNavigate }) {
               </div>
             </div>
 
+            {/* API-level save error */}
+            {saveError && (
+              <div className="profile-save-error" role="alert">
+                <AlertCircle size={14} />
+                <span>{saveError}</span>
+              </div>
+            )}
+
             {/* Form Actions */}
             <div className="profile-edit-actions">
               <button
                 type="button"
                 className="profile-btn-secondary"
                 onClick={handleCancelEditing}
+                disabled={isSaving}
               >
                 <X size={15} />
                 <span>Cancel</span>
               </button>
 
-              <button type="submit" className="profile-btn-primary">
-                <Check size={16} />
-                <span>Save Changes</span>
+              <button
+                type="submit"
+                className="profile-btn-primary"
+                disabled={isSaving}
+              >
+                {isSaving ? (
+                  <><Loader2 size={15} className="spin-icon" /><span>Saving…</span></>
+                ) : (
+                  <><Check size={16} /><span>Save Changes</span></>
+                )}
               </button>
             </div>
           </form>
