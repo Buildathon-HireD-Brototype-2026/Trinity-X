@@ -2,17 +2,18 @@ import React from 'react';
 import {
   Bell,
   Moon,
-  Sun
+  Sun,
+  LogOut
 } from 'lucide-react';
 import { useAuth } from '../../features/auth/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
 
 export default function Navbar({ onOpenProfile, currentView }) {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
 
-  const adminName = user?.name || 'Neha Sharma';
-  const adminEmail = user?.email || 'admin2@hired.com';
+  const adminName = user?.name || 'Lead Admin';
+  const adminEmail = user?.email || 'admin1@hired.com';
   const isProfileActive = currentView === 'profile';
 
   return (
@@ -56,6 +57,17 @@ export default function Navbar({ onOpenProfile, currentView }) {
 
         {/* Admin Badge */}
         <span className="topbar-role-badge">ADMIN</span>
+
+        {/* Topbar Sign Out Action */}
+        <button
+          type="button"
+          className="topbar-icon-btn topbar-logout-btn"
+          onClick={logout}
+          aria-label="Sign Out"
+          title="Sign Out"
+        >
+          <LogOut size={16} />
+        </button>
       </div>
     </header>
   );

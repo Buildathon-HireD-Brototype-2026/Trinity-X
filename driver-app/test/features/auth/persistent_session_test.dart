@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:driver_app/app.dart';
+import 'package:driver_app/core/errors/error_messages.dart';
 import 'package:driver_app/core/network/auth_interceptor.dart';
 import 'package:driver_app/core/routing/app_router.dart';
 import 'package:driver_app/core/storage/local_cache_service.dart';
@@ -358,10 +359,9 @@ void main() {
       await tester.pump();
       await tester.pumpAndSettle();
 
-      // Redirected to Login with session expired banner
+      // Redirected to Login without session expired banner on login screen itself
       expect(find.text('Driver Partner Login'), findsOneWidget);
-      expect(find.byKey(const Key('session_expired_banner')), findsOneWidget);
-      expect(find.text('Active session expired. Please log in again.'), findsOneWidget);
+      expect(find.byKey(const Key('session_expired_banner')), findsNothing);
 
       // Secure storage cleared
       expect(mockSecureStorage.rawData.isEmpty, isTrue);
@@ -512,8 +512,9 @@ void main() {
       expect(success, isFalse);
       expect(
         controller.state.errorMessage,
-        equals('Too many login attempts. Please wait 60 seconds before trying again.'),
+        equals(ErrorMessages.rateLimited),
       );
+      expect(controller.state.appError?.refCode, equals('HD-RATE-01'));
     });
 
     test('14. Rapid submission debounce prevents multi-click spam', () async {

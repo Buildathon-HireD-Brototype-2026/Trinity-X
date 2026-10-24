@@ -35,12 +35,13 @@ export async function createPasswordSetupToken({ userType, userId, hoursValid = 
 /**
  * Establish a user's password using a valid setup token.
  */
-export async function setupPasswordWithToken({ token, newPassword }) {
-  if (!token || !newPassword) {
+export async function setupPasswordWithToken({ token, newPassword, password }) {
+  const pwd = newPassword || password;
+  if (!token || !pwd) {
     throw { status: 400, message: 'Setup token and new password are required.' };
   }
 
-  if (typeof newPassword !== 'string' || newPassword.length < 8) {
+  if (typeof pwd !== 'string' || pwd.length < 8) {
     throw { status: 400, message: 'Password must be at least 8 characters long.' };
   }
 
@@ -63,7 +64,7 @@ export async function setupPasswordWithToken({ token, newPassword }) {
   }
 
   const { userType, userId } = tokenRecord;
-  const newHash = await hashPassword(newPassword);
+  const newHash = await hashPassword(pwd);
 
   await prisma.$transaction(async (tx) => {
     // 1. Invalidate token

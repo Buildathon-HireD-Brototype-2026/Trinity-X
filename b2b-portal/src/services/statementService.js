@@ -18,10 +18,6 @@ const MOCK_INVOICES_STORE = [
     status: 'PUBLISHED', // Accessible by partner
     total_trips: 18,
     total_amount: 42500.0,
-    driver_share_pct: 30.0,
-    platform_share_pct: 70.0,
-    driver_share_total: 12750.0,
-    platform_share_total: 29750.0,
     expenses_total: 2150.0,
     net_payable: 44650.0,
     created_at: '2026-10-01T09:00:00Z',
@@ -39,8 +35,6 @@ const MOCK_INVOICES_STORE = [
         pickup_spot: 'Sector 29 Market, Gurugram',
         dropoff_spot: 'Greater Kailash 1, South Delhi',
         amount: 2400.0,
-        driver_share: 720.0,
-        platform_share: 1680.0,
       },
       {
         trip_id: 975,
@@ -48,8 +42,6 @@ const MOCK_INVOICES_STORE = [
         pickup_spot: 'Ambience Mall, Gurugram',
         dropoff_spot: 'Aerocity, New Delhi',
         amount: 1650.0,
-        driver_share: 495.0,
-        platform_share: 1155.0,
       },
       {
         trip_id: 971,
@@ -57,8 +49,6 @@ const MOCK_INVOICES_STORE = [
         pickup_spot: 'Cyber City, Gurugram',
         dropoff_spot: 'Noida Sector 62',
         amount: 2850.0,
-        driver_share: 855.0,
-        platform_share: 1995.0,
       },
     ],
   },
@@ -70,10 +60,6 @@ const MOCK_INVOICES_STORE = [
     status: 'PUBLISHED', // Accessible by partner
     total_trips: 15,
     total_amount: 36200.0,
-    driver_share_pct: 30.0,
-    platform_share_pct: 70.0,
-    driver_share_total: 10860.0,
-    platform_share_total: 25340.0,
     expenses_total: 1400.0,
     net_payable: 37600.0,
     created_at: '2026-09-01T08:30:00Z',

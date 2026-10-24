@@ -9,6 +9,7 @@ import {
   verifyRefreshToken,
   normalizeEmail
 } from '../../shared/security.js';
+import { AppError } from '../../shared/response.js';
 
 const LOCKOUT_THRESHOLD = 5;
 const LOCKOUT_DURATION_MS = 15 * 60 * 1000; // 15 minutes
@@ -31,7 +32,7 @@ function formatInet(ip) {
  */
 export async function loginUser({ identityType, identifier, password, ipAddress }) {
   if (!identifier || !password) {
-    throw { status: 400, message: 'Identifier and password are required.' };
+    throw new AppError(400, 'BAD_REQUEST', 'Identifier and password are required.');
   }
 
   let user = null;
@@ -51,17 +52,33 @@ export async function loginUser({ identityType, identifier, password, ipAddress 
     });
     idField = 'companyId';
   } else if (userType === 'DRIVER') {
-    const phone = identifier.trim();
-    user = await prisma.driver.findUnique({
-      where: { phoneNo: phone }
+    const rawPhone = identifier.trim();
+    const digits = rawPhone.replace(/\D/g, '');
+    let normalizedPhone = rawPhone;
+    if (digits.length === 10) {
+      normalizedPhone = `+91${digits}`;
+    } else if (digits.length === 12 && digits.startsWith('91')) {
+      normalizedPhone = `+${digits}`;
+    }
+
+    user = await prisma.driver.findFirst({
+      where: {
+        OR: [
+          { phoneNo: normalizedPhone },
+          { phoneNo: rawPhone },
+          ...(digits.length === 10 ? [{ phoneNo: digits }] : []),
+          ...(digits.length === 12 && digits.startsWith('91') ? [{ phoneNo: digits.slice(2) }, { phoneNo: digits }, { phoneNo: `+${digits}` }] : []),
+          ...(rawPhone.startsWith('+91') ? [{ phoneNo: rawPhone.slice(3) }] : [])
+        ]
+      }
     });
     idField = 'driverId';
   } else {
-    throw { status: 400, message: 'Invalid identity type.' };
+    throw new AppError(400, 'BAD_REQUEST', 'Invalid identity type.');
   }
 
   // Generic message for security (prevents user enumeration)
-  const genericAuthError = { status: 401, message: 'Invalid credentials.' };
+  const genericAuthError = new AppError(401, 'INVALID_CREDENTIALS', 'Invalid credentials.');
 
   if (!user) {
     throw genericAuthError;
@@ -71,26 +88,30 @@ export async function loginUser({ identityType, identifier, password, ipAddress 
 
   // Check account lockout
   if (user.lockedUntil && new Date(user.lockedUntil) > new Date()) {
-    throw {
-      status: 403,
-      message: 'Account is temporarily locked due to consecutive failed attempts. Please try again later.'
-    };
+    throw new AppError(
+      403,
+      'ACCOUNT_LOCKED',
+      'Account is locked (5 failed logins, 15 minutes) or not active.',
+      [{ locked_until: user.lockedUntil }]
+    );
   }
 
   // Check account status
   if (userType === 'DRIVER') {
     if (user.status !== 'ACTIVE') {
-      throw {
-        status: 403,
-        message: 'Driver account is not active or is pending onboarding verification.'
-      };
+      throw new AppError(
+        403,
+        'DRIVER_NOT_ACTIVE',
+        'Driver account is not active or is pending onboarding verification.'
+      );
     }
   } else {
     if (user.status !== 'ACTIVE') {
-      throw {
-        status: 403,
-        message: 'Account is inactive. Please contact an administrator.'
-      };
+      throw new AppError(
+        403,
+        'FORBIDDEN',
+        'Account is inactive. Please contact an administrator.'
+      );
     }
   }
 
@@ -114,10 +135,12 @@ export async function loginUser({ identityType, identifier, password, ipAddress 
     }
 
     if (shouldLock) {
-      throw {
-        status: 403,
-        message: 'Account has been temporarily locked for 15 minutes due to multiple failed login attempts.'
-      };
+      throw new AppError(
+        403,
+        'ACCOUNT_LOCKED',
+        'Account has been temporarily locked for 15 minutes due to multiple failed login attempts.',
+        [{ locked_until: updateData.lockedUntil }]
+      );
     }
 
     throw genericAuthError;
@@ -162,11 +185,29 @@ export async function loginUser({ identityType, identifier, password, ipAddress 
     token: rawToken
   });
 
+  const displayName = user.adminName || user.name || user.contactPerson || 'User';
+  const safeProfile = getSafeUserProfile(user, userType);
+
   return {
+    // OpenAPI standard properties
+    access_token: accessToken,
+    refresh_token: refreshToken,
+    token_type: 'Bearer',
+    expires_in: 15 * 60, // 15 minutes
+    user_type: userType,
+    user: {
+      user_id: userId,
+      name: displayName,
+      ...safeProfile,
+      userType
+    },
+    // Backwards-compatible properties
     accessToken,
     refreshToken,
-    expiresIn: 15 * 60, // 15 minutes in seconds
-    user: getSafeUserProfile(user, userType)
+    tokenType: 'Bearer',
+    expiresIn: 15 * 60,
+    userType,
+    profile: safeProfile
   };
 }
 
@@ -175,14 +216,14 @@ export async function loginUser({ identityType, identifier, password, ipAddress 
  */
 export async function refreshUserSession(tokenString, ipAddress) {
   if (!tokenString) {
-    throw { status: 401, message: 'Refresh token is required.' };
+    throw new AppError(400, 'BAD_REQUEST', 'Refresh token is required.');
   }
 
   let decoded;
   try {
     decoded = verifyRefreshToken(tokenString);
   } catch (err) {
-    throw { status: 401, message: 'Invalid or expired refresh token.' };
+    throw new AppError(401, 'INVALID_REFRESH_TOKEN', 'Refresh token is expired, revoked or the user is not active.');
   }
 
   const { sessionId, token: rawToken, userType, userId } = decoded;
@@ -192,16 +233,16 @@ export async function refreshUserSession(tokenString, ipAddress) {
   });
 
   if (!session) {
-    throw { status: 401, message: 'Session not found.' };
+    throw new AppError(401, 'INVALID_REFRESH_TOKEN', 'Session not found.');
   }
 
   if (session.revokedAt) {
     // Replay attack detection: old token reused after revocation
-    throw { status: 401, message: 'Session has been revoked.' };
+    throw new AppError(401, 'INVALID_REFRESH_TOKEN', 'Session has been revoked.');
   }
 
   if (new Date(session.expiresAt) <= new Date()) {
-    throw { status: 401, message: 'Session has expired.' };
+    throw new AppError(401, 'INVALID_REFRESH_TOKEN', 'Session has expired.');
   }
 
   const expectedHash = hashToken(rawToken);
@@ -211,7 +252,7 @@ export async function refreshUserSession(tokenString, ipAddress) {
       where: { sessionId },
       data: { revokedAt: new Date() }
     });
-    throw { status: 401, message: 'Invalid session token.' };
+    throw new AppError(401, 'INVALID_REFRESH_TOKEN', 'Invalid session token.');
   }
 
   // Verify account is still active
@@ -221,7 +262,7 @@ export async function refreshUserSession(tokenString, ipAddress) {
       where: { sessionId },
       data: { revokedAt: new Date() }
     });
-    throw { status: 403, message: 'User account is inactive.' };
+    throw new AppError(403, 'FORBIDDEN', 'User account is inactive.');
   }
 
   // Rotate in a transaction: revoke old session, create new session
@@ -258,8 +299,13 @@ export async function refreshUserSession(tokenString, ipAddress) {
   });
 
   return {
+    access_token: newAccessToken,
+    refresh_token: newRefreshToken,
+    token_type: 'Bearer',
+    expires_in: 15 * 60,
     accessToken: newAccessToken,
     refreshToken: newRefreshToken,
+    tokenType: 'Bearer',
     expiresIn: 15 * 60,
     user: getSafeUserProfile(activeUser, userType)
   };
@@ -267,8 +313,17 @@ export async function refreshUserSession(tokenString, ipAddress) {
 
 /**
  * Revoke session on logout.
+ * Can revoke by refresh token string or direct sessionId.
  */
-export async function logoutUser(tokenString) {
+export async function logoutUser(tokenString, sessionId = null) {
+  if (sessionId) {
+    await prisma.session.updateMany({
+      where: { sessionId: Number(sessionId), revokedAt: null },
+      data: { revokedAt: new Date() }
+    });
+    return;
+  }
+
   if (!tokenString) return;
 
   try {
@@ -285,13 +340,13 @@ export async function logoutUser(tokenString) {
 }
 
 /**
- * Revoke all active sessions for a specific user (e.g. on deactivation or password reset).
+ * Revoke all active sessions for a specific user (e.g. on deactivation).
  */
 export async function revokeAllUserSessions(userType, userId) {
   return prisma.session.updateMany({
     where: {
       userType,
-      userId,
+      userId: Number(userId),
       revokedAt: null
     },
     data: { revokedAt: new Date() }
@@ -303,23 +358,65 @@ export async function revokeAllUserSessions(userType, userId) {
  */
 export async function getUserById(userType, userId) {
   if (userType === 'ADMIN') {
-    return prisma.admin.findUnique({ where: { adminId: userId } });
+    return prisma.admin.findUnique({ where: { adminId: Number(userId) } });
   } else if (userType === 'PARTNER') {
-    return prisma.company.findUnique({ where: { companyId: userId } });
+    return prisma.company.findUnique({ where: { companyId: Number(userId) } });
   } else if (userType === 'DRIVER') {
-    return prisma.driver.findUnique({ where: { driverId: userId } });
+    return prisma.driver.findUnique({ where: { driverId: Number(userId) } });
   }
   return null;
 }
 
 /**
- * Return safe profile object removing sensitive credentials.
+ * Return a safe profile object with only the fields each user type needs.
+ * Explicitly whitelists fields instead of spreading the full DB row —
+ * prevents leaking internal fields like failedLoginAttempts, lockedUntil,
+ * passwordHash, driverSplit, hiredSplit, etc.
  */
 export function getSafeUserProfile(user, userType) {
   if (!user) return null;
-  const { passwordHash, ...safe } = user;
-  return {
-    ...safe,
-    userType
-  };
+
+  if (userType === 'ADMIN') {
+    return {
+      adminId: user.adminId,
+      adminName: user.adminName,
+      emailId: user.emailId,
+      status: user.status,
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt,
+      userType
+    };
+  }
+
+  if (userType === 'PARTNER') {
+    return {
+      companyId: user.companyId,
+      name: user.name,
+      emailId: user.emailId,
+      contactPerson: user.contactPerson,
+      status: user.status,
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt,
+      userType
+    };
+  }
+
+  if (userType === 'DRIVER') {
+    return {
+      driverId: user.driverId,
+      name: user.name,
+      phoneNo: user.phoneNo,
+      status: user.status,
+      isOnline: user.isOnline,
+      hasPhoto: Boolean(user.photoURL),
+      currentLocation: user.currentLocation || null,
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt,
+      userType
+    };
+  }
+
+  // Fallback for unknown userType: at minimum strip all known sensitive fields.
+  const { passwordHash, failedLoginAttempts, lockedUntil, driverSplit, hiredSplit, ...safe } = user;
+  return { ...safe, userType };
 }

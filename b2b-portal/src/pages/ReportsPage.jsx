@@ -97,7 +97,7 @@ export function ReportsPage() {
         <div>
           <h1 className="page-title">Trip Reports</h1>
           <p className="page-subtitle">
-            Inspect verified completion reports for closed trips, including fare breakdown and out-of-pocket expenses (PRD B-05).
+            Inspect verified completion reports for closed trips, including fare breakdown and out-of-pocket expenses.
           </p>
         </div>
 

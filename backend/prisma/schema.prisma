@@ -107,6 +107,8 @@ model Trip {
   expenses           Expense[]
   tripPayroll        TripPayroll?
   walletTransaction  DriverWalletTransaction?
+  driverLocations    DriverLocation[]
+  driverLocationHistory DriverLocationHistory[]
 
   @@index([driverId, tripStatus])
   @@index([tripStatus])
@@ -228,8 +230,43 @@ model Driver {
   walletTransactions  DriverWalletTransaction[]
   documents           DriverDocument[]
   leaves              DriverLeave[]
+  location            DriverLocation?
+  locationHistory     DriverLocationHistory[]
 
   @@map("drivers")
+}
+
+model DriverLocation {
+  driverId       Int      @id @map("driver_id")
+  lat            Float    @map("lat")
+  lng            Float    @map("lng")
+  speed          Float?   @map("speed")
+  heading        Float?   @map("heading")
+  accuracy       Float?   @map("accuracy")
+  batteryPercent Int?     @map("battery_percent")
+  tripId         Int?     @map("trip_id")
+  updatedAt      DateTime @default(now()) @updatedAt @db.Timestamptz @map("updated_at")
+
+  driver         Driver   @relation(fields: [driverId], references: [driverId], onUpdate: Cascade, onDelete: Restrict)
+  trip           Trip?    @relation(fields: [tripId], references: [tripId], onUpdate: Cascade, onDelete: SetNull)
+
+  @@map("driver_locations")
+}
+
+model DriverLocationHistory {
+  id         BigInt   @id @default(autoincrement()) @map("id")
+  driverId   Int      @map("driver_id")
+  tripId     Int?     @map("trip_id")
+  lat        Float    @map("lat")
+  lng        Float    @map("lng")
+  speed      Float?   @map("speed")
+  recordedAt DateTime @default(now()) @db.Timestamptz @map("recorded_at")
+
+  driver     Driver   @relation(fields: [driverId], references: [driverId], onUpdate: Cascade, onDelete: Restrict)
+  trip       Trip?    @relation(fields: [tripId], references: [tripId], onUpdate: Cascade, onDelete: SetNull)
+
+  @@index([driverId, recordedAt])
+  @@map("driver_location_history")
 }
 
 model DriverDocument {
@@ -253,6 +290,8 @@ model DriverLeave {
   driverId  Int      @map("driver_id")
   startDate DateTime @db.Date @map("start_date")
   endDate   DateTime @db.Date @map("end_date")
+  status    String   @default("PENDING") @db.VarChar(20) @map("status")
+  reason    String?  @db.VarChar(500) @map("reason")
   createdAt DateTime @default(now()) @db.Timestamptz @map("created_at")
 
   driver    Driver   @relation(fields: [driverId], references: [driverId], onUpdate: Cascade, onDelete: Restrict)

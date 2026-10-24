@@ -3,6 +3,7 @@ import {
   adminLogin,
   partnerLogin,
   driverLogin,
+  unifiedLogin,
   refreshToken,
   logout,
   getMe,
@@ -11,10 +12,21 @@ import {
   setupDriverPassword
 } from '../modules/auth/auth.controller.js';
 import { authenticate } from '../middlewares/auth.middleware.js';
+import { authRateLimiter } from '../middlewares/rateLimiter.middleware.js';
 
 const router = Router();
 
+// Rate limiting applied to public auth & onboarding endpoints
+router.use('/login', authRateLimiter);
+router.use('/admin/login', authRateLimiter);
+router.use('/partner/login', authRateLimiter);
+router.use('/driver/login', authRateLimiter);
+router.use('/partner/register', authRateLimiter);
+router.use('/partner/password/setup', authRateLimiter);
+router.use('/driver/password/setup', authRateLimiter);
+
 // Core authentication routes
+router.post('/login', unifiedLogin);
 router.post('/admin/login', adminLogin);
 router.post('/partner/login', partnerLogin);
 router.post('/driver/login', driverLogin);

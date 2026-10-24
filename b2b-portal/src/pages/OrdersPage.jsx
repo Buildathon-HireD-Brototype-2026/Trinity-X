@@ -77,7 +77,7 @@ export function OrdersPage() {
         <div>
           <h1 className="page-title">My Orders & Trips</h1>
           <p className="page-subtitle">
-            Track incoming transport requests, driver assignments, and live fulfillment (PRD B-03).
+            Track incoming transport requests, driver assignments, and live fulfillment.
           </p>
         </div>
         <div style={{ display: 'flex', gap: '0.75rem' }}>
