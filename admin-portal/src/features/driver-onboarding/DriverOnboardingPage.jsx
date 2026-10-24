@@ -10,7 +10,6 @@ import {
   AlertCircle,
   CheckCircle2,
   Wifi,
-  FileCheck2,
   FileText,
   Eye,
   ShieldAlert
@@ -247,14 +246,6 @@ export default function DriverOnboardingPage() {
           </div>
           <span className="stat-label" style={{ color: '#1d4ed8' }}>Currently Online</span>
         </div>
-      </div>
-
-      {/* ── PRD Guidelines Info Banner ── */}
-      <div className="prd-info-banner">
-        <FileCheck2 size={14} />
-        <span>
-          <strong>PRD Rule (A-09):</strong> Driver onboarding queue displays uploaded KYC documents (Driving Licence, Aadhaar, PAN, PCC). Approving a driver transitions their status to <strong>Active</strong> for dispatch assignment.
-        </span>
       </div>
 
       {/* ── Page Error Banner ── */}

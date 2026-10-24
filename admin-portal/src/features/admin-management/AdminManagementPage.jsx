@@ -142,16 +142,6 @@ export default function AdminManagementPage() {
           <span className="stat-label">Inactive</span>
         </div>
       </div>
-
-      {/* ── PRD note ── */}
-      <div className="prd-info-banner">
-        <ShieldCheck size={14} />
-        <span>
-          All admin accounts have identical portal access. A minimum of 2 active admins
-          must exist at all times for two-person invoice verification.
-        </span>
-      </div>
-
       {/* ── Page-level error ── */}
       {pageError && (
         <div className="page-error-banner">
