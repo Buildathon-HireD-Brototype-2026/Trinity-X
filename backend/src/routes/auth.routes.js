@@ -21,6 +21,7 @@ router.use('/login', authRateLimiter);
 router.use('/admin/login', authRateLimiter);
 router.use('/partner/login', authRateLimiter);
 router.use('/driver/login', authRateLimiter);
+router.use('/refresh', authRateLimiter);
 router.use('/partner/register', authRateLimiter);
 router.use('/partner/password/setup', authRateLimiter);
 router.use('/driver/password/setup', authRateLimiter);
@@ -36,7 +37,7 @@ router.get('/me', authenticate, getMe);
 
 // Onboarding & password setup routes
 router.post('/partner/register', partnerRegister);
-router.post('/partner/password/setup', setupPartnerPassword);
-router.post('/driver/password/setup', setupDriverPassword);
+router.post('/partner/password/setup', authRateLimiter, setupPartnerPassword);
+router.post('/driver/password/setup', authRateLimiter, setupDriverPassword);
 
 export default router;

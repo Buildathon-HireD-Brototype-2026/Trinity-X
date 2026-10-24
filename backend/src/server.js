@@ -36,7 +36,7 @@ app.use(cors({
 }));
 app.use(express.json({ limit: '1mb' }));
 app.use(cookieParser());
- 
+
 // Signed document retrieval endpoint
 app.get('/api/v1/files/signed', downloadSignedFileHandler);
 app.get('/files/signed', downloadSignedFileHandler);

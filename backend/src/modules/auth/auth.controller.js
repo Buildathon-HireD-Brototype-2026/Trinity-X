@@ -3,6 +3,7 @@ import {
   refreshUserSession,
   logoutUser
 } from './auth.service.js';
+import { verifyAccessToken } from '../../shared/security.js';
 import {
   submitPartnerRegistration,
   setupPasswordWithToken
@@ -212,7 +213,14 @@ export async function refreshToken(req, res, next) {
 export async function logout(req, res, next) {
   try {
     const token = req.body.refresh_token || req.body.refreshToken || req.cookies?.refreshToken;
-    const sessionId = req.user?.sessionId;
+    let sessionId = req.user?.sessionId;
+
+    if (!sessionId && req.headers.authorization?.startsWith('Bearer ')) {
+      try {
+        const decoded = verifyAccessToken(req.headers.authorization.split(' ')[1]);
+        sessionId = decoded?.sessionId;
+      } catch (e) {}
+    }
 
     await logoutUser(token, sessionId);
     clearRefreshTokenCookie(res);
@@ -304,7 +312,7 @@ export async function setupDriverPassword(req, res) {
  */
 export async function unifiedLogin(req, res, next) {
   try {
-    const rawUserType = req.body.user_type || req.body.userType || '';
+    const rawUserType = req.body.user_type || req.body.userType || req.body.identityType || '';
     let userType = rawUserType.toUpperCase();
 
     // Auto-detect role if not explicitly provided
@@ -317,8 +325,8 @@ export async function unifiedLogin(req, res, next) {
     }
 
     const identifier = userType === 'DRIVER'
-      ? (req.body.phone || req.body.phone_no || req.body.phoneNo)
-      : (req.body.email || req.body.email_id);
+      ? (req.body.phone || req.body.phone_no || req.body.phoneNo || req.body.identifier)
+      : (req.body.email || req.body.email_id || req.body.identifier);
     const password = req.body.password;
 
     const result = await loginUser({
