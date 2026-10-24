@@ -1,6 +1,21 @@
 import prisma from '../config/db.js';
 import { verifyAccessToken } from '../shared/security.js';
 import { getUserById, getSafeUserProfile } from '../modules/auth/auth.service.js';
+import { errorResponse } from '../shared/response.js';
+
+function isApiV1(req) {
+  return req.originalUrl?.startsWith('/api/v1') || req.baseUrl?.startsWith('/api/v1');
+}
+
+function sendAuthError(res, req, statusCode, code, message) {
+  if (isApiV1(req)) {
+    return errorResponse(res, statusCode, code, message);
+  }
+  return res.status(statusCode).json({
+    status: 'error',
+    message
+  });
+}
 
 /**
  * Authentication middleware: verifies access JWT and checks session and user active status.
@@ -9,10 +24,13 @@ export async function authenticate(req, res, next) {
   try {
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return res.status(401).json({
-        status: 'error',
-        message: 'Authentication required. Bearer token missing.'
-      });
+      return sendAuthError(
+        res,
+        req,
+        401,
+        'UNAUTHORIZED',
+        'Authentication required. Bearer token missing.'
+      );
     }
 
     const token = authHeader.split(' ')[1];
@@ -20,10 +38,13 @@ export async function authenticate(req, res, next) {
     try {
       decoded = verifyAccessToken(token);
     } catch (err) {
-      return res.status(401).json({
-        status: 'error',
-        message: 'Invalid or expired access token.'
-      });
+      return sendAuthError(
+        res,
+        req,
+        401,
+        'UNAUTHORIZED',
+        'Invalid or expired access token.'
+      );
     }
 
     const { userType, userId, sessionId } = decoded;
@@ -34,33 +55,45 @@ export async function authenticate(req, res, next) {
     });
 
     if (!session || session.revokedAt || new Date(session.expiresAt) <= new Date()) {
-      return res.status(401).json({
-        status: 'error',
-        message: 'Session has expired or was revoked. Please log in again.'
-      });
+      return sendAuthError(
+        res,
+        req,
+        401,
+        'UNAUTHORIZED',
+        'Session has expired or was revoked. Please log in again.'
+      );
     }
 
     // Verify user account exists and is ACTIVE
     const user = await getUserById(userType, userId);
     if (!user) {
-      return res.status(401).json({
-        status: 'error',
-        message: 'User account no longer exists.'
-      });
+      return sendAuthError(
+        res,
+        req,
+        401,
+        'UNAUTHORIZED',
+        'User account no longer exists.'
+      );
     }
 
     if (user.status !== 'ACTIVE') {
-      return res.status(403).json({
-        status: 'error',
-        message: 'User account is inactive or disabled.'
-      });
+      return sendAuthError(
+        res,
+        req,
+        403,
+        'FORBIDDEN',
+        'User account is inactive or disabled.'
+      );
     }
 
     if (user.lockedUntil && new Date(user.lockedUntil) > new Date()) {
-      return res.status(403).json({
-        status: 'error',
-        message: 'Account is temporarily locked. Please try again later.'
-      });
+      return sendAuthError(
+        res,
+        req,
+        403,
+        'ACCOUNT_LOCKED',
+        'Account is temporarily locked. Please try again later.'
+      );
     }
 
     // Attach verified user and session to request
@@ -73,10 +106,13 @@ export async function authenticate(req, res, next) {
 
     next();
   } catch (err) {
-    return res.status(500).json({
-      status: 'error',
-      message: 'Authentication verification failure.'
-    });
+    return sendAuthError(
+      res,
+      req,
+      500,
+      'INTERNAL_ERROR',
+      'Authentication verification failure.'
+    );
   }
 }
 
@@ -86,10 +122,13 @@ export async function authenticate(req, res, next) {
 export function requireUserType(...allowedTypes) {
   return (req, res, next) => {
     if (!req.user || !allowedTypes.includes(req.user.userType)) {
-      return res.status(403).json({
-        status: 'error',
-        message: `Forbidden. Action requires one of: ${allowedTypes.join(', ')}`
-      });
+      return sendAuthError(
+        res,
+        req,
+        403,
+        'FORBIDDEN',
+        `Forbidden. Action requires one of: ${allowedTypes.join(', ')}`
+      );
     }
     next();
   };

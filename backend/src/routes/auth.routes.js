@@ -12,16 +12,26 @@ import {
   setupDriverPassword
 } from '../modules/auth/auth.controller.js';
 import { authenticate } from '../middlewares/auth.middleware.js';
-import { authRateLimiter } from '../middlewares/ratelimit.middleware.js';
+import { authRateLimiter } from '../middlewares/rateLimiter.middleware.js';
 
 const router = Router();
 
-// Core authentication routes with brute force and DoS rate limiting
-router.post('/login', authRateLimiter, unifiedLogin);
-router.post('/admin/login', authRateLimiter, adminLogin);
-router.post('/partner/login', authRateLimiter, partnerLogin);
-router.post('/driver/login', authRateLimiter, driverLogin);
-router.post('/refresh', authRateLimiter, refreshToken);
+// Rate limiting applied to public auth & onboarding endpoints
+router.use('/login', authRateLimiter);
+router.use('/admin/login', authRateLimiter);
+router.use('/partner/login', authRateLimiter);
+router.use('/driver/login', authRateLimiter);
+router.use('/refresh', authRateLimiter);
+router.use('/partner/register', authRateLimiter);
+router.use('/partner/password/setup', authRateLimiter);
+router.use('/driver/password/setup', authRateLimiter);
+
+// Core authentication routes
+router.post('/login', unifiedLogin);
+router.post('/admin/login', adminLogin);
+router.post('/partner/login', partnerLogin);
+router.post('/driver/login', driverLogin);
+router.post('/refresh', refreshToken);
 router.post('/logout', logout);
 router.get('/me', authenticate, getMe);
 

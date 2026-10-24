@@ -1,0 +1,147 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import '../../core/storage/local_cache_service.dart';
+import '../../features/auth/presentation/controllers/auth_controller.dart';
+import '../../features/auth/presentation/login_screen.dart';
+import '../../features/auth/presentation/splash_screen.dart';
+import '../../features/home/presentation/home_dashboard_screen.dart';
+import '../../features/profile/presentation/documents_screen.dart';
+import '../../features/profile/presentation/profile_screen.dart';
+import '../../features/trips/presentation/trip_details_screen.dart';
+import '../../features/trips/presentation/trips_screen.dart';
+import '../../features/history/presentation/trip_history_screen.dart';
+import '../../features/leaves/presentation/availability_calendar_screen.dart';
+import '../../features/performance/presentation/performance_screen.dart';
+import '../../features/wallet/presentation/wallet_screen.dart';
+import 'route_names.dart';
+import 'trip_route_observer.dart';
+
+/// Bridges Riverpod AuthState updates to GoRouter's refreshListenable.
+class AuthRouterListenable extends ChangeNotifier {
+  final Ref _ref;
+
+  AuthRouterListenable(this._ref) {
+    _ref.listen<AuthState>(authControllerProvider, (_, __) {
+      notifyListeners();
+    });
+  }
+}
+
+final authRouterListenableProvider = Provider<AuthRouterListenable>((ref) {
+  return AuthRouterListenable(ref);
+});
+
+/// Root navigator key used across the application to check stack status and handle back navigation.
+final GlobalKey<NavigatorState> rootNavigatorKey =
+    GlobalKey<NavigatorState>(debugLabel: 'rootNavigator');
+
+final appRouterProvider = Provider<GoRouter>((ref) {
+  final refreshListenable = ref.watch(authRouterListenableProvider);
+  final prefs = ref.watch(sharedPreferencesProvider);
+  final tripObserver = ref.watch(tripRouteObserverProvider);
+
+  return GoRouter(
+    navigatorKey: rootNavigatorKey,
+    initialLocation: RouteNames.splash,
+    refreshListenable: refreshListenable,
+    observers: [tripObserver],
+    redirect: (BuildContext context, GoRouterState state) {
+      final authState = ref.read(authControllerProvider);
+      final currentLoc = state.uri.path;
+      final isSplash = currentLoc == RouteNames.splash;
+      final isLogin = currentLoc == RouteNames.login;
+      final isAuthRoute = isSplash || isLogin;
+
+      switch (authState.status) {
+        case AuthStatus.unknown:
+          // Stay on splash while checking session asynchronously (no flicker)
+          return isSplash ? null : RouteNames.splash;
+
+        case AuthStatus.authenticated:
+          // Authenticated: check if returning from camera or document upload
+          if (isAuthRoute) {
+            final pendingDoc = prefs.getString('pending_upload_doc_type');
+            final activeRoute = prefs.getString('active_route');
+            if (pendingDoc != null || activeRoute == RouteNames.documents) {
+              return RouteNames.documents;
+            }
+            return RouteNames.home;
+          }
+          return null;
+
+        case AuthStatus.unauthenticated:
+          // Unauthenticated: any protected route redirects to /login
+          if (!isLogin) {
+            return RouteNames.login;
+          }
+          return null;
+      }
+    },
+    routes: [
+      GoRoute(
+        path: RouteNames.splash,
+        builder: (context, state) => const SplashScreen(),
+      ),
+      GoRoute(
+        path: RouteNames.login,
+        builder: (context, state) => const LoginScreen(),
+      ),
+      GoRoute(
+        path: RouteNames.home,
+        builder: (context, state) => const HomeDashboardScreen(),
+      ),
+      GoRoute(
+        path: RouteNames.profile,
+        builder: (context, state) => const ProfileScreen(),
+      ),
+      GoRoute(
+        path: RouteNames.documents,
+        builder: (context, state) => const DocumentsScreen(),
+      ),
+      GoRoute(
+        path: RouteNames.trips,
+        builder: (context, state) => const TripsScreen(),
+      ),
+      GoRoute(
+        path: RouteNames.tripDetails,
+        name: RouteNames.tripDetails,
+        builder: (context, state) {
+          final tripId = state.extra as String? ?? state.uri.queryParameters['tripId'];
+          return TripDetailsScreen(tripId: tripId);
+        },
+      ),
+      GoRoute(
+        path: RouteNames.wallet,
+        builder: (context, state) => const WalletScreen(),
+      ),
+      GoRoute(
+        path: RouteNames.tripHistory,
+        builder: (context, state) {
+          int? initialYear;
+          int? initialMonth;
+          if (state.extra is Map<String, dynamic>) {
+            final map = state.extra as Map<String, dynamic>;
+            initialYear = map['year'] as int?;
+            initialMonth = map['month'] as int?;
+          } else if (state.uri.queryParameters.containsKey('year')) {
+            initialYear = int.tryParse(state.uri.queryParameters['year'] ?? '');
+            initialMonth = int.tryParse(state.uri.queryParameters['month'] ?? '');
+          }
+          return TripHistoryScreen(
+            initialYear: initialYear,
+            initialMonth: initialMonth,
+          );
+        },
+      ),
+      GoRoute(
+        path: RouteNames.availabilityCalendar,
+        builder: (context, state) => const AvailabilityCalendarScreen(),
+      ),
+      GoRoute(
+        path: RouteNames.performance,
+        builder: (context, state) => const PerformanceScreen(),
+      ),
+    ],
+  );
+});

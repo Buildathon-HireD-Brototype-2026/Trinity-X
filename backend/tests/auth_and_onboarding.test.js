@@ -1,5 +1,6 @@
 import app from '../src/server.js';
 import prisma from '../src/config/db.js';
+import { hashPassword } from '../src/shared/security.js';
 
 let server;
 let baseUrl;
@@ -50,13 +51,40 @@ async function runTests() {
   const defaultOffice = await prisma.office.findFirst();
   const testOfficeId = defaultOffice?.officeId || 1;
 
+  // Reset admin1 password to known seed password
+  const adminSeedHash = await hashPassword('Admin@12345');
+  await prisma.admin.updateMany({
+    where: { emailId: 'admin1@hired.com' },
+    data: { passwordHash: adminSeedHash, status: 'ACTIVE', failedLoginAttempts: 0, lockedUntil: null }
+  });
+
   // Clean up any test records from prior runs to ensure idempotency
   await prisma.companyRegistrationRequest.deleteMany({
     where: { emailId: 'partner@apexlogistics.com' }
   });
-  await prisma.company.deleteMany({
+  const priorCompany = await prisma.company.findFirst({
     where: { emailId: 'partner@apexlogistics.com' }
   });
+  if (priorCompany) {
+    const priorOrders = await prisma.order.findMany({ where: { companyId: priorCompany.companyId } });
+    const priorOrderIds = priorOrders.map((o) => o.orderId);
+    if (priorOrderIds.length > 0) {
+      const priorTrips = await prisma.trip.findMany({ where: { orderId: { in: priorOrderIds } } });
+      const priorTripIds = priorTrips.map((t) => t.tripId);
+      if (priorTripIds.length > 0) {
+        await prisma.driverWalletTransaction.deleteMany({ where: { tripId: { in: priorTripIds } } });
+        await prisma.driverLocationHistory.deleteMany({ where: { tripId: { in: priorTripIds } } });
+        await prisma.tripPayroll.deleteMany({ where: { tripId: { in: priorTripIds } } });
+        await prisma.expense.deleteMany({ where: { tripId: { in: priorTripIds } } });
+      }
+      await prisma.trip.deleteMany({ where: { orderId: { in: priorOrderIds } } });
+      await prisma.order.deleteMany({ where: { orderId: { in: priorOrderIds } } });
+    }
+    await prisma.tripPayroll.deleteMany({ where: { invoice: { companyId: priorCompany.companyId } } });
+    await prisma.invoice.deleteMany({ where: { companyId: priorCompany.companyId } });
+    await prisma.session.deleteMany({ where: { userType: 'PARTNER', userId: priorCompany.companyId } });
+    await prisma.company.delete({ where: { companyId: priorCompany.companyId } });
+  }
   await prisma.driver.deleteMany({
     where: { phoneNo: '+919123456789' }
   });
