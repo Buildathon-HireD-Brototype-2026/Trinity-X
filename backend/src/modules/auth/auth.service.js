@@ -31,8 +31,15 @@ function formatInet(ip) {
  * Shared login logic for ADMIN, PARTNER, and DRIVER.
  */
 export async function loginUser({ identityType, identifier, password, ipAddress }) {
-  if (!identifier || !password) {
-    throw new AppError(400, 'BAD_REQUEST', 'Identifier and password are required.');
+  if (
+    !identifier ||
+    !password ||
+    typeof identifier !== 'string' ||
+    typeof password !== 'string' ||
+    !identifier.trim() ||
+    !password.trim()
+  ) {
+    throw new AppError(400, 'BAD_REQUEST', 'Identifier and password are required and must be strings.');
   }
 
   let user = null;
@@ -72,19 +79,28 @@ export async function loginUser({ identityType, identifier, password, ipAddress 
         ]
       }
     });
+    if (!user && !rawPhone.startsWith('+')) {
+      user = await prisma.driver.findUnique({
+        where: { phoneNo: `+91${rawPhone}` }
+      });
+    }
+    if (!user && rawPhone.startsWith('+91')) {
+      user = await prisma.driver.findUnique({
+        where: { phoneNo: rawPhone.slice(3) }
+      });
+    }
     idField = 'driverId';
   } else {
     throw new AppError(400, 'BAD_REQUEST', 'Invalid identity type.');
   }
 
   // Generic message for security (prevents user enumeration)
-  const genericAuthError = new AppError(
-    401,
-    'INVALID_CREDENTIALS',
-    userType === 'ADMIN' ? 'Invalid credentials.' : 'Email or password is wrong'
-  );
+  const genericAuthError = new AppError(401, 'INVALID_CREDENTIALS', 'Invalid credentials.');
 
+  // Constant-time protection against timing attacks / user enumeration (CWE-208)
+  const DUMMY_HASH = '$2a$10$e8O4i6B7k1UqGZJkY3aK8.O5f8Yn6R8lM3K9vX0bC1e2f3g4h5i6j';
   if (!user) {
+    await verifyPassword(password, DUMMY_HASH);
     throw genericAuthError;
   }
 
@@ -95,9 +111,7 @@ export async function loginUser({ identityType, identifier, password, ipAddress 
     throw new AppError(
       403,
       'ACCOUNT_LOCKED',
-      userType === 'ADMIN'
-        ? 'Account is locked (5 failed logins, 15 minutes) or not active.'
-        : "You don't have access. Please contact support.",
+      'Account is locked (5 failed logins, 15 minutes) or not active.',
       [{ locked_until: user.lockedUntil }]
     );
   }
@@ -108,7 +122,7 @@ export async function loginUser({ identityType, identifier, password, ipAddress 
       throw new AppError(
         403,
         'DRIVER_NOT_ACTIVE',
-        "You don't have access. Please contact support."
+        'Driver account is not active or is pending onboarding verification.'
       );
     }
   } else {
@@ -116,7 +130,7 @@ export async function loginUser({ identityType, identifier, password, ipAddress 
       throw new AppError(
         403,
         'FORBIDDEN',
-        "You don't have access. Please contact support."
+        'Account is inactive. Please contact an administrator.'
       );
     }
   }
@@ -243,8 +257,13 @@ export async function refreshUserSession(tokenString, ipAddress) {
   }
 
   if (session.revokedAt) {
-    // Replay attack detection: old token reused after revocation
-    throw new AppError(401, 'INVALID_REFRESH_TOKEN', 'Session has been revoked.');
+    // Replay attack detection (RFC 6819): A revoked token being reused indicates potential token compromise.
+    // Invalidate all active sessions for this user to protect the account from session hijacking.
+    await prisma.session.updateMany({
+      where: { userType: session.userType, userId: session.userId, revokedAt: null },
+      data: { revokedAt: new Date() }
+    });
+    throw new AppError(401, 'INVALID_REFRESH_TOKEN', 'Session has been revoked due to security replay detection. Please log in again.');
   }
 
   if (new Date(session.expiresAt) <= new Date()) {

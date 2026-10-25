@@ -3,7 +3,7 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
-import prisma, { checkDatabaseConnection } from './config/db.js';
+import prisma from './config/db.js';
 import authRouter from './routes/auth.routes.js';
 import adminRouter from './routes/admin.routes.js';
 import orderRouter from './routes/order.routes.js';
@@ -14,64 +14,28 @@ import driverRouter from './routes/driver.routes.js';
 import { downloadSignedFileHandler } from './modules/driver/file.controller.js';
 import { errorHandler } from './middlewares/error.middleware.js';
 import { errorResponse } from './shared/response.js';
-import { sseEventsHandler, startDatabaseListener } from './services/realtime.service.js';
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 
+const allowedOrigins = (process.env.ALLOWED_ORIGINS || process.env.CORS_ORIGINS)
+  ? (process.env.ALLOWED_ORIGINS || process.env.CORS_ORIGINS).split(',').map((o) => o.trim()).filter(Boolean)
+  : ['http://localhost:3000', 'http://127.0.0.1:3000', 'http://localhost:5173', 'http://127.0.0.1:5173', 'http://localhost:5000', 'http://localhost:8080'];
+
 // Essential security & parsing middlewares
 app.use(helmet());
-
-// CORS configuration: explicit allowed origins, allowing mobile apps & server calls without origin
-const allowedOrigins = process.env.CORS_ORIGINS
-  ? process.env.CORS_ORIGINS.split(',').map((o) => o.trim()).filter(Boolean)
-  : ['http://localhost:3000', 'http://localhost:5173', 'http://localhost:5000', 'http://localhost:8080'];
-
 app.use(cors({
   origin: (origin, callback) => {
-    if (!origin) return callback(null, true);
-    if (process.env.NODE_ENV !== 'production' || allowedOrigins.includes(origin)) {
-      return callback(null, true);
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(null, false);
     }
-    return callback(new Error(`CORS policy blocked access from origin: ${origin}`));
   },
   credentials: true
 }));
-
-app.use(express.json());
+app.use(express.json({ limit: '1mb' }));
 app.use(cookieParser());
- 
-// Signed document retrieval endpoint
-app.get('/api/v1/files/signed', downloadSignedFileHandler);
-app.get('/files/signed', downloadSignedFileHandler);
-
-// Route registration (both standard /api/v1 paths and direct paths for backward compatibility)
-app.use('/api/v1/auth', authRouter);
-app.use('/auth', authRouter);
-
-app.use('/api/v1/admin', adminRouter);
-app.use('/admin', adminRouter);
-
-app.use('/api/v1/orders', orderRouter);
-app.use('/orders', orderRouter);
-app.use('/api/v1/partner/orders', orderRouter);
-app.use('/partner/orders', orderRouter);
-
-app.use('/api/v1/invoices', invoiceRouter);
-app.use('/invoices', invoiceRouter);
-app.use('/api/v1/partner/invoices', invoiceRouter);
-app.use('/partner/invoices', invoiceRouter);
-
-app.use('/api/v1/reports', reportRouter);
-app.use('/reports', reportRouter);
-app.use('/api/v1/partner/trips', reportRouter);
-app.use('/partner/trips', reportRouter);
-
-app.use('/api/v1/notifications', notificationRouter);
-app.use('/notifications', notificationRouter);
-
-app.use('/api/v1/driver', driverRouter);
-app.use('/driver', driverRouter);
 
 // Health check endpoint to verify server and database connectivity
 const healthHandler = async (req, res) => {
@@ -95,9 +59,39 @@ const healthHandler = async (req, res) => {
 app.get('/health', healthHandler);
 app.get('/api/v1/health', healthHandler);
 
-// Realtime Server-Sent Events (SSE) stream endpoint for live database change push
-app.get('/api/v1/events', sseEventsHandler);
-app.get('/api/events', sseEventsHandler);
+// Signed document retrieval endpoint
+app.get('/api/v1/files/signed', downloadSignedFileHandler);
+app.get('/files/signed', downloadSignedFileHandler);
+
+// Route registration (both standard /api/v1 paths and direct paths for backward compatibility)
+app.use('/api/v1/auth', authRouter);
+app.use('/auth', authRouter);
+
+app.use('/api/v1/driver', driverRouter);
+app.use('/driver', driverRouter);
+
+app.use('/api/v1/orders', orderRouter);
+app.use('/orders', orderRouter);
+app.use('/api/v1/partner/orders', orderRouter);
+app.use('/partner/orders', orderRouter);
+
+app.use('/api/v1/invoices', invoiceRouter);
+app.use('/invoices', invoiceRouter);
+app.use('/api/v1/partner/invoices', invoiceRouter);
+app.use('/partner/invoices', invoiceRouter);
+
+app.use('/api/v1/reports', reportRouter);
+app.use('/reports', reportRouter);
+app.use('/api/v1/partner/trips', reportRouter);
+app.use('/partner/trips', reportRouter);
+
+app.use('/api/v1/notifications', notificationRouter);
+app.use('/notifications', notificationRouter);
+
+app.use('/api/v1/admin', adminRouter);
+app.use('/admin', adminRouter);
+app.use('/api/v1', adminRouter);
+
 
 // 404 Handler for undefined routes
 app.use((req, res) => {
@@ -119,8 +113,12 @@ const isTestRun = process.env.NODE_ENV === 'test' || (process.argv[1] && process
 if (!isTestRun) {
   server = app.listen(PORT, async () => {
     console.log(`[server] Server listening on port ${PORT} (${process.env.NODE_ENV || 'development'})`);
-    await checkDatabaseConnection();
-    await startDatabaseListener();
+    try {
+      await prisma.$queryRaw`SELECT 1`;
+      console.log('[database] PostgreSQL connected successfully');
+    } catch (error) {
+      console.error('[database] Database connection failed:', error.message);
+    }
   });
 }
 

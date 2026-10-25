@@ -45,3 +45,4 @@ export function errorResponse(res, statusCode = 500, code = 'INTERNAL_ERROR', me
     }
   });
 }
+
