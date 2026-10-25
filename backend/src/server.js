@@ -37,6 +37,28 @@ app.use(cors({
 app.use(express.json({ limit: '1mb' }));
 app.use(cookieParser());
 
+// Health check endpoint to verify server and database connectivity
+const healthHandler = async (req, res) => {
+  let dbStatus = 'disconnected';
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+    dbStatus = 'connected';
+  } catch (err) {
+    dbStatus = `error: ${err.message}`;
+  }
+
+  res.status(dbStatus === 'connected' ? 200 : 503).json({
+    status: dbStatus === 'connected' ? 'ok' : 'degraded',
+    database: dbStatus,
+    uptime: process.uptime(),
+    timestamp: new Date().toISOString(),
+    environment: process.env.NODE_ENV || 'development'
+  });
+};
+
+app.get('/health', healthHandler);
+app.get('/api/v1/health', healthHandler);
+
 // Signed document retrieval endpoint
 app.get('/api/v1/files/signed', downloadSignedFileHandler);
 app.get('/files/signed', downloadSignedFileHandler);
@@ -70,27 +92,6 @@ app.use('/api/v1/admin', adminRouter);
 app.use('/admin', adminRouter);
 app.use('/api/v1', adminRouter);
 
-// Health check endpoint to verify server and database connectivity
-const healthHandler = async (req, res) => {
-  let dbStatus = 'disconnected';
-  try {
-    await prisma.$queryRaw`SELECT 1`;
-    dbStatus = 'connected';
-  } catch (err) {
-    dbStatus = `error: ${err.message}`;
-  }
-
-  res.status(dbStatus === 'connected' ? 200 : 503).json({
-    status: dbStatus === 'connected' ? 'ok' : 'degraded',
-    database: dbStatus,
-    uptime: process.uptime(),
-    timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV || 'development'
-  });
-};
-
-app.get('/health', healthHandler);
-app.get('/api/v1/health', healthHandler);
 
 // 404 Handler for undefined routes
 app.use((req, res) => {
