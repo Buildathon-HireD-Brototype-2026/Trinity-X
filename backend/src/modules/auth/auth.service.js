@@ -78,7 +78,11 @@ export async function loginUser({ identityType, identifier, password, ipAddress 
   }
 
   // Generic message for security (prevents user enumeration)
-  const genericAuthError = new AppError(401, 'INVALID_CREDENTIALS', 'Invalid credentials.');
+  const genericAuthError = new AppError(
+    401,
+    'INVALID_CREDENTIALS',
+    userType === 'ADMIN' ? 'Invalid credentials.' : 'Email or password is wrong'
+  );
 
   if (!user) {
     throw genericAuthError;
@@ -91,7 +95,9 @@ export async function loginUser({ identityType, identifier, password, ipAddress 
     throw new AppError(
       403,
       'ACCOUNT_LOCKED',
-      'Account is locked (5 failed logins, 15 minutes) or not active.',
+      userType === 'ADMIN'
+        ? 'Account is locked (5 failed logins, 15 minutes) or not active.'
+        : "You don't have access. Please contact support.",
       [{ locked_until: user.lockedUntil }]
     );
   }
@@ -102,7 +108,7 @@ export async function loginUser({ identityType, identifier, password, ipAddress 
       throw new AppError(
         403,
         'DRIVER_NOT_ACTIVE',
-        'Driver account is not active or is pending onboarding verification.'
+        "You don't have access. Please contact support."
       );
     }
   } else {
@@ -110,7 +116,7 @@ export async function loginUser({ identityType, identifier, password, ipAddress 
       throw new AppError(
         403,
         'FORBIDDEN',
-        'Account is inactive. Please contact an administrator.'
+        "You don't have access. Please contact support."
       );
     }
   }

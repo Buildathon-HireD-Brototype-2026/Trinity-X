@@ -4,6 +4,8 @@ import orderService from '../services/orderService';
 import { StatusBadge } from '../components/common/StatusBadge';
 import OrderDetailModal from '../components/orders/OrderDetailModal';
 import useTableSubscription from '../hooks/useTableSubscription';
+import { PageErrorState } from '../components/common/PageErrorState';
+import { getFriendlyErrorMessage } from '../utils/errorHandler';
 import {
   Search,
   Filter,
@@ -18,16 +20,25 @@ import {
 export function OrdersPage() {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [activeTab, setActiveTab] = useState('ALL'); // ALL, ORDERS, ACTIVE_TRIPS, CLOSED_TRIPS
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [selectedOrder, setSelectedOrder] = useState(null);
 
   const fetchOrders = async (isQuiet = false) => {
-    if (!isQuiet) setLoading(true);
+    if (!isQuiet) {
+      setLoading(true);
+      setError(null);
+    }
     try {
       const data = await orderService.getOrders();
-      setOrders(data);
+      setOrders(data || []);
+      setError(null);
+    } catch (err) {
+      if (!isQuiet) {
+        setError(getFriendlyErrorMessage(err, 'orders'));
+      }
     } finally {
       if (!isQuiet) setLoading(false);
     }
@@ -188,40 +199,45 @@ export function OrdersPage() {
         </div>
       </div>
 
-      {/* Orders Table */}
-      <div className="card" style={{ padding: '0', overflow: 'hidden' }}>
-        <div className="table-container" style={{ border: 'none' }}>
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Booking ID</th>
-                <th>Route (Pickup ➔ Drop-off)</th>
-                <th>Pickup Date & Time</th>
-                <th>Passenger</th>
-                <th>Order Status</th>
-                <th>Trip Status</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
+      {/* Orders Table or Error State */}
+      {error && orders.length === 0 ? (
+        <PageErrorState message={error} onRetry={() => fetchOrders(false)} />
+      ) : (
+        <div className="card" style={{ padding: '0', overflow: 'hidden' }}>
+          <div className="table-container" style={{ border: 'none' }}>
+            <table className="data-table">
+              <thead>
                 <tr>
-                  <td colSpan={7} style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>
-                    Loading orders...
-                  </td>
+                  <th>Booking ID</th>
+                  <th>Route (Pickup ➔ Drop-off)</th>
+                  <th>Pickup Date & Time</th>
+                  <th>Passenger</th>
+                  <th>Order Status</th>
+                  <th>Trip Status</th>
+                  <th>Actions</th>
                 </tr>
-              ) : filteredOrders.length === 0 ? (
-                <tr>
-                  <td colSpan={7} style={{ textAlign: 'center', padding: '3rem' }}>
-                    <div style={{ color: 'var(--text-secondary)', marginBottom: '0.5rem', fontWeight: 600 }}>
-                      No transport bookings match your query
-                    </div>
-                    <p style={{ color: 'var(--text-muted)', fontSize: '0.8125rem' }}>
-                      Try adjusting the search filters or create a new transport order.
-                    </p>
-                  </td>
-                </tr>
-              ) : (
+              </thead>
+              <tbody>
+                {loading ? (
+                  <tr>
+                    <td colSpan={7} style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>
+                      Loading orders...
+                    </td>
+                  </tr>
+                ) : filteredOrders.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} style={{ textAlign: 'center', padding: '3rem' }}>
+                      <div style={{ color: 'var(--text-secondary)', marginBottom: '0.5rem', fontWeight: 600 }}>
+                        {orders.length === 0 ? 'No orders yet' : 'No transport bookings match your query'}
+                      </div>
+                      <p style={{ color: 'var(--text-muted)', fontSize: '0.8125rem' }}>
+                        {orders.length === 0
+                          ? 'Create your first transport order to get started.'
+                          : 'Try adjusting the search filters or create a new transport order.'}
+                      </p>
+                    </td>
+                  </tr>
+                ) : (
                 filteredOrders.map((order) => (
                   <tr key={order.order_id}>
                     <td>
@@ -289,6 +305,7 @@ export function OrdersPage() {
           </table>
         </div>
       </div>
+      )}
 
       {/* Order Detail Modal */}
       {selectedOrder && (

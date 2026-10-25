@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import orderService from '../services/orderService';
 import { LocationPickerField } from '../components/orders/LocationPickerField';
 import { DateTimePicker12H } from '../components/orders/DateTimePicker12H';
+import { useToast } from '../context/ToastContext';
+import { getFriendlyErrorMessage } from '../utils/errorHandler';
 import {
   MapPin,
   Calendar,
@@ -18,6 +20,7 @@ import {
 
 export function CreateOrderPage() {
   const navigate = useNavigate();
+  const { showSuccess, showError } = useToast();
 
   // Form State
   const [formData, setFormData] = useState({
@@ -36,12 +39,15 @@ export function CreateOrderPage() {
   const pickupPickerRef = React.useRef(null);
   const dropoffPickerRef = React.useRef(null);
 
-  // Field change handler
+  // Field change handler - immediately clears field error when user starts typing
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
     if (errors[name]) {
       setErrors((prev) => ({ ...prev, [name]: '' }));
+    }
+    if (errors.form) {
+      setErrors((prev) => ({ ...prev, form: '' }));
     }
   };
 
@@ -49,6 +55,9 @@ export function CreateOrderPage() {
     setFormData((prev) => ({ ...prev, [name]: value }));
     if (errors[name]) {
       setErrors((prev) => ({ ...prev, [name]: '' }));
+    }
+    if (errors.form) {
+      setErrors((prev) => ({ ...prev, form: '' }));
     }
   };
 
@@ -59,13 +68,13 @@ export function CreateOrderPage() {
     const trimmedDropoff = (data.dropoff_spot || '').trim();
 
     if (!trimmedPickup) {
-      errs.pickup_spot = 'Please select the pickup location.';
+      errs.pickup_spot = 'Pickup location is required.';
     } else if (trimmedPickup.length > 300) {
       errs.pickup_spot = 'Location is too long. Please shorten it.';
     }
 
     if (!trimmedDropoff) {
-      errs.dropoff_spot = 'Please select the drop location.';
+      errs.dropoff_spot = 'Drop location is required.';
     } else if (trimmedDropoff.length > 300) {
       errs.dropoff_spot = 'Location is too long. Please shorten it.';
     }
@@ -77,6 +86,7 @@ export function CreateOrderPage() {
     ) {
       errs.dropoff_spot = 'Pickup and drop locations must be different.';
     }
+
     if (!data.pickup_time) {
       errs.pickup_time = 'Scheduled pickup date and time are required.';
     } else {
@@ -85,9 +95,11 @@ export function CreateOrderPage() {
         errs.pickup_time = 'Please enter a valid date and time.';
       }
     }
+
     if (!data.contact_name.trim()) {
       errs.contact_name = 'Passenger or coordinator contact name is required.';
     }
+
     if (!data.contact_phone.trim()) {
       errs.contact_phone = 'Contact phone number is required.';
     } else if (!/^[0-9+ -]{8,15}$/.test(data.contact_phone.trim())) {
@@ -117,8 +129,11 @@ export function CreateOrderPage() {
     try {
       const result = await orderService.createOrder(currentFormData);
       setCreatedOrder(result.order);
+      showSuccess('Trip created successfully');
     } catch (err) {
-      setErrors({ form: err.message || 'Failed to submit transport order.' });
+      const friendly = getFriendlyErrorMessage(err, 'create_order');
+      setErrors((prev) => ({ ...prev, form: friendly }));
+      showError(friendly);
     } finally {
       setIsSubmitting(false);
     }
@@ -370,7 +385,7 @@ export function CreateOrderPage() {
 
             <button type="submit" className="btn btn-primary" disabled={isSubmitting} style={{ minWidth: '160px' }}>
               {isSubmitting ? (
-                <span>Submitting...</span>
+                <span>Submitting order...</span>
               ) : (
                 <>
                   <Send size={16} />

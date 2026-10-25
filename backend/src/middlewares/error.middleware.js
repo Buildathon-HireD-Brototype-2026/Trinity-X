@@ -34,13 +34,24 @@ export function errorHandler(err, req, res, next) {
 
   // Prisma unique constraint violation
   if (err.code === 'P2002') {
-    const target = Array.isArray(err.meta?.target) ? err.meta.target.join(', ') : err.meta?.target || 'field';
-    return errorResponse(res, 409, 'CONFLICT', `A record with this ${target} already exists.`);
+    return errorResponse(res, 409, 'CONFLICT', 'This already exists.');
   }
 
   // Prisma record not found
   if (err.code === 'P2025') {
-    return errorResponse(res, 404, 'NOT_FOUND', 'Requested resource was not found.');
+    return errorResponse(res, 404, 'NOT_FOUND', "We couldn't find what you're looking for.");
+  }
+
+  // Prisma or database connection / execution error
+  if (err.name?.includes('Prisma') || (typeof err.code === 'string' && err.code.startsWith('P'))) {
+    console.error('[errorHandler] Database error caught:', err);
+    return errorResponse(
+      res,
+      500,
+      'DATABASE_ERROR',
+      'Something went wrong on our side. Please try again in a moment.',
+      []
+    );
   }
 
   // JSON syntax error from express.json()
@@ -48,14 +59,13 @@ export function errorHandler(err, req, res, next) {
     return errorResponse(res, 400, 'BAD_REQUEST', 'Malformed JSON in request body.');
   }
 
-  // Default internal server error (never leak raw error in production)
+  // Default internal server error (never leak raw error or stack trace in responses)
   console.error('[errorHandler] Unhandled server error:', err);
-  const isDev = process.env.NODE_ENV !== 'production';
   return errorResponse(
     res,
     500,
     'INTERNAL_ERROR',
-    'Internal server error.',
-    isDev ? [{ message: err.message, stack: err.stack }] : []
+    'Something went wrong on our side. Please try again in a moment.',
+    []
   );
 }

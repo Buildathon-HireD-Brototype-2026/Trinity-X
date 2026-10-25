@@ -59,6 +59,19 @@
   --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -4px rgba(0, 0, 0, 0.04);
   --shadow-glow: 0 0 15px rgba(106, 55, 159, 0.22);
 
+  /* 3D Clay Driving Scene Palette (Day) */
+  --clay-bg-start: #EDE9FE;
+  --clay-bg-mid: #DDD6FE;
+  --clay-bg-end: #C4B5FD;
+  --clay-bubble-start: #FAF5FF;
+  --clay-bubble-end: #E9D5FF;
+  --clay-car-top: #8B5CF6;
+  --clay-car-mid: #6A379F;
+  --clay-car-base: #4C1D95;
+  --clay-road-mid: #E2E8F0;
+  --clay-road-center: #CBD5E1;
+  --clay-ambient-shadow: rgba(58, 20, 95, 0.22);
+
   /* Layout Measurements */
   --sidebar-width: 260px;
   --sidebar-collapsed-width: 76px;
@@ -105,6 +118,19 @@
   --danger-border: rgba(220, 38, 38, 0.35);
   --info-bg: rgba(37, 99, 235, 0.16);
   --info-border: rgba(37, 99, 235, 0.35);
+
+  /* 3D Clay Driving Scene Palette (Dark Theme Variant) */
+  --clay-bg-start: rgba(106, 55, 159, 0.35);
+  --clay-bg-mid: rgba(76, 29, 149, 0.28);
+  --clay-bg-end: rgba(59, 7, 100, 0.32);
+  --clay-bubble-start: rgba(157, 101, 222, 0.25);
+  --clay-bubble-end: rgba(106, 55, 159, 0.15);
+  --clay-car-top: #9D65DE;
+  --clay-car-mid: #7C3AED;
+  --clay-car-base: #4C1D95;
+  --clay-road-mid: #1E293B;
+  --clay-road-center: #334155;
+  --clay-ambient-shadow: rgba(0, 0, 0, 0.65);
 }
 
 /* Reset & Base */
@@ -439,7 +465,17 @@ input, select, textarea {
   font-size: 0.875rem;
   padding: 0.625rem 1.25rem;
   border-radius: var(--radius-md);
-  transition: all 0.15s ease-in-out;
+  transition: transform 0.15s ease, background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+  cursor: pointer;
+}
+
+.btn:hover {
+  transform: translateY(-1px);
+}
+
+.btn:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
 }
 
 .btn-primary {
@@ -769,3 +805,111 @@ input, select, textarea {
   color: var(--text-secondary);
   font-weight: 500;
 }
+
+/* ==========================================================================
+   3D Clay Driving Scene — Parallax Motion & Idle Float
+   ========================================================================== */
+
+.clay-scene-wrapper {
+  perspective: 1000px;
+  transform-style: preserve-3d;
+  user-select: none;
+}
+
+.clay-scene-tilt {
+  transform: rotateX(var(--clay-tilt-x, 0deg)) rotateY(var(--clay-tilt-y, 0deg));
+  transform-style: preserve-3d;
+  will-change: transform;
+}
+
+.clay-layer-backdrop {
+  transform: translate(var(--clay-shift-backdrop-x, 0px), var(--clay-shift-backdrop-y, 0px));
+  will-change: transform;
+}
+
+.clay-layer-ground {
+  transform: translate(calc(var(--clay-shift-backdrop-x, 0px) * 0.5), calc(var(--clay-shift-backdrop-y, 0px) * 0.5));
+  will-change: transform;
+}
+
+.clay-layer-car {
+  transform: translate(var(--clay-shift-car-x, 0px), var(--clay-shift-car-y, 0px));
+  will-change: transform;
+}
+
+.clay-layer-pin {
+  transform: translate(var(--clay-shift-pin-x, 0px), var(--clay-shift-pin-y, 0px));
+  will-change: transform;
+}
+
+/* Slow Idle Float: gentle 6px vertical float over 6s */
+@keyframes clayFloatIdle {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-6px);
+  }
+}
+
+.clay-float-idle {
+  animation: clayFloatIdle 6s ease-in-out infinite;
+}
+
+.clay-paused .clay-float-idle,
+.clay-paused.clay-float-idle {
+  animation-play-state: paused !important;
+}
+
+/* Accessibility: prefers-reduced-motion completely stops tilt and float */
+@media (prefers-reduced-motion: reduce) {
+  .clay-float-idle {
+    animation: none !important;
+  }
+  .clay-scene-tilt,
+  .clay-layer-backdrop,
+  .clay-layer-ground,
+  .clay-layer-car,
+  .clay-layer-pin {
+    transform: none !important;
+    transition: none !important;
+  }
+}
+
+/* ==========================================================================
+   Toast Alerts & Form Field Error Styles
+   ========================================================================== */
+
+@keyframes toastSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.form-field-error {
+  color: var(--danger);
+  font-size: 0.75rem;
+  font-weight: 500;
+  margin-top: 0.35rem;
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  line-height: 1.3;
+}
+
+.input-has-error {
+  border-color: var(--danger) !important;
+  background-color: var(--danger-bg) !important;
+}
+
+.input-has-error:focus {
+  border-color: var(--danger) !important;
+  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.15) !important;
+}
+
+

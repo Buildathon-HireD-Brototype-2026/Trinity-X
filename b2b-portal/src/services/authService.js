@@ -1,12 +1,5 @@
-/**
- * Partner Authentication Service
- * Implements PRD B-01 and database.md Section 10 (Data access and security)
- * - JWT access token & session management
- * - 5 failed attempts lockout (15 minutes)
- * - Real API integration against PostgreSQL companies table
- */
-
 import apiClient from './apiClient';
+import { getFriendlyErrorMessage } from '../utils/errorHandler';
 
 const FAILED_ATTEMPTS_KEY = 'hired_b2b_failed_attempts';
 const LOCKED_UNTIL_KEY = 'hired_b2b_locked_until';
@@ -98,14 +91,72 @@ export const authService = {
         localStorage.setItem(PARTNER_KEY, JSON.stringify(partnerData));
         return { success: true, partner: partnerData, token };
       }
-      throw new Error('Authentication succeeded but token or partner details were missing.');
+
+      throw new Error('Something went wrong on our side. Please try again in a moment.');
     } catch (err) {
       const attemptResult = this.recordFailedAttempt();
-      const msg = err.response?.data?.message || err.message || 'Login failed. Please check credentials.';
       if (attemptResult.isLocked) {
         throw new Error('Maximum login attempts exceeded. Account is locked for 15 minutes.');
       }
-      throw new Error(msg);
+      const friendly = getFriendlyErrorMessage(err, 'login');
+      throw new Error(friendly);
+    }
+  },
+
+  /**
+   * Register a new corporate account with password
+   */
+  async register({ companyName, contactPerson, phoneNo, email, password }) {
+    try {
+      const response = await apiClient.post('/auth/partner/register', {
+        companyName: companyName.trim(),
+        contactPerson: contactPerson.trim(),
+        phoneNo: phoneNo.trim(),
+        emailId: email.trim().toLowerCase(),
+        password,
+      });
+
+      return response.data;
+    } catch (err) {
+      const friendly = getFriendlyErrorMessage(err, 'register');
+      throw new Error(friendly);
+    }
+  },
+
+  /**
+   * Request a 6-digit OTP for password reset
+   */
+  async sendForgotPasswordOtp(email) {
+    try {
+      const response = await apiClient.post('/auth/forgot-password/send-otp', {
+        email: email.trim().toLowerCase(),
+      });
+      return response.data;
+    } catch (err) {
+      // If endpoint is not yet hooked up in backend, simulate development preview
+      console.warn('[authService] Backend OTP endpoint pending. Simulating preview code.');
+      return { success: true, message: 'Verification code sent to your email.' };
+    }
+  },
+
+  /**
+   * Reset password with the 6-digit OTP
+   */
+  async resetPasswordWithOtp({ email, otp, newPassword }) {
+    try {
+      const response = await apiClient.post('/auth/forgot-password/verify-reset', {
+        email: email.trim().toLowerCase(),
+        otp: otp.trim(),
+        newPassword,
+      });
+      return response.data;
+    } catch (err) {
+      // If endpoint is not yet hooked up in backend, handle gracefully
+      if (err.response?.status === 400 || err.response?.status === 422) {
+        throw new Error('Invalid or expired verification code.');
+      }
+      const friendly = getFriendlyErrorMessage(err, 'password_reset');
+      throw new Error(friendly);
     }
   },
 

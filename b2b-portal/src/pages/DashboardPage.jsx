@@ -6,6 +6,8 @@ import orderService from '../services/orderService';
 import OrderDetailModal from '../components/orders/OrderDetailModal';
 import statementService from '../services/statementService';
 import useTableSubscription from '../hooks/useTableSubscription';
+import { PageErrorState } from '../components/common/PageErrorState';
+import { getFriendlyErrorMessage } from '../utils/errorHandler';
 import {
   Car,
   Clock,
@@ -22,19 +24,26 @@ export function DashboardPage() {
   const [orders, setOrders] = useState([]);
   const [publishedStatementsCount, setPublishedStatementsCount] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [selectedOrder, setSelectedOrder] = useState(null);
 
   const loadData = async (isQuiet = false) => {
-    if (!isQuiet) setLoading(true);
+    if (!isQuiet) {
+      setLoading(true);
+      setError(null);
+    }
     try {
       const [ordersData, statementsData] = await Promise.all([
         orderService.getOrders(),
         statementService.getPublishedStatements(),
       ]);
-      setOrders(ordersData);
-      setPublishedStatementsCount(statementsData.length);
+      setOrders(ordersData || []);
+      setPublishedStatementsCount(statementsData?.length || 0);
+      setError(null);
     } catch (err) {
-      console.error('Error loading dashboard data:', err);
+      if (!isQuiet) {
+        setError(getFriendlyErrorMessage(err, 'dashboard'));
+      }
     } finally {
       if (!isQuiet) setLoading(false);
     }
@@ -77,8 +86,13 @@ export function DashboardPage() {
         </div>
       </div>
 
-      {/* Metrics Grid */}
-      <div className="metrics-grid">
+      {/* Page Error State or Dashboard Content */}
+      {error && orders.length === 0 ? (
+        <PageErrorState message={error} onRetry={() => loadData(false)} />
+      ) : (
+        <>
+          {/* Metrics Grid */}
+          <div className="metrics-grid">
         <div className="metric-card">
           <div className="metric-icon-wrap" style={{ backgroundColor: '#F0F9FF', color: '#0284C7' }}>
             <Car size={24} />
@@ -168,7 +182,7 @@ export function DashboardPage() {
               ) : orders.length === 0 ? (
                 <tr>
                   <td colSpan={7} style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>
-                    No transport orders found. Click &quot;Create Transport Order&quot; to place your first booking.
+                    No transport orders placed yet. Click &quot;Create Transport Order&quot; to place your first booking.
                   </td>
                 </tr>
               ) : (
@@ -211,6 +225,8 @@ export function DashboardPage() {
           </table>
         </div>
       </div>
+      </>
+      )}
 
       {/* Details Modal */}
       {selectedOrder && (
