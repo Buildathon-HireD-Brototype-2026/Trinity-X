@@ -104,20 +104,52 @@ export const authService = {
   },
 
   /**
-   * Register a new corporate account with password
+   * Request a 6-digit OTP for email verification during account registration
    */
-  async register({ companyName, contactPerson, phoneNo, email, password }) {
+  async sendRegisterOtp(email) {
     try {
-      const response = await apiClient.post('/auth/partner/register', {
+      const response = await apiClient.post('/auth/otp/send', {
+        email: email.trim().toLowerCase(),
+        purpose: 'EMAIL_VERIFY',
+      });
+      return response.data;
+    } catch (err) {
+      const serverMsg = err.response?.data?.message;
+      if (serverMsg) {
+        throw new Error(serverMsg);
+      }
+      const friendly = getFriendlyErrorMessage(err, 'register');
+      throw new Error(friendly);
+    }
+  },
+
+  /**
+   * Register a new corporate account with verified OTP
+   */
+  async register({ companyName, contactPerson, phoneNo, email, password, otp }) {
+    try {
+      const response = await apiClient.post('/auth/register', {
         companyName: companyName.trim(),
         contactPerson: contactPerson.trim(),
         phoneNo: phoneNo.trim(),
-        emailId: email.trim().toLowerCase(),
+        email: email.trim().toLowerCase(),
         password,
+        otp: String(otp).trim(),
       });
+
+      if (response.data?.access_token) {
+        localStorage.setItem(TOKEN_KEY, response.data.access_token);
+        if (response.data.user) {
+          localStorage.setItem(USER_KEY, JSON.stringify(response.data.user));
+        }
+      }
 
       return response.data;
     } catch (err) {
+      const serverMsg = err.response?.data?.message;
+      if (serverMsg) {
+        throw new Error(serverMsg);
+      }
       const friendly = getFriendlyErrorMessage(err, 'register');
       throw new Error(friendly);
     }
@@ -130,12 +162,16 @@ export const authService = {
     try {
       const response = await apiClient.post('/auth/forgot-password/send-otp', {
         email: email.trim().toLowerCase(),
+        purpose: 'PASSWORD_RESET',
       });
       return response.data;
     } catch (err) {
-      // If endpoint is not yet hooked up in backend, simulate development preview
-      console.warn('[authService] Backend OTP endpoint pending. Simulating preview code.');
-      return { success: true, message: 'Verification code sent to your email.' };
+      const serverMsg = err.response?.data?.message;
+      if (serverMsg) {
+        throw new Error(serverMsg);
+      }
+      const friendly = getFriendlyErrorMessage(err, 'password_reset');
+      throw new Error(friendly);
     }
   },
 
@@ -144,21 +180,22 @@ export const authService = {
    */
   async resetPasswordWithOtp({ email, otp, newPassword }) {
     try {
-      const response = await apiClient.post('/auth/forgot-password/verify-reset', {
+      const response = await apiClient.post('/auth/forgot-password/reset', {
         email: email.trim().toLowerCase(),
-        otp: otp.trim(),
+        otp: String(otp).trim(),
         newPassword,
       });
       return response.data;
     } catch (err) {
-      // If endpoint is not yet hooked up in backend, handle gracefully
-      if (err.response?.status === 400 || err.response?.status === 422) {
-        throw new Error('Invalid or expired verification code.');
+      const serverMsg = err.response?.data?.message;
+      if (serverMsg) {
+        throw new Error(serverMsg);
       }
       const friendly = getFriendlyErrorMessage(err, 'password_reset');
       throw new Error(friendly);
     }
   },
+
 
   /**
    * Log out partner and purge session

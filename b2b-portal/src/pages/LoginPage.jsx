@@ -203,17 +203,18 @@ export function LoginPage({ initialMode }) {
     setIsSubmitting(true);
     try {
       // Send OTP to user's email for registration verification
-      await authService.sendForgotPasswordOtp(regEmail);
+      await authService.sendRegisterOtp(regEmail);
       setRegOtpStep(true);
       setRegResendTimer(60);
       showSuccess(`Verification code sent to ${regEmail}.`);
     } catch (err) {
-      const friendly = getFriendlyErrorMessage(err, 'register');
-      setRegGeneralError(friendly);
+      const msg = err.message || getFriendlyErrorMessage(err, 'register');
+      setRegGeneralError(msg);
     } finally {
       setIsSubmitting(false);
     }
   };
+
 
   // Registration - Step 2: Verify OTP & complete account creation
   const handleRegisterVerifyAndComplete = async (e) => {
