@@ -47,6 +47,15 @@ import {
   assignDriverHandler
 } from '../modules/order/order.controller.js';
 
+// Invoice & Month-End Verification controllers
+import {
+  listAdminInvoicesHandler,
+  getAdminInvoiceHandler,
+  verifyFirstInvoiceHandler,
+  verifySecondInvoiceHandler,
+  dispatchInvoiceEmailHandler
+} from '../modules/invoice/invoice.controller.js';
+
 const router = Router();
 
 // Protect all admin management routes with Admin authentication
@@ -90,6 +99,15 @@ router.get('/orders/:order_id', validateIdParam('order_id'), getAdminOrderHandle
 router.post('/orders/:order_id/accept', validateIdParam('order_id'), acceptOrderHandler);
 router.post('/orders/:order_id/reject', validateIdParam('order_id'), rejectOrderHandler);
 router.post('/trips/:trip_id/assign-driver', validateIdParam('trip_id'), assignDriverHandler);
+
+// ============================================================================
+// Month-End Invoice Verification Endpoints
+// ============================================================================
+router.get('/invoices', listAdminInvoicesHandler);
+router.get('/invoices/:invoice_id', getAdminInvoiceHandler);
+router.post('/invoices/:invoice_id/verify-first', verifyFirstInvoiceHandler);
+router.post('/invoices/:invoice_id/verify-second', verifySecondInvoiceHandler);
+router.post('/invoices/:invoice_id/dispatch-email', dispatchInvoiceEmailHandler);
 
 // ============================================================================
 // Preserved Baseline Onboarding Endpoints
