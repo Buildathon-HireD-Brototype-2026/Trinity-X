@@ -79,6 +79,7 @@
 		<string>maps</string>
 		<string>googlechromes</string>
 		<string>https</string>
+		<string>tel</string>
 	</array>
 	<key>GMSApiKey</key>
 	<string>$(MAPS_API_KEY)</string>

@@ -18,6 +18,9 @@ import 'widgets/sections/passenger_section.dart';
 import 'widgets/sections/earnings_section.dart';
 import 'widgets/sections/expenses_section.dart';
 import 'widgets/contact_bottom_sheet.dart';
+import 'widgets/sos_button.dart';
+import 'sos_status_screen.dart';
+import 'controllers/sos_controller.dart';
 import 'controllers/current_trip_provider.dart';
 import 'controllers/trip_mini_overlay_controller.dart';
 
@@ -41,9 +44,30 @@ class _TripDetailsScreenState extends ConsumerState<TripDetailsScreen> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (widget.tripId != null) {
-        ref.read(selectedTripIdProvider.notifier).select(widget.tripId!);
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final tripId = widget.tripId;
+      if (tripId != null) {
+        ref.read(selectedTripIdProvider.notifier).select(tripId);
+        // Edge Case: Check active SOS on app load/restart and restore status screen if active
+        final activeAlert = await ref.read(sosControllerProvider.notifier).checkActiveSos(tripId);
+        if (activeAlert != null && activeAlert.isActive && mounted) {
+          final allTrips = ref.read(allTripsProvider).valueOrNull ?? [];
+          final currentTrip = allTrips.where((t) => t.tripId == tripId).firstOrNull ??
+              TripModel(
+                tripId: tripId,
+                status: 'IN_PROGRESS',
+                pickupSpot: '',
+                pickupTime: DateTime.now(),
+              );
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (ctx) => SosStatusScreen(
+                trip: currentTrip,
+                initialAlert: activeAlert,
+              ),
+            ),
+          );
+        }
       }
       ref.read(tripMiniOverlayControllerProvider.notifier).setTripPageForeground(true);
       ref.read(tripRepositoryProvider).getTrips();
@@ -203,6 +227,10 @@ class _TripDetailsScreenState extends ConsumerState<TripDetailsScreen> {
             letterSpacing: -0.3,
           ),
         ),
+        actions: [
+          if (trip != null)
+            SosButton(trip: trip),
+        ],
       ),
       body: SafeArea(
         child: allTripsAsync.when(

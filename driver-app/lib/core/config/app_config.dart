@@ -30,4 +30,8 @@ class AppConfig {
   }
 
   static const String appName = 'HireD Partner';
+
+  /// 24/7 Helpline / Emergency contact phone number for SOS assistance.
+  /// TODO: Replace with the official production HireD Emergency Helpline phone number before release.
+  static const String emergencyHelplineNumber = '+9118001234567';
 }

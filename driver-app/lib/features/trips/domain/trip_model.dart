@@ -117,6 +117,7 @@ class TripModel {
 
   bool get isAssigned => status.toUpperCase() == 'ASSIGNED';
   bool get isOngoing => status.toUpperCase() == 'ONGOING';
+  bool get isInProgress => status.toUpperCase() == 'IN_PROGRESS' || status.toUpperCase() == 'ONGOING';
   bool get isClosed => status.toUpperCase() == 'CLOSED' || status.toUpperCase() == 'COMPLETED';
   bool get isCancelled => status.toUpperCase() == 'CANCELLED';
 
