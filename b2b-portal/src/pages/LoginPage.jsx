@@ -510,7 +510,7 @@ export function LoginPage({ initialMode }) {
               {/* -------------------- MODE: SIGN IN -------------------- */}
               {mode === 'login' && (
                 <>
-                  {/* Error Notice with Fast Reset Option */}
+                  {/* Standard Error Notice */}
                   {error && (
                     <div
                       className="notice-box"
@@ -519,39 +519,14 @@ export function LoginPage({ initialMode }) {
                         borderColor: 'var(--danger-border)',
                         color: 'var(--danger)',
                         alignItems: 'center',
-                        justifyContent: 'space-between',
                         marginBottom: '1.25rem',
-                        padding: '0.75rem 1rem',
-                        display: 'flex',
-                        borderRadius: '8px',
                       }}
                     >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <AlertCircle size={18} style={{ flexShrink: 0 }} />
-                        <span>{error}</span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setForgotEmail(email);
-                          switchMode('forgot');
-                        }}
-                        style={{
-                          background: 'none',
-                          border: 'none',
-                          color: 'var(--primary)',
-                          fontWeight: 600,
-                          fontSize: '0.8125rem',
-                          cursor: 'pointer',
-                          textDecoration: 'underline',
-                          whiteSpace: 'nowrap',
-                          marginLeft: '0.75rem',
-                        }}
-                      >
-                        Reset password
-                      </button>
+                      <AlertCircle size={18} style={{ flexShrink: 0 }} />
+                      <span>{error}</span>
                     </div>
                   )}
+
 
                   <form onSubmit={handleLoginSubmit} noValidate>
                     {/* Email Field */}
