@@ -26,6 +26,12 @@ import {
   recordBatchLocationsHandler,
   uploadTripSelfieHandler
 } from '../modules/driver/driver.controller.js';
+import {
+  createTripSosHandler,
+  getActiveTripSosHandler,
+  updateDriverSosLocationHandler,
+  cancelDriverSosHandler
+} from '../modules/sos/sos.controller.js';
 
 const router = Router();
 
@@ -73,5 +79,15 @@ router.get('/wallet', getOwnWalletHandler);
 // Live Location Pings
 router.post('/location', recordLocationHandler);
 router.post('/locations/batch', recordBatchLocationsHandler);
+
+// ============================================================================
+// Trip Emergency SOS Endpoints
+// ============================================================================
+router.post('/trips/:tripId/sos', createTripSosHandler);
+router.post('/trips/:trip_id/sos', createTripSosHandler);
+router.get('/trips/:tripId/sos/active', getActiveTripSosHandler);
+router.get('/trips/:trip_id/sos/active', getActiveTripSosHandler);
+router.patch('/sos/:alertId/location', updateDriverSosLocationHandler);
+router.patch('/sos/:alertId/cancel', cancelDriverSosHandler);
 
 export default router;

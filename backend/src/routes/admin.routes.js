@@ -47,6 +47,14 @@ import {
   assignDriverHandler
 } from '../modules/order/order.controller.js';
 
+// Trip SOS Emergency controllers
+import {
+  getActiveSosAlertsForAdminHandler,
+  claimSosAlertHandler,
+  resolveSosAlertHandler,
+  getSosAlertDetailsHandler
+} from '../modules/sos/sos.controller.js';
+
 const router = Router();
 
 // Protect all admin management routes with Admin authentication
@@ -101,5 +109,13 @@ router.patch('/drivers/:driverId/activate', activateDriverAccount);
 router.get('/partner-registrations', listRegistrations);
 router.patch('/partner-registrations/:requestId/approve', approveRegistration);
 router.patch('/partner-registrations/:requestId/reject', rejectRegistration);
+
+// ============================================================================
+// Emergency SOS Incident Management Endpoints
+// ============================================================================
+router.get('/sos/active', getActiveSosAlertsForAdminHandler);
+router.patch('/sos/:id/claim', validateIdParam('id'), claimSosAlertHandler);
+router.patch('/sos/:id/resolve', validateIdParam('id'), resolveSosAlertHandler);
+router.get('/sos/:id', validateIdParam('id'), getSosAlertDetailsHandler);
 
 export default router;
