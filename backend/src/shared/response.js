@@ -37,6 +37,7 @@ export function listResponse(res, items = [], page = 1, limit = 20, total = 0, m
 export function errorResponse(res, statusCode = 500, code = 'INTERNAL_ERROR', message = 'Internal server error.', details = []) {
   return res.status(statusCode).json({
     success: false,
+    message,
     error: {
       code,
       message,
@@ -44,3 +45,4 @@ export function errorResponse(res, statusCode = 500, code = 'INTERNAL_ERROR', me
     }
   });
 }
+

@@ -118,14 +118,14 @@ export function StatementDetailModal({ statement, onClose }) {
           {/* Dual-Admin Verification Stamp */}
           <div
             style={{
-              background: '#F0FDF4',
+              background: 'var(--success-bg)',
               border: '1px solid var(--success-border)',
               borderRadius: 'var(--radius-md)',
               padding: '1.25rem',
               marginBottom: '1.75rem',
             }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem', color: '#166534', fontWeight: 700, fontSize: '0.875rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem', color: 'var(--success)', fontWeight: 700, fontSize: '0.875rem' }}>
               <CheckCircle2 size={18} />
               <span>Two-Person Administrator Verification Completed</span>
             </div>
@@ -177,7 +177,7 @@ export function StatementDetailModal({ statement, onClose }) {
                       ₹{Number(statement.expenses_total).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                     </td>
                   </tr>
-                  <tr style={{ background: '#FAF5FF', fontWeight: 800, fontSize: '1rem' }}>
+                  <tr style={{ background: 'var(--primary-50)', fontWeight: 800, fontSize: '1rem' }}>
                     <td colSpan={2}>Total Monthly Settlement Amount</td>
                     <td style={{ textAlign: 'right', color: 'var(--primary)' }}>
                       ₹{Number(statement.net_payable).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
@@ -223,7 +223,7 @@ export function StatementDetailModal({ statement, onClose }) {
             <div>
               <strong>Payment Terms & Offline Settlement:</strong>
               <div>{statement.settlement_terms}</div>
-              <div style={{ marginTop: '0.35rem', color: '#1E40AF', fontSize: '0.75rem' }}>
+              <div style={{ marginTop: '0.35rem', color: 'var(--text-secondary)', fontSize: '0.75rem' }}>
                 Bank: HDFC Bank Ltd | A/C: 50200012345678 | IFSC: HDFC0000240 | Beneficiary: HireD Logistics Pvt Ltd
               </div>
             </div>

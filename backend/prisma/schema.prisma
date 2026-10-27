@@ -424,3 +424,18 @@ model PasswordSetupToken {
   @@map("password_setup_tokens")
 }
 
+model EmailOtp {
+  otpId      Int       @id @default(autoincrement()) @map("otp_id")
+  email      String    @db.VarChar(254) @map("email")
+  otpHash    String    @db.VarChar(64)  @map("otp_hash")
+  purpose    String    @db.VarChar(30)  @map("purpose") // 'PASSWORD_RESET', 'EMAIL_VERIFY'
+  attempts   Int       @default(0)      @map("attempts") // Burns after 3 attempts
+  expiresAt  DateTime  @db.Timestamptz  @map("expires_at") // 10 minutes
+  usedAt     DateTime? @db.Timestamptz  @map("used_at")
+  createdAt  DateTime  @default(now())  @db.Timestamptz  @map("created_at")
+
+  @@index([email, purpose])
+  @@index([expiresAt])
+  @@map("email_otps")
+}
+

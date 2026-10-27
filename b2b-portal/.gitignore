@@ -1,5 +1,5 @@
 # Logs
-logs
+logs/
 *.log
 npm-debug.log*
 yarn-debug.log*
@@ -7,23 +7,33 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
-node_modules
-dist
-dist-ssr
-*.local
-.vite
+# Dependencies
+node_modules/
+
+# Build & Vite artifacts
+dist/
+dist-ssr/
+.vite/
 
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
-.idea
+.idea/
 .DS_Store
+Thumbs.db
 *.suo
 *.ntvs*
 *.njsproj
 *.sln
 *.sw?
 
-# Environment secrets
+# Environment secrets (except .env.example)
 .env
-.env*.local
+.env.*
+!.env.example
+
+# Credentials & dumps
+*.pem
+*.key
+*.bak
+*.backup

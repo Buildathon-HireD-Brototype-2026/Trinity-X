@@ -8,6 +8,12 @@ import {
   submitPartnerRegistration,
   setupPasswordWithToken
 } from '../onboarding/onboarding.service.js';
+import {
+  requestEmailOtp,
+  verifyEmailOtp,
+  registerCompanyWithOtp,
+  resetPasswordWithOtp as resetPasswordService
+} from './emailOtp.service.js';
 import { successResponse, errorResponse } from '../../shared/response.js';
 
 function isApiV1(req) {
@@ -268,6 +274,127 @@ export async function partnerRegister(req, res) {
     return res.status(statusCode).json({
       status: 'error',
       message: err.message
+    });
+  }
+}
+
+/**
+ * Send an email OTP (Pillars 3, 4, 5: 10m expiry, SHA-256, 60s cooldown).
+ */
+export async function sendOtp(req, res, next) {
+  try {
+    const email = req.body.email || req.body.email_id;
+    const purpose = req.body.purpose || (req.path.includes('forgot-password') ? 'PASSWORD_RESET' : 'EMAIL_VERIFY');
+
+    const result = await requestEmailOtp({ email, purpose });
+    return res.status(200).json({
+      status: 'ok',
+      success: true,
+      message: result.message,
+      expires_in: result.expiresInSeconds,
+      data: result
+    });
+  } catch (err) {
+    const statusCode = err.status || 400;
+    return res.status(statusCode).json({
+      status: 'error',
+      success: false,
+      message: err.message || 'Failed to send verification code.'
+    });
+  }
+}
+
+/**
+ * Verify an email OTP (Pillars 1, 2: max 3 attempts, purpose isolation).
+ */
+export async function verifyOtp(req, res, next) {
+  try {
+    const email = req.body.email || req.body.email_id;
+    const otp = req.body.otp || req.body.code;
+    const purpose = req.body.purpose || 'EMAIL_VERIFY';
+
+    await verifyEmailOtp({ email, otp, purpose });
+    return res.status(200).json({
+      status: 'ok',
+      success: true,
+      message: 'Verification code verified successfully.'
+    });
+  } catch (err) {
+    const statusCode = err.status || 400;
+    return res.status(statusCode).json({
+      status: 'error',
+      success: false,
+      message: err.message || 'Verification failed.'
+    });
+  }
+}
+
+/**
+ * Register account with verified OTP.
+ */
+export async function registerWithOtp(req, res, next) {
+  try {
+    const companyName = req.body.company_name || req.body.companyName || req.body.name;
+    const contactPerson = req.body.contact_person || req.body.contactPerson;
+    const phoneNo = req.body.phone_no || req.body.phoneNo || req.body.phone;
+    const email = req.body.email_id || req.body.email;
+    const password = req.body.password;
+    const otp = req.body.otp || req.body.code;
+
+    const result = await registerCompanyWithOtp({
+      companyName,
+      contactPerson,
+      phoneNo,
+      email,
+      password,
+      otp,
+      ipAddress: req.ip
+    });
+
+    setRefreshTokenCookie(res, result.refresh_token);
+
+    return res.status(201).json({
+      status: 'ok',
+      success: true,
+      message: result.message,
+      ...result
+    });
+  } catch (err) {
+    const statusCode = err.status || 400;
+    return res.status(statusCode).json({
+      status: 'error',
+      success: false,
+      message: err.message || 'Registration failed.'
+    });
+  }
+}
+
+/**
+ * Reset password using OTP.
+ */
+export async function resetPasswordWithOtp(req, res, next) {
+  try {
+    const email = req.body.email_id || req.body.email;
+    const otp = req.body.otp || req.body.code;
+    const newPassword = req.body.new_password || req.body.newPassword || req.body.password;
+
+    const result = await resetPasswordService({
+      email,
+      otp,
+      newPassword
+    });
+
+    return res.status(200).json({
+      status: 'ok',
+      success: true,
+      message: result.message
+    });
+  } catch (err) {
+    const statusCode = err.status || 400;
+    return res.status(statusCode).json({
+      status: 'error',
+      success: false,
+      message: err.message || 'Password reset failed.'
     });
   }
 }

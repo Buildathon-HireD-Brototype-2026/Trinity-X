@@ -4,7 +4,10 @@ import { useAuth } from '../context/AuthContext';
 import { StatusBadge } from '../components/common/StatusBadge';
 import orderService from '../services/orderService';
 import OrderDetailModal from '../components/orders/OrderDetailModal';
-import { INITIAL_INVOICES } from '../services/mockData';
+import statementService from '../services/statementService';
+import useTableSubscription from '../hooks/useTableSubscription';
+import { PageErrorState } from '../components/common/PageErrorState';
+import { getFriendlyErrorMessage } from '../utils/errorHandler';
 import {
   Car,
   Clock,
@@ -19,25 +22,45 @@ import {
 export function DashboardPage() {
   const { partner } = useAuth();
   const [orders, setOrders] = useState([]);
+  const [publishedStatementsCount, setPublishedStatementsCount] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [selectedOrder, setSelectedOrder] = useState(null);
 
-  useEffect(() => {
-    async function loadData() {
-      try {
-        const data = await orderService.getOrders();
-        setOrders(data);
-      } finally {
-        setLoading(false);
-      }
+  const loadData = async (isQuiet = false) => {
+    if (!isQuiet) {
+      setLoading(true);
+      setError(null);
     }
+    try {
+      const [ordersData, statementsData] = await Promise.all([
+        orderService.getOrders(),
+        statementService.getPublishedStatements(),
+      ]);
+      setOrders(ordersData || []);
+      setPublishedStatementsCount(statementsData?.length || 0);
+      setError(null);
+    } catch (err) {
+      if (!isQuiet) {
+        setError(getFriendlyErrorMessage(err, 'dashboard'));
+      }
+    } finally {
+      if (!isQuiet) setLoading(false);
+    }
+  };
+
+  useEffect(() => {
     loadData();
   }, []);
 
-  const ongoingTripsCount = orders.filter((o) => o.trip && o.trip.status === 'ONGOING').length;
+  // Real-time automatic subscription to database changes on orders, trips, and invoices
+  useTableSubscription(['orders', 'trips', 'invoices'], () => {
+    loadData(true);
+  });
+
+  const ongoingTripsCount = orders.filter((o) => o.trip && (o.trip.status === 'ONGOING' || o.trip.trip_status === 'ONGOING')).length;
   const pendingOrdersCount = orders.filter((o) => o.status === 'RECEIVED').length;
-  const closedTripsCount = orders.filter((o) => o.trip && o.trip.status === 'CLOSED').length;
-  const publishedStatementsCount = INITIAL_INVOICES.filter((i) => i.status === 'PUBLISHED').length;
+  const closedTripsCount = orders.filter((o) => o.trip && (o.trip.status === 'CLOSED' || o.trip.trip_status === 'CLOSED')).length;
 
   return (
     <div>
@@ -63,10 +86,15 @@ export function DashboardPage() {
         </div>
       </div>
 
-      {/* Metrics Grid */}
-      <div className="metrics-grid">
+      {/* Page Error State or Dashboard Content */}
+      {error && orders.length === 0 ? (
+        <PageErrorState message={error} onRetry={() => loadData(false)} />
+      ) : (
+        <>
+          {/* Metrics Grid */}
+          <div className="metrics-grid">
         <div className="metric-card">
-          <div className="metric-icon-wrap" style={{ backgroundColor: '#F0F9FF', color: '#0284C7' }}>
+          <div className="metric-icon-wrap info">
             <Car size={24} />
           </div>
           <div>
@@ -76,7 +104,7 @@ export function DashboardPage() {
         </div>
 
         <div className="metric-card">
-          <div className="metric-icon-wrap" style={{ backgroundColor: '#EFF6FF', color: '#2563EB' }}>
+          <div className="metric-icon-wrap info">
             <Clock size={24} />
           </div>
           <div>
@@ -86,7 +114,7 @@ export function DashboardPage() {
         </div>
 
         <div className="metric-card">
-          <div className="metric-icon-wrap" style={{ backgroundColor: '#F0FDF4', color: '#16A34A' }}>
+          <div className="metric-icon-wrap success">
             <CheckCircle2 size={24} />
           </div>
           <div>
@@ -96,7 +124,7 @@ export function DashboardPage() {
         </div>
 
         <div className="metric-card">
-          <div className="metric-icon-wrap" style={{ backgroundColor: '#FAF5FF', color: 'var(--primary)' }}>
+          <div className="metric-icon-wrap primary">
             <FileText size={24} />
           </div>
           <div>
@@ -154,7 +182,7 @@ export function DashboardPage() {
               ) : orders.length === 0 ? (
                 <tr>
                   <td colSpan={7} style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>
-                    No transport orders found. Click &quot;Create Transport Order&quot; to place your first booking.
+                    No transport orders placed yet. Click &quot;Create Transport Order&quot; to place your first booking.
                   </td>
                 </tr>
               ) : (
@@ -197,6 +225,8 @@ export function DashboardPage() {
           </table>
         </div>
       </div>
+      </>
+      )}
 
       {/* Details Modal */}
       {selectedOrder && (
