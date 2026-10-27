@@ -381,6 +381,32 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     final themeColors = context.appColors;
     final isDark = context.isDarkMode;
     final docsState = ref.watch(driverDocumentsProvider);
+    final driver = ref.watch(driverProfileProvider).valueOrNull;
+
+    // Actual database verification status: ONLY if driver is ACTIVE in DB is it 'Verified'
+    final isDriverActiveInDb = driver != null && driver.isActive;
+
+    final String docBadgeText;
+    final Color docBadgeBg;
+    final Color docBadgeTextCol;
+
+    if (isDriverActiveInDb) {
+      docBadgeText = 'Verified';
+      docBadgeBg = isDark ? const Color(0xFF064E3B) : const Color(0xFFD1FAE5);
+      docBadgeTextCol = isDark ? const Color(0xFF34D399) : const Color(0xFF059669);
+    } else if (docsState.isAllUploaded) {
+      docBadgeText = 'Pending';
+      docBadgeBg = isDark ? const Color(0xFF451A03) : const Color(0xFFFEF3C7);
+      docBadgeTextCol = isDark ? const Color(0xFFFBBF24) : const Color(0xFFD97706);
+    } else if (docsState.uploadedCount > 0) {
+      docBadgeText = '${docsState.uploadedCount}/4 Uploaded';
+      docBadgeBg = isDark ? const Color(0xFF1E293B) : const Color(0xFFEFF6FF);
+      docBadgeTextCol = isDark ? const Color(0xFF60A5FA) : const Color(0xFF2563EB);
+    } else {
+      docBadgeText = 'Required';
+      docBadgeBg = isDark ? const Color(0xFF2D1B1B) : const Color(0xFFFEE2E2);
+      docBadgeTextCol = isDark ? const Color(0xFFF87171) : const Color(0xFFDC2626);
+    }
 
     return Container(
       decoration: BoxDecoration(
@@ -428,21 +454,15 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             badge: Container(
               padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3.5),
               decoration: BoxDecoration(
-                color: docsState.isAllUploaded
-                    ? (isDark ? const Color(0xFF064E3B) : const Color(0xFFD1FAE5))
-                    : (isDark ? const Color(0xFF451A03) : const Color(0xFFFEF3C7)),
+                color: docBadgeBg,
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Text(
-                docsState.isAllUploaded
-                    ? 'Verified'
-                    : '${docsState.uploadedCount}/4 Uploaded',
+                docBadgeText,
                 style: TextStyle(
                   fontSize: 11,
                   fontWeight: FontWeight.w700,
-                  color: docsState.isAllUploaded
-                      ? (isDark ? const Color(0xFF34D399) : const Color(0xFF059669))
-                      : (isDark ? const Color(0xFFFBBF24) : const Color(0xFFD97706)),
+                  color: docBadgeTextCol,
                 ),
               ),
             ),

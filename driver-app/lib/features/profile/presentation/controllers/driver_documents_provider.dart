@@ -10,6 +10,10 @@ import '../../../../core/routing/route_names.dart';
 import '../../../../core/storage/local_cache_service.dart';
 import '../../domain/driver_document_model.dart';
 
+import 'package:dio/dio.dart';
+import '../../../../core/network/auth_interceptor.dart';
+import '../../../auth/presentation/controllers/driver_profile_controller.dart';
+
 class DriverDocumentsState {
   final List<DriverDocumentModel> documents;
   final bool isUploading;
@@ -56,12 +60,16 @@ class DriverDocumentsState {
 
 class DriverDocumentsNotifier extends StateNotifier<DriverDocumentsState> {
   final SharedPreferences _prefs;
+  final Dio? _dio;
+  final Ref? _ref;
   final ImagePicker _imagePicker = ImagePicker();
 
-  DriverDocumentsNotifier(this._prefs)
+  DriverDocumentsNotifier(this._prefs, {this._dio, this._ref})
       : super(DriverDocumentsState(documents: _loadInitialDocuments(_prefs))) {
     // Check for lost camera capture data on initialization if activity was recreated
     _recoverLostCameraData();
+    // Fetch live status from backend database
+    fetchDocumentsFromBackend();
   }
 
   /// Maximum file size: 5 MB (5,242,880 bytes) per PRD D-02 & Technical Guidelines 14
@@ -81,6 +89,78 @@ class DriverDocumentsNotifier extends StateNotifier<DriverDocumentsState> {
       } catch (_) {}
     }
     return DriverDocumentModel.initialDocuments();
+  }
+
+  /// Synchronize real document status and records from PostgreSQL backend
+  Future<void> fetchDocumentsFromBackend() async {
+    final dio = _dio;
+    if (dio == null) return;
+    try {
+      // 1. Fetch driver profile to determine real database status (PENDING or ACTIVE)
+      final profileRes = await dio.get('/driver/profile');
+      final profileData = profileRes.data['data'] as Map<String, dynamic>?;
+      final driverStatus = (profileData?['status'] as String? ?? 'PENDING').toUpperCase();
+      final isDriverActive = driverStatus == 'ACTIVE';
+
+      // 2. Fetch driver document history
+      final docsRes = await dio.get('/driver/documents');
+      final docsList = docsRes.data['data'] as List<dynamic>?;
+
+      if (docsList != null) {
+        final Map<String, dynamic> backendDocsMap = {};
+        for (final item in docsList) {
+          if (item is Map<String, dynamic>) {
+            final type = item['document_type'] as String?;
+            if (type != null) {
+              backendDocsMap[type] = item;
+            }
+          }
+        }
+
+        final updated = state.documents.map((doc) {
+          final backendItem = backendDocsMap[doc.documentType];
+          if (backendItem != null) {
+            final fileName = backendItem['original_file_name'] as String? ?? 'Uploaded Document';
+            final size = backendItem['size_bytes'] as int? ?? 10240;
+            final uploadedAt = backendItem['uploaded_at'] != null
+                ? DateTime.tryParse(backendItem['uploaded_at'] as String)
+                : DateTime.now();
+
+            final front = doc.frontSide.copyWith(
+              originalFileName: doc.frontSide.originalFileName ?? fileName,
+              sizeBytes: doc.frontSide.sizeBytes ?? size,
+              uploadedAt: doc.frontSide.uploadedAt ?? uploadedAt,
+            );
+
+            final back = doc.hasTwoSides
+                ? (doc.backSide?.copyWith(
+                    originalFileName: doc.backSide?.originalFileName ?? fileName,
+                    sizeBytes: doc.backSide?.sizeBytes ?? size,
+                    uploadedAt: doc.backSide?.uploadedAt ?? uploadedAt,
+                  ))
+                : null;
+
+            // Only mark as approved if driver is ACTIVE in database; otherwise PENDING verification
+            final status = isDriverActive
+                ? DocumentStatus.approved
+                : DocumentStatus.pendingVerification;
+
+            return doc.copyWith(
+              documentId: backendItem['document_id'] as int?,
+              frontSide: front,
+              backSide: back,
+              status: status,
+            );
+          }
+          return doc;
+        }).toList();
+
+        state = state.copyWith(documents: updated);
+        await _persistDocuments(updated);
+      }
+    } catch (_) {
+      // Offline fallback
+    }
   }
 
   Future<void> _persistDocuments(List<DriverDocumentModel> docs) async {
@@ -237,6 +317,21 @@ class DriverDocumentsNotifier extends StateNotifier<DriverDocumentsState> {
     // Short UX simulated delay for preview feedback
     await Future.delayed(const Duration(milliseconds: 400));
 
+    // Upload real document to backend API if dio is available
+    final dio = _dio;
+    if (dio != null) {
+      try {
+        final formData = FormData.fromMap({
+          'file': await MultipartFile.fromFile(filePath, filename: fileName),
+          'document_type': documentType,
+        });
+        await dio.post('/driver/documents', data: formData);
+        _ref?.read(driverProfileProvider.notifier).refresh();
+      } catch (_) {
+        // Saved locally for offline preview
+      }
+    }
+
     final updatedDocs = state.documents.map((doc) {
       if (doc.documentType == documentType) {
         final newSide = DriverDocumentSide(
@@ -255,6 +350,7 @@ class DriverDocumentsNotifier extends StateNotifier<DriverDocumentsState> {
             ? (newFront.isUploaded && (newBack?.isUploaded ?? false))
             : newFront.isUploaded;
 
+        // CRITICAL: Newly uploaded documents are ALWAYS Pending Verification (NEVER auto-verified)
         final newStatus = isFullyDone
             ? DocumentStatus.pendingVerification
             : DocumentStatus.partiallyUploaded;
@@ -317,5 +413,9 @@ class DriverDocumentsNotifier extends StateNotifier<DriverDocumentsState> {
 final driverDocumentsProvider =
     StateNotifierProvider<DriverDocumentsNotifier, DriverDocumentsState>((ref) {
   final prefs = ref.watch(sharedPreferencesProvider);
-  return DriverDocumentsNotifier(prefs);
+  Dio? dio;
+  try {
+    dio = ref.watch(dioProvider);
+  } catch (_) {}
+  return DriverDocumentsNotifier(prefs, dio: dio, ref: ref);
 });

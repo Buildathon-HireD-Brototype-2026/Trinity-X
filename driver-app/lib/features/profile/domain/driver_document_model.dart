@@ -25,7 +25,9 @@ class DriverDocumentSide {
     this.uploadedAt,
   });
 
-  bool get isUploaded => localFilePath != null && localFilePath!.isNotEmpty;
+  bool get isUploaded =>
+      (localFilePath != null && localFilePath!.isNotEmpty) ||
+      (originalFileName != null && originalFileName!.isNotEmpty);
 
   DriverDocumentSide copyWith({
     String? sideName,
@@ -125,7 +127,7 @@ class DriverDocumentModel {
   String get statusLabel {
     if (status == DocumentStatus.approved) return 'Verified';
     if (status == DocumentStatus.rejected) return 'Needs Re-upload';
-    if (isUploaded) return 'Pending Verification';
+    if (status == DocumentStatus.pendingVerification || isUploaded) return 'Pending Verification';
     if (isPartiallyUploaded) return '1/2 Uploaded';
     return 'Upload Required';
   }
@@ -137,11 +139,11 @@ class DriverDocumentModel {
     if (status == DocumentStatus.rejected) {
       return isDark ? const Color(0xFFF87171) : const Color(0xFFDC2626);
     }
-    if (isUploaded) {
-      return isDark ? const Color(0xFF60A5FA) : const Color(0xFF2563EB);
+    if (status == DocumentStatus.pendingVerification || isUploaded) {
+      return isDark ? const Color(0xFFFBBF24) : const Color(0xFFD97706);
     }
     if (isPartiallyUploaded) {
-      return isDark ? const Color(0xFFFBBF24) : const Color(0xFFD97706);
+      return isDark ? const Color(0xFF60A5FA) : const Color(0xFF2563EB);
     }
     return isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B);
   }

@@ -7,6 +7,7 @@ import '../../../core/routing/route_names.dart';
 import '../../../core/storage/local_cache_service.dart';
 import '../../../core/theme/app_theme_colors.dart';
 import '../../../core/widgets/app_error_view.dart';
+import '../../auth/presentation/controllers/driver_profile_controller.dart';
 import 'controllers/driver_documents_provider.dart';
 import '../domain/driver_document_model.dart';
 
@@ -23,6 +24,8 @@ class _DocumentsScreenState extends ConsumerState<DocumentsScreen> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(sharedPreferencesProvider).setString('active_route', RouteNames.documents);
+      ref.read(driverDocumentsProvider.notifier).fetchDocumentsFromBackend();
+      ref.read(driverProfileProvider.notifier).refresh();
     });
   }
 
@@ -146,12 +149,53 @@ class _DocumentsScreenState extends ConsumerState<DocumentsScreen> {
   Widget _buildProgressCard(BuildContext context, DriverDocumentsState docsState) {
     final themeColors = context.appColors;
     final isDark = context.isDarkMode;
+    final driver = ref.watch(driverProfileProvider).valueOrNull;
+    final isDriverActiveInDb = driver != null && driver.isActive;
+
     final uploadedDocs = docsState.uploadedCount;
     final totalDocs = docsState.totalCount;
     final uploadedSides = docsState.uploadedSidesCount;
     final totalSides = docsState.totalSidesCount;
     final progress = totalSides > 0 ? (uploadedSides / totalSides) : 0.0;
     final isComplete = docsState.isAllUploaded;
+
+    final String cardTitle;
+    final String cardSubtitle;
+    final String badgeText;
+    final Color badgeBg;
+    final Color badgeTextCol;
+    final IconData cardIcon;
+    final Color iconColor;
+    final Color iconBg;
+
+    if (isDriverActiveInDb) {
+      cardTitle = 'All Documents Verified';
+      cardSubtitle = 'Account KYC is approved and active in database';
+      badgeText = 'VERIFIED';
+      badgeBg = isDark ? const Color(0xFF064E3B) : const Color(0xFFD1FAE5);
+      badgeTextCol = isDark ? const Color(0xFF34D399) : const Color(0xFF059669);
+      cardIcon = Icons.verified_rounded;
+      iconColor = isDark ? const Color(0xFF34D399) : const Color(0xFF059669);
+      iconBg = isDark ? const Color(0xFF064E3B) : const Color(0xFFD1FAE5);
+    } else if (isComplete) {
+      cardTitle = 'Documents Under Review';
+      cardSubtitle = '4 of 4 Submitted • Pending Verification in database';
+      badgeText = 'PENDING';
+      badgeBg = isDark ? const Color(0xFF451A03) : const Color(0xFFFEF3C7);
+      badgeTextCol = isDark ? const Color(0xFFFBBF24) : const Color(0xFFD97706);
+      cardIcon = Icons.hourglass_top_rounded;
+      iconColor = isDark ? const Color(0xFFFBBF24) : const Color(0xFFD97706);
+      iconBg = isDark ? const Color(0xFF451A03) : const Color(0xFFFEF3C7);
+    } else {
+      cardTitle = 'KYC Verification Progress';
+      cardSubtitle = '$uploadedDocs of $totalDocs Documents Complete ($uploadedSides/$totalSides Sides)';
+      badgeText = '${(progress * 100).toInt()}%';
+      badgeBg = isDark ? const Color(0xFF1E293B) : const Color(0xFFEFF6FF);
+      badgeTextCol = isDark ? const Color(0xFF60A5FA) : const Color(0xFF2563EB);
+      cardIcon = Icons.folder_shared_rounded;
+      iconColor = themeColors.purpleAccent;
+      iconBg = themeColors.purpleTint;
+    }
 
     return Container(
       padding: const EdgeInsets.all(18),
@@ -176,16 +220,12 @@ class _DocumentsScreenState extends ConsumerState<DocumentsScreen> {
                 width: 44,
                 height: 44,
                 decoration: BoxDecoration(
-                  color: isComplete
-                      ? (isDark ? const Color(0xFF064E3B) : const Color(0xFFD1FAE5))
-                      : themeColors.purpleTint,
+                  color: iconBg,
                   borderRadius: BorderRadius.circular(14),
                 ),
                 child: Icon(
-                  isComplete ? Icons.verified_rounded : Icons.folder_shared_rounded,
-                  color: isComplete
-                      ? (isDark ? const Color(0xFF34D399) : const Color(0xFF059669))
-                      : themeColors.purpleAccent,
+                  cardIcon,
+                  color: iconColor,
                   size: 22,
                 ),
               ),
@@ -195,39 +235,40 @@ class _DocumentsScreenState extends ConsumerState<DocumentsScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      isComplete ? 'All Documents Submitted' : 'KYC Verification Progress',
+                      cardTitle,
                       style: TextStyle(
                         color: themeColors.textPrimary,
-                        fontSize: 16,
+                        fontSize: 15.5,
                         fontWeight: FontWeight.w700,
                       ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                     const SizedBox(height: 3),
                     Text(
-                      '$uploadedDocs of $totalDocs Documents Complete ($uploadedSides/$totalSides Sides)',
+                      cardSubtitle,
                       style: TextStyle(
                         color: themeColors.textSecondary,
-                        fontSize: 12,
+                        fontSize: 11.5,
                         fontWeight: FontWeight.w500,
                       ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ],
                 ),
               ),
+              const SizedBox(width: 8),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                 decoration: BoxDecoration(
-                  color: isComplete
-                      ? (isDark ? const Color(0xFF064E3B) : const Color(0xFFD1FAE5))
-                      : (isDark ? const Color(0xFF451A03) : const Color(0xFFFEF3C7)),
+                  color: badgeBg,
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Text(
-                  isComplete ? 'READY' : '${(progress * 100).toInt()}%',
+                  badgeText,
                   style: TextStyle(
-                    color: isComplete
-                        ? (isDark ? const Color(0xFF34D399) : const Color(0xFF059669))
-                        : (isDark ? const Color(0xFFFBBF24) : const Color(0xFFD97706)),
+                    color: badgeTextCol,
                     fontSize: 11,
                     fontWeight: FontWeight.w700,
                   ),
@@ -245,7 +286,9 @@ class _DocumentsScreenState extends ConsumerState<DocumentsScreen> {
               minHeight: 7,
               backgroundColor: isDark ? const Color(0xFF242731) : const Color(0xFFF1F5F9),
               valueColor: AlwaysStoppedAnimation<Color>(
-                isComplete ? const Color(0xFF10B981) : themeColors.purpleAccent,
+                isDriverActiveInDb
+                    ? const Color(0xFF10B981)
+                    : (isComplete ? const Color(0xFFFBBF24) : themeColors.purpleAccent),
               ),
             ),
           ),
@@ -307,9 +350,11 @@ class _DocumentsScreenState extends ConsumerState<DocumentsScreen> {
                       doc.title,
                       style: TextStyle(
                         color: themeColors.textPrimary,
-                        fontSize: 15,
+                        fontSize: 14.5,
                         fontWeight: FontWeight.w700,
                       ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                     const SizedBox(height: 2),
                     Text(
@@ -318,25 +363,33 @@ class _DocumentsScreenState extends ConsumerState<DocumentsScreen> {
                         color: themeColors.textSecondary,
                         fontSize: 11.5,
                       ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ],
                 ),
               ),
               const SizedBox(width: 8),
 
-              // Status Pill
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-                decoration: BoxDecoration(
-                  color: doc.getStatusColor(isDark).withValues(alpha: isDark ? 0.2 : 0.12),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Text(
-                  doc.statusLabel,
-                  style: TextStyle(
-                    color: doc.getStatusColor(isDark),
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
+              // Status Pill with Overflow Shield
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 130),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: doc.getStatusColor(isDark).withValues(alpha: isDark ? 0.2 : 0.12),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Text(
+                    doc.statusLabel,
+                    style: TextStyle(
+                      color: doc.getStatusColor(isDark),
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w700,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.center,
                   ),
                 ),
               ),
@@ -457,11 +510,11 @@ class _DocumentsScreenState extends ConsumerState<DocumentsScreen> {
                   borderRadius: BorderRadius.circular(10),
                   border: Border.all(color: themeColors.border),
                 ),
+                padding: const EdgeInsets.symmetric(horizontal: 6),
                 child: Row(
                   children: [
-                    const SizedBox(width: 8),
                     _buildSideThumbnail(side),
-                    const SizedBox(width: 8),
+                    const SizedBox(width: 6),
                     Expanded(
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
@@ -471,9 +524,10 @@ class _DocumentsScreenState extends ConsumerState<DocumentsScreen> {
                             side.originalFileName ?? 'Uploaded',
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
+                            softWrap: false,
                             style: TextStyle(
                               color: themeColors.textPrimary,
-                              fontSize: 11.5,
+                              fontSize: 11,
                               fontWeight: FontWeight.w600,
                             ),
                           ),
@@ -482,18 +536,26 @@ class _DocumentsScreenState extends ConsumerState<DocumentsScreen> {
                             side.sizeBytes != null
                                 ? '${(side.sizeBytes! / 1024).toStringAsFixed(0)} KB'
                                 : 'Stored',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                             style: TextStyle(
                               color: themeColors.textSecondary,
-                              fontSize: 10.5,
+                              fontSize: 10,
                             ),
                           ),
                         ],
                       ),
                     ),
-                    IconButton(
-                      icon: Icon(Icons.edit_outlined, color: themeColors.purpleAccent, size: 17),
-                      tooltip: 'Change Photo',
-                      onPressed: () => _showSidePickerSheet(context, ref, doc, isFrontSide, side.sideName),
+                    Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        onTap: () => _showSidePickerSheet(context, ref, doc, isFrontSide, side.sideName),
+                        borderRadius: BorderRadius.circular(8),
+                        child: Padding(
+                          padding: const EdgeInsets.all(4.0),
+                          child: Icon(Icons.edit_outlined, color: themeColors.purpleAccent, size: 16),
+                        ),
+                      ),
                     ),
                   ],
                 ),

@@ -127,9 +127,13 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
                     ),
                     const SizedBox(height: 16),
 
-                    // KYC Verification Pending Action Banner
-                    if (!docsState.isAllUploaded) ...[
-                      _buildKycPendingBanner(context, docsState),
+                    // KYC Verification Action Banner (if not uploaded or pending in DB)
+                    if (driverAsync.valueOrNull?.isActive != true) ...[
+                      _buildKycPendingBanner(
+                        context,
+                        docsState,
+                        isAllUploaded: docsState.isAllUploaded,
+                      ),
                       const SizedBox(height: 16),
                     ],
 
@@ -160,11 +164,23 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
     );
   }
 
-  /// Action banner alerting driver that mandatory KYC documents need to be uploaded
-  Widget _buildKycPendingBanner(BuildContext context, DriverDocumentsState docsState) {
+  /// Action banner alerting driver of KYC upload or verification in database
+  Widget _buildKycPendingBanner(
+    BuildContext context,
+    DriverDocumentsState docsState, {
+    bool isAllUploaded = false,
+  }) {
     final isDark = context.isDarkMode;
     final uploaded = docsState.uploadedCount;
     final total = docsState.documents.length;
+
+    final String title = isAllUploaded
+        ? 'Documents Under Review'
+        : 'Action Required: Upload KYC ($uploaded/$total)';
+    final String description = isAllUploaded
+        ? 'Your documents are pending verification by admin.'
+        : 'Submit your 4 documents to activate your account and start receiving trips.';
+    final String btnText = isAllUploaded ? 'View' : 'Upload';
 
     return Container(
       decoration: BoxDecoration(
@@ -192,32 +208,36 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
               shape: BoxShape.circle,
             ),
             child: Icon(
-              Icons.warning_amber_rounded,
+              isAllUploaded ? Icons.hourglass_top_rounded : Icons.warning_amber_rounded,
               color: isDark ? const Color(0xFFFBBF24) : const Color(0xFFD97706),
-              size: 24,
+              size: 22,
             ),
           ),
-          const SizedBox(width: 14),
+          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Action Required: Upload KYC ($uploaded/$total)',
+                  title,
                   style: TextStyle(
                     color: isDark ? const Color(0xFFFDE68A) : const Color(0xFF92400E),
                     fontSize: 13.5,
                     fontWeight: FontWeight.w700,
                   ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  'Submit your 4 documents to activate your account and start receiving trips.',
+                  description,
                   style: TextStyle(
                     color: isDark ? const Color(0xFFD1D5DB) : const Color(0xFF78350F),
                     fontSize: 11.5,
                     height: 1.35,
                   ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ],
             ),
@@ -241,19 +261,23 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
                     ),
                   ],
                 ),
-                child: const Row(
+                child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
-                      'Upload',
-                      style: TextStyle(
+                      btnText,
+                      style: const TextStyle(
                         color: Colors.white,
                         fontSize: 12,
                         fontWeight: FontWeight.w700,
                       ),
                     ),
-                    SizedBox(width: 4),
-                    Icon(Icons.arrow_forward_rounded, color: Colors.white, size: 14),
+                    const SizedBox(width: 4),
+                    const Icon(
+                      Icons.arrow_forward_ios_rounded,
+                      color: Colors.white,
+                      size: 11,
+                    ),
                   ],
                 ),
               ),
