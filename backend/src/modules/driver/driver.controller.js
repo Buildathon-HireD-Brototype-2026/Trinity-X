@@ -26,7 +26,8 @@ import {
   recordDriverLocation,
   recordBatchLocations,
   uploadDriverPhoto,
-  uploadTripSelfie
+  uploadTripSelfie,
+  uploadStartSelfie
 } from './driver.service.js';
 import { successResponse, listResponse } from '../../shared/response.js';
 import { parsePagination } from '../../middlewares/validate.middleware.js';
@@ -240,8 +241,34 @@ export async function uploadTripSelfieHandler(req, res, next) {
   try {
     const driverId = req.user.userId;
     const tripId = req.params.trip_id || req.params.tripId;
-    const result = await uploadTripSelfie(driverId, tripId, req.file);
-    return successResponse(res, 200, result, 'Selfie uploaded successfully.');
+    const result = await uploadStartSelfie(driverId, tripId, req.file);
+    return res.status(200).json({
+      success: true,
+      selfieUrl: result.selfieUrl,
+      expiresAt: result.expiresAt,
+      data: result,
+      message: 'Selfie uploaded successfully.'
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * POST /driver/trips/:tripId/start-selfie
+ */
+export async function uploadStartSelfieHandler(req, res, next) {
+  try {
+    const driverId = req.user.userId;
+    const tripId = req.params.trip_id || req.params.tripId;
+    const result = await uploadStartSelfie(driverId, tripId, req.file);
+    return res.status(200).json({
+      success: true,
+      selfieUrl: result.selfieUrl,
+      expiresAt: result.expiresAt,
+      data: result,
+      message: 'Selfie uploaded successfully.'
+    });
   } catch (err) {
     next(err);
   }

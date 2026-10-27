@@ -24,8 +24,10 @@ import {
   getOwnWalletHandler,
   recordLocationHandler,
   recordBatchLocationsHandler,
-  uploadTripSelfieHandler
+  uploadTripSelfieHandler,
+  uploadStartSelfieHandler
 } from '../modules/driver/driver.controller.js';
+import { errorResponse } from '../shared/response.js';
 import {
   createTripSosHandler,
   getActiveTripSosHandler,
@@ -40,6 +42,37 @@ const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024 }
 });
+
+// Configure memory upload for selfie images (max 5MB, jpeg/png/webp)
+const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/jpg'];
+const selfieMulter = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    if (!ALLOWED_IMAGE_TYPES.includes(file.mimetype)) {
+      const err = new Error('Invalid file type. Only JPEG, PNG, and WebP images are allowed.');
+      err.code = 'INVALID_FILE_TYPE';
+      err.statusCode = 400;
+      return cb(err);
+    }
+    cb(null, true);
+  }
+});
+
+function handleSelfieUpload(req, res, next) {
+  selfieMulter.single('selfie')(req, res, (err) => {
+    if (err) {
+      if (err instanceof multer.MulterError) {
+        if (err.code === 'LIMIT_FILE_SIZE') {
+          return errorResponse(res, 400, 'FILE_TOO_LARGE', 'Selfie image exceeds maximum limit of 5 MB.');
+        }
+        return errorResponse(res, 400, 'UPLOAD_ERROR', err.message);
+      }
+      return errorResponse(res, err.statusCode || 400, err.code || 'INVALID_FILE', err.message);
+    }
+    next();
+  });
+}
 
 // Protect all driver routes with Driver authentication
 router.use(authenticate, requireDriver);
@@ -63,9 +96,14 @@ router.get('/documents/:document_id/link', getOwnDocumentLinkHandler);
 // Trip execution lifecycle & expenses
 router.get('/trips', listOwnTripsHandler);
 router.get('/trips/:trip_id', getOwnTripDetailHandler);
-router.post('/trips/:trip_id/start', upload.single('selfie'), startOwnTripHandler);
-router.post('/trips/:trip_id/selfie', upload.single('selfie'), uploadTripSelfieHandler);
+router.post('/trips/:trip_id/start', handleSelfieUpload, startOwnTripHandler);
+router.post('/trips/:tripId/start', handleSelfieUpload, startOwnTripHandler);
+router.post('/trips/:trip_id/start-selfie', handleSelfieUpload, uploadStartSelfieHandler);
+router.post('/trips/:tripId/start-selfie', handleSelfieUpload, uploadStartSelfieHandler);
+router.post('/trips/:trip_id/selfie', handleSelfieUpload, uploadStartSelfieHandler);
+router.post('/trips/:tripId/selfie', handleSelfieUpload, uploadStartSelfieHandler);
 router.post('/trips/:trip_id/close', closeOwnTripHandler);
+router.post('/trips/:tripId/close', closeOwnTripHandler);
 
 router.get('/trips/:trip_id/expenses', listTripExpensesHandler);
 router.post('/trips/:trip_id/expenses', createTripExpenseHandler);

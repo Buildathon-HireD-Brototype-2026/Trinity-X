@@ -20,6 +20,11 @@ export function formatOrderResponse(order) {
     driver_id: order.trip.driverId || null,
     driver_name: order.trip.driver ? order.trip.driver.name : null,
     driver_phone: order.trip.driver ? order.trip.driver.phoneNo : null,
+    selfie_url: order.trip.startSelfieUrl || order.trip.selfieURL || null,
+    startSelfieUrl: order.trip.startSelfieUrl || order.trip.selfieURL || null,
+    startSelfieUploadedAt: order.trip.startSelfieUploadedAt ? order.trip.startSelfieUploadedAt.toISOString() : null,
+    startSelfieDeletedAt: order.trip.startSelfieDeletedAt ? order.trip.startSelfieDeletedAt.toISOString() : null,
+    startSelfieExpiresAt: order.trip.startSelfieExpiresAt ? order.trip.startSelfieExpiresAt.toISOString() : null,
     created_at: order.trip.createdAt ? order.trip.createdAt.toISOString() : null
   } : null;
 

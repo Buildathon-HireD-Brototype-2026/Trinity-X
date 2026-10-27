@@ -14,6 +14,8 @@ import driverRouter from './routes/driver.routes.js';
 import { downloadSignedFileHandler } from './modules/driver/file.controller.js';
 import { errorHandler } from './middlewares/error.middleware.js';
 import { errorResponse } from './shared/response.js';
+import { checkCloudinaryInit } from './services/cloudinary.service.js';
+import { initSelfieCleanupCron } from './services/selfieCron.service.js';
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -117,6 +119,9 @@ let server = null;
 const isTestRun = process.env.NODE_ENV === 'test' || (process.argv[1] && process.argv[1].includes('test.js'));
 
 if (!isTestRun) {
+  checkCloudinaryInit();
+  initSelfieCleanupCron();
+
   server = app.listen(PORT, async () => {
     console.log(`[server] Server listening on port ${PORT} (${process.env.NODE_ENV || 'development'})`);
     try {

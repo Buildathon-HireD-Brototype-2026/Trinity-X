@@ -86,22 +86,27 @@ model Order {
 // ---------------------------------------------------------
 
 model Trip {
-  tripId            Int       @id @default(autoincrement()) @map("trip_id")
-  orderId           Int       @unique @map("order_id")
-  driverId          Int?      @map("driver_id")
-  amount            Decimal   @map("amount") @db.Decimal(12, 2)
-  eta               DateTime? @map("eta") @db.Timestamptz
-  selfieURL         String?   @map("selfie_url") @db.VarChar(500)
-  otp               String    @map("otp") @db.VarChar(6)
-  otpAttempts       Int       @default(0) @map("otp_attempts")
-  expensesConfirmed Boolean   @default(false) @map("expenses_confirmed")
-  tripStatus        String    @default("UNASSIGNED") @map("trip_status") @db.VarChar(20)
-  version           Int       @default(0) @map("version")
-  assignedAt        DateTime? @map("assigned_at") @db.Timestamptz
-  startedAt         DateTime? @map("started_at") @db.Timestamptz
-  closedAt          DateTime? @map("closed_at") @db.Timestamptz
-  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt         DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  tripId                Int       @id @default(autoincrement()) @map("trip_id")
+  orderId               Int       @unique @map("order_id")
+  driverId              Int?      @map("driver_id")
+  amount                Decimal   @map("amount") @db.Decimal(12, 2)
+  eta                   DateTime? @map("eta") @db.Timestamptz
+  selfieURL             String?   @map("selfie_url") @db.VarChar(500)
+  startSelfieUrl        String?   @map("start_selfie_url") @db.VarChar(500)
+  startSelfiePublicId   String?   @map("start_selfie_public_id") @db.VarChar(255)
+  startSelfieUploadedAt DateTime? @map("start_selfie_uploaded_at") @db.Timestamptz
+  startSelfieExpiresAt  DateTime? @map("start_selfie_expires_at") @db.Timestamptz
+  startSelfieDeletedAt  DateTime? @map("start_selfie_deleted_at") @db.Timestamptz
+  otp                   String    @map("otp") @db.VarChar(6)
+  otpAttempts           Int       @default(0) @map("otp_attempts")
+  expensesConfirmed     Boolean   @default(false) @map("expenses_confirmed")
+  tripStatus            String    @default("UNASSIGNED") @map("trip_status") @db.VarChar(20)
+  version               Int       @default(0) @map("version")
+  assignedAt            DateTime? @map("assigned_at") @db.Timestamptz
+  startedAt             DateTime? @map("started_at") @db.Timestamptz
+  closedAt              DateTime? @map("closed_at") @db.Timestamptz
+  createdAt             DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt             DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 
   order                 Order                    @relation(fields: [orderId], references: [orderId], onUpdate: Cascade, onDelete: Restrict)
   driver                Driver?                  @relation(fields: [driverId], references: [driverId], onUpdate: Cascade, onDelete: Restrict)
