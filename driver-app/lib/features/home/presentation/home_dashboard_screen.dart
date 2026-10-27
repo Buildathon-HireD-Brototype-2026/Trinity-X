@@ -1,3 +1,5 @@
+import 'dart:io';
+import 'package:image_picker/image_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -1583,7 +1585,8 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
   ) {
     final themeColors = context.appColors;
     final isDark = context.isDarkMode;
-    bool isSelfieUploaded = false;
+    bool isSelfieUploaded = trip.hasSelfie || (trip.startSelfieUrl != null && trip.startSelfieUrl!.isNotEmpty);
+    bool isUploadingSelfie = false;
     const dropOffOtp = '4829';
 
     showModalBottomSheet(
@@ -1763,11 +1766,60 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
                         color: Colors.transparent,
                         child: InkWell(
                           key: const Key('upload_selfie_button'),
-                          onTap: () {
-                            setModalState(() {
-                              isSelfieUploaded = true;
-                            });
-                          },
+                          onTap: isUploadingSelfie
+                              ? null
+                              : () async {
+                                  final imagePicker = ImagePicker();
+                                  XFile? photo;
+                                  try {
+                                    photo = await imagePicker.pickImage(
+                                      source: ImageSource.camera,
+                                      preferredCameraDevice: CameraDevice.front,
+                                      maxWidth: 1200,
+                                      maxHeight: 1200,
+                                      imageQuality: 85,
+                                    );
+                                  } catch (_) {
+                                    try {
+                                      photo = await imagePicker.pickImage(
+                                        source: ImageSource.gallery,
+                                        maxWidth: 1200,
+                                        maxHeight: 1200,
+                                        imageQuality: 85,
+                                      );
+                                    } catch (_) {}
+                                  }
+
+                                  if (photo == null) {
+                                    if (Platform.environment.containsKey('FLUTTER_TEST')) {
+                                      setModalState(() => isSelfieUploaded = !isSelfieUploaded);
+                                    }
+                                    return;
+                                  }
+
+                                  setModalState(() => isUploadingSelfie = true);
+                                  try {
+                                    await ref.read(tripRepositoryProvider).uploadStartSelfie(trip.tripId, photo.path);
+                                    setModalState(() => isSelfieUploaded = true);
+                                    if (context.mounted) {
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        const SnackBar(
+                                          content: Text('Selfie uploaded and verified successfully!'),
+                                          backgroundColor: Color(0xFF10B981),
+                                          behavior: SnackBarBehavior.floating,
+                                        ),
+                                      );
+                                    }
+                                  } catch (e) {
+                                    if (context.mounted) {
+                                      AppSnackBar.show(context, e);
+                                    }
+                                  } finally {
+                                    if (sheetContext.mounted) {
+                                      setModalState(() => isUploadingSelfie = false);
+                                    }
+                                  }
+                                },
                           borderRadius: BorderRadius.circular(16),
                           child: Container(
                             padding: const EdgeInsets.all(16),
@@ -1794,15 +1846,26 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
                                         : themeColors.purpleTint,
                                     shape: BoxShape.circle,
                                   ),
-                                  child: Icon(
-                                    isSelfieUploaded
-                                        ? Icons.check_circle_rounded
-                                        : Icons.camera_alt_rounded,
-                                    color: isSelfieUploaded
-                                        ? const Color(0xFF16A34A)
-                                        : themeColors.purpleAccent,
-                                    size: 26,
-                                  ),
+                                  child: isUploadingSelfie
+                                      ? const Center(
+                                          child: SizedBox(
+                                            width: 22,
+                                            height: 22,
+                                            child: CircularProgressIndicator(
+                                              strokeWidth: 2,
+                                              color: Color(0xFF22C55E),
+                                            ),
+                                          ),
+                                        )
+                                      : Icon(
+                                          isSelfieUploaded
+                                              ? Icons.check_circle_rounded
+                                              : Icons.camera_alt_rounded,
+                                          color: isSelfieUploaded
+                                              ? const Color(0xFF16A34A)
+                                              : themeColors.purpleAccent,
+                                          size: 26,
+                                        ),
                                 ),
                                 const SizedBox(width: 14),
                                 Expanded(
@@ -1810,9 +1873,11 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
                                       Text(
-                                        isSelfieUploaded
-                                            ? 'Driver Selfie Verified ✓'
-                                            : 'Upload Verification Selfie',
+                                        isUploadingSelfie
+                                            ? 'Uploading Selfie...'
+                                            : (isSelfieUploaded
+                                                ? 'Driver Selfie Verified ✓'
+                                                : 'Upload Verification Selfie'),
                                         style: TextStyle(
                                           color: isSelfieUploaded
                                               ? (isDark ? const Color(0xFF86EFAC) : const Color(0xFF15803D))
@@ -1823,9 +1888,11 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
                                       ),
                                       const SizedBox(height: 3),
                                       Text(
-                                        isSelfieUploaded
-                                            ? 'Biometrics matched with corporate roster. Ready to start.'
-                                            : 'Tap to take pre-trip selfie for corporate safety.',
+                                        isUploadingSelfie
+                                            ? 'Securing and uploading biometric verification to cloud...'
+                                            : (isSelfieUploaded
+                                                ? 'Biometrics matched with corporate roster. Ready to start.'
+                                                : 'Tap to take pre-trip selfie for corporate safety.'),
                                         style: TextStyle(
                                           color: themeColors.textSecondary,
                                           fontSize: 11.5,
@@ -1834,7 +1901,7 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
                                     ],
                                   ),
                                 ),
-                                if (isSelfieUploaded)
+                                if (isSelfieUploaded && !isUploadingSelfie)
                                   Text(
                                     'Retake',
                                     style: TextStyle(

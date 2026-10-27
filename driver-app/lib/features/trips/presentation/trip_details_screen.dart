@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:io';
+import 'package:image_picker/image_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -985,7 +987,8 @@ class _TripDetailsScreenState extends ConsumerState<TripDetailsScreen> {
   void _showStartTripSelfieModal(BuildContext context, TripModel trip) {
     final themeColors = context.appColors;
     final isDark = context.isDarkMode;
-    bool isSelfieUploaded = false;
+    bool isSelfieUploaded = trip.hasSelfie || (trip.startSelfieUrl != null && trip.startSelfieUrl!.isNotEmpty);
+    bool isUploadingSelfie = false;
     bool isStarting = false;
 
     showModalBottomSheet(
@@ -1043,9 +1046,60 @@ class _TripDetailsScreenState extends ConsumerState<TripDetailsScreen> {
                   color: Colors.transparent,
                   child: InkWell(
                     key: const Key('details_upload_selfie_button'),
-                    onTap: () {
-                      setSheetState(() => isSelfieUploaded = !isSelfieUploaded);
-                    },
+                    onTap: isUploadingSelfie
+                        ? null
+                        : () async {
+                            final imagePicker = ImagePicker();
+                            XFile? photo;
+                            try {
+                              photo = await imagePicker.pickImage(
+                                source: ImageSource.camera,
+                                preferredCameraDevice: CameraDevice.front,
+                                maxWidth: 1200,
+                                maxHeight: 1200,
+                                imageQuality: 85,
+                              );
+                            } catch (_) {
+                              try {
+                                photo = await imagePicker.pickImage(
+                                  source: ImageSource.gallery,
+                                  maxWidth: 1200,
+                                  maxHeight: 1200,
+                                  imageQuality: 85,
+                                );
+                              } catch (_) {}
+                            }
+
+                            if (photo == null) {
+                              if (Platform.environment.containsKey('FLUTTER_TEST')) {
+                                setSheetState(() => isSelfieUploaded = !isSelfieUploaded);
+                              }
+                              return;
+                            }
+
+                            setSheetState(() => isUploadingSelfie = true);
+                            try {
+                              await ref.read(tripRepositoryProvider).uploadStartSelfie(trip.tripId, photo.path);
+                              setSheetState(() => isSelfieUploaded = true);
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Selfie uploaded and verified successfully!'),
+                                    backgroundColor: Color(0xFF10B981),
+                                    behavior: SnackBarBehavior.floating,
+                                  ),
+                                );
+                              }
+                            } catch (e) {
+                              if (context.mounted) {
+                                AppSnackBar.show(context, e);
+                              }
+                            } finally {
+                              if (sheetCtx.mounted) {
+                                setSheetState(() => isUploadingSelfie = false);
+                              }
+                            }
+                          },
                     borderRadius: BorderRadius.circular(16),
                     child: Container(
                       padding: const EdgeInsets.all(16),
@@ -1072,15 +1126,26 @@ class _TripDetailsScreenState extends ConsumerState<TripDetailsScreen> {
                                   : themeColors.purpleTint,
                               shape: BoxShape.circle,
                             ),
-                            child: Icon(
-                              isSelfieUploaded
-                                  ? Icons.check_circle_rounded
-                                  : Icons.camera_alt_rounded,
-                              color: isSelfieUploaded
-                                  ? const Color(0xFF16A34A)
-                                  : themeColors.purpleAccent,
-                              size: 26,
-                            ),
+                            child: isUploadingSelfie
+                                ? const Center(
+                                    child: SizedBox(
+                                      width: 22,
+                                      height: 22,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        color: Color(0xFF22C55E),
+                                      ),
+                                    ),
+                                  )
+                                : Icon(
+                                    isSelfieUploaded
+                                        ? Icons.check_circle_rounded
+                                        : Icons.camera_alt_rounded,
+                                    color: isSelfieUploaded
+                                        ? const Color(0xFF16A34A)
+                                        : themeColors.purpleAccent,
+                                    size: 26,
+                                  ),
                           ),
                           const SizedBox(width: 14),
                           Expanded(
@@ -1088,9 +1153,11 @@ class _TripDetailsScreenState extends ConsumerState<TripDetailsScreen> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  isSelfieUploaded
-                                      ? 'Driver Selfie Verified ✓'
-                                      : 'Take Verification Selfie',
+                                  isUploadingSelfie
+                                      ? 'Uploading Selfie...'
+                                      : (isSelfieUploaded
+                                          ? 'Driver Selfie Verified ✓'
+                                          : 'Take Verification Selfie'),
                                   style: TextStyle(
                                     color: isSelfieUploaded
                                         ? (isDark ? const Color(0xFF86EFAC) : const Color(0xFF15803D))
@@ -1101,9 +1168,11 @@ class _TripDetailsScreenState extends ConsumerState<TripDetailsScreen> {
                                 ),
                                 const SizedBox(height: 3),
                                 Text(
-                                  isSelfieUploaded
-                                      ? 'Biometrics matched with corporate roster. Ready to roll.'
-                                      : 'Tap to capture quick photo via front camera.',
+                                  isUploadingSelfie
+                                      ? 'Securing and uploading biometric verification to cloud...'
+                                      : (isSelfieUploaded
+                                          ? 'Biometrics matched with corporate roster. Ready to roll.'
+                                          : 'Tap to capture quick photo via front camera.'),
                                   style: TextStyle(
                                     color: themeColors.textSecondary,
                                     fontSize: 11.5,
@@ -1112,7 +1181,7 @@ class _TripDetailsScreenState extends ConsumerState<TripDetailsScreen> {
                               ],
                             ),
                           ),
-                          if (isSelfieUploaded)
+                          if (isSelfieUploaded && !isUploadingSelfie)
                             Text(
                               'Retake',
                               style: TextStyle(

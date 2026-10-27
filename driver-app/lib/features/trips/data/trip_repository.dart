@@ -8,6 +8,7 @@ abstract class TripRepository {
   Future<List<TripModel>> getTrips();
   Stream<List<TripModel>> watchTrips();
   Future<TripModel> getTripDetails(String tripId);
+  Future<String?> uploadStartSelfie(String tripId, String selfiePath);
   Future<void> startTrip(String tripId, {String? selfiePath});
   Future<void> markSpotReached(String tripId, {double? lat, double? lng});
   Future<void> markDestinationReached(String tripId, {double? lat, double? lng});
@@ -401,6 +402,23 @@ class MockTripRepository implements TripRepository {
   }
 
   @override
+  Future<String?> uploadStartSelfie(String tripId, String selfiePath) async {
+    _mockTrips = _mockTrips.map((t) {
+      if (t.tripId == tripId) {
+        return t.copyWith(
+          startSelfieUrl: 'https://res.cloudinary.com/mock/image/upload/v1/trip-selfies/mock-$tripId.jpg',
+          hasSelfie: true,
+          startSelfieUploadedAt: DateTime.now().toUtc(),
+          startSelfieExpiresAt: DateTime.now().toUtc().add(const Duration(hours: 24)),
+        );
+      }
+      return t;
+    }).toList();
+    _controller.add(List.unmodifiable(_mockTrips));
+    return 'https://res.cloudinary.com/mock/image/upload/v1/trip-selfies/mock-$tripId.jpg';
+  }
+
+  @override
   Future<void> startTrip(String tripId, {String? selfiePath}) async {
     _mockTrips = _mockTrips.map((t) {
       if (t.tripId == tripId) {
@@ -580,6 +598,30 @@ class ApiTripRepository implements TripRepository {
       final data = response.data['data'] as Map<String, dynamic>;
       final trip = TripModel.fromJson(data);
       return trip;
+    } on DioException catch (e) {
+      throw ApiException.fromDioError(e);
+    }
+  }
+
+  @override
+  Future<String?> uploadStartSelfie(String tripId, String selfiePath) async {
+    try {
+      final formData = FormData.fromMap({
+        'selfie': await MultipartFile.fromFile(selfiePath),
+      });
+      final response = await _dio.post(
+        '/driver/trips/$tripId/start-selfie',
+        data: formData,
+      );
+      final resData = response.data;
+      String? selfieUrl;
+      if (resData is Map) {
+        selfieUrl = resData['selfieUrl']?.toString() ??
+            resData['data']?['selfieUrl']?.toString() ??
+            resData['data']?['startSelfieUrl']?.toString();
+      }
+      await getTrips();
+      return selfieUrl;
     } on DioException catch (e) {
       throw ApiException.fromDioError(e);
     }

@@ -84,6 +84,11 @@ class TripModel {
   final double? dropoffLat;
   final double? dropoffLng;
   final String? routePolyline;
+  final String? startSelfieUrl;
+  final bool hasSelfie;
+  final DateTime? startSelfieUploadedAt;
+  final DateTime? startSelfieExpiresAt;
+  final DateTime? startSelfieDeletedAt;
 
   const TripModel({
     required this.tripId,
@@ -113,6 +118,11 @@ class TripModel {
     this.dropoffLat = 13.1986,
     this.dropoffLng = 77.7066,
     this.routePolyline,
+    this.startSelfieUrl,
+    this.hasSelfie = false,
+    this.startSelfieUploadedAt,
+    this.startSelfieExpiresAt,
+    this.startSelfieDeletedAt,
   });
 
   bool get isAssigned => status.toUpperCase() == 'ASSIGNED';
@@ -165,6 +175,11 @@ class TripModel {
     double? dropoffLat,
     double? dropoffLng,
     String? routePolyline,
+    String? startSelfieUrl,
+    bool? hasSelfie,
+    DateTime? startSelfieUploadedAt,
+    DateTime? startSelfieExpiresAt,
+    DateTime? startSelfieDeletedAt,
   }) {
     return TripModel(
       tripId: tripId ?? this.tripId,
@@ -194,6 +209,11 @@ class TripModel {
       dropoffLat: dropoffLat ?? this.dropoffLat,
       dropoffLng: dropoffLng ?? this.dropoffLng,
       routePolyline: routePolyline ?? this.routePolyline,
+      startSelfieUrl: startSelfieUrl ?? this.startSelfieUrl,
+      hasSelfie: hasSelfie ?? this.hasSelfie,
+      startSelfieUploadedAt: startSelfieUploadedAt ?? this.startSelfieUploadedAt,
+      startSelfieExpiresAt: startSelfieExpiresAt ?? this.startSelfieExpiresAt,
+      startSelfieDeletedAt: startSelfieDeletedAt ?? this.startSelfieDeletedAt,
     );
   }
 
@@ -225,6 +245,11 @@ class TripModel {
     if (dropoffLat != null) 'dropoff_lat': dropoffLat,
     if (dropoffLng != null) 'dropoff_lng': dropoffLng,
     if (routePolyline != null) 'route_polyline': routePolyline,
+    if (startSelfieUrl != null) 'start_selfie_url': startSelfieUrl,
+    'has_selfie': hasSelfie,
+    if (startSelfieUploadedAt != null) 'start_selfie_uploaded_at': startSelfieUploadedAt!.toIso8601String(),
+    if (startSelfieExpiresAt != null) 'start_selfie_expires_at': startSelfieExpiresAt!.toIso8601String(),
+    if (startSelfieDeletedAt != null) 'start_selfie_deleted_at': startSelfieDeletedAt!.toIso8601String(),
   };
 
   factory TripModel.fromJson(Map<String, dynamic> json) {
@@ -239,6 +264,14 @@ class TripModel {
       if (val is num) return val.toInt();
       return int.tryParse(val.toString()) ?? fallback;
     }
+
+    final resolvedSelfieUrl = json['start_selfie_url']?.toString() ??
+        json['startSelfieUrl']?.toString() ??
+        json['selfie_url']?.toString() ??
+        json['selfieURL']?.toString();
+    final hasSelfieVal = json['has_selfie'] == true ||
+        json['hasSelfie'] == true ||
+        (resolvedSelfieUrl != null && resolvedSelfieUrl.isNotEmpty);
 
     return TripModel(
       tripId: json['trip_id']?.toString() ?? '',
@@ -275,6 +308,23 @@ class TripModel {
       dropoffLat: parseDouble(json['dropoff_lat'], 13.1986),
       dropoffLng: parseDouble(json['dropoff_lng'], 77.7066),
       routePolyline: json['route_polyline']?.toString(),
+      startSelfieUrl: resolvedSelfieUrl,
+      hasSelfie: hasSelfieVal,
+      startSelfieUploadedAt: json['start_selfie_uploaded_at'] != null
+          ? DateTime.tryParse(json['start_selfie_uploaded_at'].toString())
+          : (json['startSelfieUploadedAt'] != null
+              ? DateTime.tryParse(json['startSelfieUploadedAt'].toString())
+              : null),
+      startSelfieExpiresAt: json['start_selfie_expires_at'] != null
+          ? DateTime.tryParse(json['start_selfie_expires_at'].toString())
+          : (json['startSelfieExpiresAt'] != null
+              ? DateTime.tryParse(json['startSelfieExpiresAt'].toString())
+              : null),
+      startSelfieDeletedAt: json['start_selfie_deleted_at'] != null
+          ? DateTime.tryParse(json['start_selfie_deleted_at'].toString())
+          : (json['startSelfieDeletedAt'] != null
+              ? DateTime.tryParse(json['startSelfieDeletedAt'].toString())
+              : null),
     );
   }
 }
