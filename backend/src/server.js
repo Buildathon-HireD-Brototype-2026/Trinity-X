@@ -72,6 +72,7 @@ app.use('/api/v1/auth', authRouter);
 app.use('/auth', authRouter);
 
 app.use('/api/v1/driver', driverRouter);
+app.use('/api/driver', driverRouter);
 app.use('/driver', driverRouter);
 
 app.use('/api/v1/orders', orderRouter);
@@ -93,6 +94,7 @@ app.use('/api/v1/notifications', notificationRouter);
 app.use('/notifications', notificationRouter);
 
 app.use('/api/v1/admin', adminRouter);
+app.use('/api/admin', adminRouter);
 app.use('/admin', adminRouter);
 app.use('/api/v1', adminRouter);
 

@@ -10,6 +10,7 @@ import CompanyDirectoryPage from '../../features/company-directory/CompanyDirect
 import OrdersInboxPage from '../../features/orders-inbox/OrdersInboxPage';
 import TripsAssignmentPage from '../../features/trips-assignment/TripsAssignmentPage';
 import TripReportsPage from '../../features/reports/TripReportsPage';
+import InvoiceVerificationPage from '../../features/invoices/InvoiceVerificationPage';
 
 const VIEW_TITLES = {
   dashboard: 'Dashboard Overview',
@@ -51,11 +52,15 @@ export default function AdminShell() {
   const handleSelectView = (view) => {
     setCurrentView(view);
     try {
-      const url = new URL(window.location);
+      const url = new URL(window.location.href);
       url.searchParams.set('tab', view);
-      window.history.pushState({}, '', url);
+      window.history.pushState({}, '', url.pathname + url.search);
     } catch {
-      // ignore
+      try {
+        window.history.pushState({}, '', `?tab=${view}`);
+      } catch {
+        // ignore
+      }
     }
   };
 
@@ -79,9 +84,9 @@ export default function AdminShell() {
         {/* Page Content */}
         <main className="admin-page-content">
           {currentView === 'dashboard' ? (
-            <DashboardPage onNavigate={setCurrentView} />
+            <DashboardPage onNavigate={handleSelectView} />
           ) : currentView === 'profile' ? (
-            <AdminProfilePage onNavigate={setCurrentView} />
+            <AdminProfilePage onNavigate={handleSelectView} />
           ) : currentView === 'admins' ? (
             <AdminManagementPage />
           ) : currentView === 'drivers' ? (
@@ -92,6 +97,8 @@ export default function AdminShell() {
             <OrdersInboxPage />
           ) : currentView === 'trips' ? (
             <TripsAssignmentPage />
+          ) : currentView === 'invoices' ? (
+            <InvoiceVerificationPage />
           ) : currentView === 'reports' ? (
             <TripReportsPage />
           ) : (
