@@ -721,6 +721,21 @@ input, select, textarea {
   box-shadow: 0 0 0 3px var(--primary-100);
 }
 
+.form-control::placeholder {
+  color: var(--text-muted);
+  opacity: 0.85;
+}
+
+code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.8125rem;
+  background-color: var(--bg-muted);
+  color: var(--text-main);
+  padding: 0.15rem 0.4rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-subtle);
+}
+
 /* Banner / Notice Boxes */
 .notice-box {
   padding: 1rem 1.25rem;
@@ -747,6 +762,24 @@ input, select, textarea {
 }
 [data-theme="dark"] .notice-warning {
   color: #FBBF24;
+}
+
+.notice-success {
+  background-color: var(--success-bg);
+  border: 1px solid var(--success-border);
+  color: #166534;
+}
+[data-theme="dark"] .notice-success {
+  color: #4ADE80;
+}
+
+.notice-danger {
+  background-color: var(--danger-bg);
+  border: 1px solid var(--danger-border);
+  color: #991B1B;
+}
+[data-theme="dark"] .notice-danger {
+  color: #F87171;
 }
 
 /* OTP Pill */
@@ -791,6 +824,35 @@ input, select, textarea {
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+.metric-icon-wrap.info {
+  background-color: var(--info-bg);
+  color: var(--info);
+}
+[data-theme="dark"] .metric-icon-wrap.info {
+  color: #60A5FA;
+}
+
+.metric-icon-wrap.success {
+  background-color: var(--success-bg);
+  color: var(--success);
+}
+[data-theme="dark"] .metric-icon-wrap.success {
+  color: #4ADE80;
+}
+
+.metric-icon-wrap.primary {
+  background-color: var(--primary-50);
+  color: var(--primary);
+}
+
+.metric-icon-wrap.warning {
+  background-color: var(--warning-bg);
+  color: var(--warning);
+}
+[data-theme="dark"] .metric-icon-wrap.warning {
+  color: #FBBF24;
 }
 
 .metric-value {

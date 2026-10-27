@@ -133,7 +133,7 @@ export function ReportsPage() {
       {/* Metrics Cards */}
       <div className="metrics-grid">
         <div className="metric-card">
-          <div className="metric-icon-wrap" style={{ backgroundColor: '#F0FDF4', color: '#16A34A' }}>
+          <div className="metric-icon-wrap success">
             <CheckCircle2 size={24} />
           </div>
           <div>
@@ -143,7 +143,7 @@ export function ReportsPage() {
         </div>
 
         <div className="metric-card">
-          <div className="metric-icon-wrap" style={{ backgroundColor: '#FAF5FF', color: 'var(--primary)' }}>
+          <div className="metric-icon-wrap primary">
             <DollarSign size={24} />
           </div>
           <div>
@@ -153,7 +153,7 @@ export function ReportsPage() {
         </div>
 
         <div className="metric-card">
-          <div className="metric-icon-wrap" style={{ backgroundColor: '#FFFBEB', color: '#D97706' }}>
+          <div className="metric-icon-wrap warning">
             <Receipt size={24} />
           </div>
           <div>
@@ -163,7 +163,7 @@ export function ReportsPage() {
         </div>
 
         <div className="metric-card">
-          <div className="metric-icon-wrap" style={{ backgroundColor: '#EFF6FF', color: '#2563EB' }}>
+          <div className="metric-icon-wrap info">
             <TrendingUp size={24} />
           </div>
           <div>

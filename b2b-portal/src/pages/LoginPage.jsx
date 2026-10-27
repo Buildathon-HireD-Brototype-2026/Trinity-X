@@ -27,6 +27,12 @@ import {
 import ClayDrivingScene from '../components/common/ClayDrivingScene';
 import { validateLoginFields, getFriendlyErrorMessage } from '../utils/errorHandler';
 
+const formatTimer = (seconds) => {
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return `${m}:${s < 10 ? '0' : ''}${s}`;
+};
+
 export function LoginPage({ initialMode }) {
   const navigate = useNavigate();
   const location = useLocation();
@@ -160,7 +166,7 @@ export function LoginPage({ initialMode }) {
 
   // Registration - Step 1: Validate fields & request email OTP
   const handleRegisterInitiate = async (e) => {
-    e.preventDefault();
+    if (e && e.preventDefault) e.preventDefault();
     setRegGeneralError('');
     const errors = {};
 
@@ -187,16 +193,35 @@ export function LoginPage({ initialMode }) {
       return;
     }
 
+    // Instantly advance to the OTP entering screen so user never waits!
+    setRegOtpStep(true);
+    setRegResendTimer(60); // 60s cooldown before resend
     setIsSubmitting(true);
+
     try {
-      // Send OTP to user's email for registration verification
       await authService.sendRegisterOtp(regEmail);
-      setRegOtpStep(true);
-      setRegResendTimer(60);
       showSuccess(`Verification code sent to ${regEmail}.`);
     } catch (err) {
       const msg = err.message || getFriendlyErrorMessage(err, 'register');
-      setRegGeneralError(msg);
+      // If code was already sent or active in 10-minute window, keep user on OTP screen!
+      if (
+        typeof msg === 'string' &&
+        (msg.toLowerCase().includes('wait') ||
+          msg.toLowerCase().includes('second') ||
+          msg.toLowerCase().includes('already') ||
+          msg.toLowerCase().includes('valid') ||
+          msg.toLowerCase().includes('taking too long'))
+      ) {
+        const matchSec = msg.match(/(\d+)\s*seconds/i);
+        if (matchSec) {
+          setRegResendTimer(parseInt(matchSec[1], 10));
+        }
+        setRegGeneralError(msg);
+      } else {
+        // If domain validation or duplicate email error, return to Step 1 to let them edit
+        setRegOtpStep(false);
+        setRegGeneralError(msg);
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -249,7 +274,7 @@ export function LoginPage({ initialMode }) {
 
   // Forgot password - Step 1: Send OTP
   const handleSendForgotOtp = async (e) => {
-    e.preventDefault();
+    if (e && e.preventDefault) e.preventDefault();
     setForgotError('');
     setForgotSuccess('');
 
@@ -262,15 +287,34 @@ export function LoginPage({ initialMode }) {
       return;
     }
 
+    // Instantly advance to the OTP entering screen so user never waits!
+    setForgotOtpSent(true);
+    setForgotResendTimer(60); // 60s cooldown before resend
     setIsSubmitting(true);
+
     try {
       await authService.sendForgotPasswordOtp(forgotEmail);
-      setForgotOtpSent(true);
-      setForgotResendTimer(60);
       setForgotSuccess(`Verification code sent to ${forgotEmail}. Please check your inbox.`);
     } catch (err) {
-      const friendly = getFriendlyErrorMessage(err, 'forgot_password');
-      setForgotError(friendly);
+      const friendly = err.message || getFriendlyErrorMessage(err, 'forgot_password');
+      if (
+        typeof friendly === 'string' &&
+        (friendly.toLowerCase().includes('wait') ||
+          friendly.toLowerCase().includes('second') ||
+          friendly.toLowerCase().includes('already') ||
+          friendly.toLowerCase().includes('valid') ||
+          friendly.toLowerCase().includes('taking too long'))
+      ) {
+        const matchSec = friendly.match(/(\d+)\s*seconds/i);
+        if (matchSec) {
+          setForgotResendTimer(parseInt(matchSec[1], 10));
+        }
+        setForgotError(friendly);
+      } else {
+        // Return to Step 1 if account was not found
+        setForgotOtpSent(false);
+        setForgotError(friendly);
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -969,6 +1013,32 @@ export function LoginPage({ initialMode }) {
                           </>
                         )}
                       </button>
+
+                      {/* Direct jump to OTP if code was already received in email */}
+                      <div style={{ marginTop: '0.875rem', textAlign: 'center' }}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (!regEmail.trim()) {
+                              setRegErrors({ email: 'Please enter your email address above first.' });
+                              return;
+                            }
+                            setRegOtpStep(true);
+                            setRegGeneralError('');
+                          }}
+                          style={{
+                            background: 'transparent',
+                            border: 'none',
+                            color: 'var(--primary)',
+                            fontSize: '0.8125rem',
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                            textDecoration: 'underline',
+                          }}
+                        >
+                          Already received your 6-digit code? Enter OTP
+                        </button>
+                      </div>
                     </form>
                   ) : (
                     // Step 2: Verify OTP
@@ -991,7 +1061,7 @@ export function LoginPage({ initialMode }) {
                           </label>
                           {regResendTimer > 0 ? (
                             <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                              Resend in {regResendTimer}s
+                              Resend code in {regResendTimer}s
                             </span>
                           ) : (
                             <button
@@ -1037,6 +1107,9 @@ export function LoginPage({ initialMode }) {
                             autoFocus
                           />
                         </div>
+                        <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.375rem', marginBottom: 0 }}>
+                          Code is valid for 10 minutes. If you requested a new code, please enter the latest one.
+                        </p>
                       </div>
 
                       <button
@@ -1206,7 +1279,7 @@ export function LoginPage({ initialMode }) {
                           </label>
                           {forgotResendTimer > 0 ? (
                             <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                              Resend in {forgotResendTimer}s
+                              Resend code in {forgotResendTimer}s
                             </span>
                           ) : (
                             <button
@@ -1252,6 +1325,9 @@ export function LoginPage({ initialMode }) {
                             autoFocus
                           />
                         </div>
+                        <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.375rem', marginBottom: 0 }}>
+                          Code is valid for 10 minutes. If you requested a new code, please enter the latest one.
+                        </p>
                       </div>
 
                       {/* New Password */}

@@ -119,7 +119,8 @@ export function TripReportViewModal({ report, onClose }) {
           {/* Route & Times */}
           <div
             style={{
-              background: '#F8FAFC',
+              background: 'var(--bg-muted)',
+              color: 'var(--text-main)',
               borderRadius: 'var(--radius-md)',
               padding: '1.25rem',
               border: '1px solid var(--border-subtle)',
@@ -238,7 +239,7 @@ export function TripReportViewModal({ report, onClose }) {
                     </tr>
                   )}
 
-                  <tr style={{ background: '#FAF5FF', fontWeight: 700, fontSize: '0.9375rem' }}>
+                  <tr style={{ background: 'var(--primary-50)', fontWeight: 700, fontSize: '0.9375rem' }}>
                     <td colSpan={2}>Total Amount Incurred</td>
                     <td style={{ textAlign: 'right', color: 'var(--primary)' }}>
                       ₹{Number(report.total_spend).toLocaleString('en-IN', { minimumFractionDigits: 2 })}

@@ -94,7 +94,7 @@ export function DashboardPage() {
           {/* Metrics Grid */}
           <div className="metrics-grid">
         <div className="metric-card">
-          <div className="metric-icon-wrap" style={{ backgroundColor: '#F0F9FF', color: '#0284C7' }}>
+          <div className="metric-icon-wrap info">
             <Car size={24} />
           </div>
           <div>
@@ -104,7 +104,7 @@ export function DashboardPage() {
         </div>
 
         <div className="metric-card">
-          <div className="metric-icon-wrap" style={{ backgroundColor: '#EFF6FF', color: '#2563EB' }}>
+          <div className="metric-icon-wrap info">
             <Clock size={24} />
           </div>
           <div>
@@ -114,7 +114,7 @@ export function DashboardPage() {
         </div>
 
         <div className="metric-card">
-          <div className="metric-icon-wrap" style={{ backgroundColor: '#F0FDF4', color: '#16A34A' }}>
+          <div className="metric-icon-wrap success">
             <CheckCircle2 size={24} />
           </div>
           <div>
@@ -124,7 +124,7 @@ export function DashboardPage() {
         </div>
 
         <div className="metric-card">
-          <div className="metric-icon-wrap" style={{ backgroundColor: '#FAF5FF', color: 'var(--primary)' }}>
+          <div className="metric-icon-wrap primary">
             <FileText size={24} />
           </div>
           <div>

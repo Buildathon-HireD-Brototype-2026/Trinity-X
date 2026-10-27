@@ -61,21 +61,7 @@ export function getFriendlyErrorMessage(error, context = '') {
     return 'Something went wrong. Please try again.';
   }
 
-  // 1. Network Failure / Server Unreachable
-  const isNetworkFailure =
-    error.code === 'ERR_NETWORK' ||
-    error.message === 'Network Error' ||
-    (!error.response && Boolean(error.request)) ||
-    (typeof error.message === 'string' &&
-      (error.message.toLowerCase().includes('network') ||
-        error.message.toLowerCase().includes('connect') ||
-        error.message.toLowerCase().includes('failed to fetch')));
-
-  if (isNetworkFailure) {
-    return "Can't connect right now. Please check your internet and try again.";
-  }
-
-  // 2. Slow Request / Timeout
+  // 1. Slow Request / Timeout
   const isTimeout =
     error.code === 'ECONNABORTED' ||
     (typeof error.message === 'string' &&
@@ -84,6 +70,21 @@ export function getFriendlyErrorMessage(error, context = '') {
 
   if (isTimeout) {
     return 'This is taking too long. Please try again.';
+  }
+
+  // 2. Network Failure / Server Unreachable
+  const isNetworkFailure =
+    !isTimeout &&
+    (error.code === 'ERR_NETWORK' ||
+      error.message === 'Network Error' ||
+      (!error.response && Boolean(error.request)) ||
+      (typeof error.message === 'string' &&
+        (error.message.toLowerCase().includes('network') ||
+          error.message.toLowerCase().includes('connect') ||
+          error.message.toLowerCase().includes('failed to fetch'))));
+
+  if (isNetworkFailure) {
+    return "Can't connect right now. Please check your internet and try again.";
   }
 
   // Extract HTTP status code from response or error object

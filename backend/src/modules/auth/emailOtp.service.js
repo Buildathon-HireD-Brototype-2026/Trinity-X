@@ -116,24 +116,53 @@ export async function requestEmailOtp({ email, purpose }) {
     }
   }
 
-  // Security Pillar 5: Cooldown Rate-Limiting (60 seconds)
-  const recentOtp = await prisma.emailOtp.findFirst({
+  // Security Pillar 5: Resend Cooldown (60 seconds) & Max 3 OTP Requests per 10-min window
+  // Allows the user to retry if an email didn't arrive, with each new OTP valid for 10 minutes (last sent is valid).
+  const mostRecentOtp = await prisma.emailOtp.findFirst({
     where: {
       email: normEmail,
-      purpose,
-      createdAt: {
-        gte: new Date(Date.now() - COOLDOWN_SECONDS * 1000)
-      }
+      purpose
     },
     orderBy: { createdAt: 'desc' }
   });
 
-  if (recentOtp) {
-    const elapsedSeconds = Math.floor((Date.now() - new Date(recentOtp.createdAt).getTime()) / 1000);
-    const remainingSeconds = Math.max(1, COOLDOWN_SECONDS - elapsedSeconds);
+  if (mostRecentOtp) {
+    const elapsedSeconds = Math.floor((Date.now() - new Date(mostRecentOtp.createdAt).getTime()) / 1000);
+    if (elapsedSeconds < COOLDOWN_SECONDS) {
+      const remainingSeconds = Math.max(1, COOLDOWN_SECONDS - elapsedSeconds);
+      throw {
+        status: 429,
+        message: `Please wait ${remainingSeconds} seconds before requesting a new verification code.`
+      };
+    }
+  }
+
+  // Check how many OTP requests were made in the current 10-minute window (Max 3 attempts)
+  const windowStart = new Date(Date.now() - OTP_VALID_MINUTES * 60 * 1000);
+  const windowRequestsCount = await prisma.emailOtp.count({
+    where: {
+      email: normEmail,
+      purpose,
+      createdAt: { gte: windowStart }
+    }
+  });
+
+  if (windowRequestsCount >= 3) {
+    const oldestInWindow = await prisma.emailOtp.findFirst({
+      where: {
+        email: normEmail,
+        purpose,
+        createdAt: { gte: windowStart }
+      },
+      orderBy: { createdAt: 'asc' }
+    });
+    const windowRemainingSec = Math.max(
+      1,
+      Math.ceil((new Date(oldestInWindow.createdAt).getTime() + OTP_VALID_MINUTES * 60 * 1000 - Date.now()) / 1000)
+    );
     throw {
       status: 429,
-      message: `Please wait ${remainingSeconds} seconds before requesting a new verification code.`
+      message: `Please wait ${windowRemainingSec} seconds before requesting another code.`
     };
   }
 
@@ -199,20 +228,30 @@ The HireD Team`;
         <div style="font-size: 32px; font-weight: 800; letter-spacing: 8px; color: #6F2794; padding: 8px 16px; background: #ffffff; border: 1px dashed #c084fc; border-radius: 6px; display: inline-block;">
           ${rawOtp}
         </div>
-        <p style="color: #71717a; font-size: 13px; margin-top: 12px; margin-bottom: 0;">Expires in <strong>${OTP_VALID_MINUTES} minutes</strong>. Maximum 3 attempts.</p>
+        <p style="color: #71717a; font-size: 13px; margin-top: 12px; margin-bottom: 0;">Expires in <strong>${OTP_VALID_MINUTES} minutes</strong>.</p>
       </div>
       <p style="color: #71717a; font-size: 13px; line-height: 1.5;">If you did not request this verification code, please ignore this email. Do not share this code with anyone.</p>
     </div>
   `;
 
-  await sendEmail({
+  // Dispatch email delivery with fast response guarantee (never hangs the client)
+  const emailPromise = sendEmail({
     to: normEmail,
     subject,
     text: textBody,
     html: htmlBody,
     entityType: 'OTP',
     entityId: createdRecord.otpId
+  }).catch((err) => {
+    console.error('[HireD Mailer] Background send error:', err?.message || err);
   });
+
+  // Await up to 2.5s for fast SMTP delivery; if Gmail network latency exceeds 2.5s,
+  // let it finish in background and respond immediately with HTTP 200
+  await Promise.race([
+    emailPromise,
+    new Promise((resolve) => setTimeout(resolve, 2500))
+  ]);
 
   return {
     success: true,

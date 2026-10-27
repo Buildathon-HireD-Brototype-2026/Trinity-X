@@ -20,13 +20,17 @@ const PORT = process.env.PORT || 5000;
 
 const allowedOrigins = (process.env.ALLOWED_ORIGINS || process.env.CORS_ORIGINS)
   ? (process.env.ALLOWED_ORIGINS || process.env.CORS_ORIGINS).split(',').map((o) => o.trim()).filter(Boolean)
-  : ['http://localhost:3000', 'http://127.0.0.1:3000', 'http://localhost:5173', 'http://127.0.0.1:5173', 'http://localhost:5000', 'http://localhost:8080'];
+  : ['http://localhost:3000', 'http://127.0.0.1:3000', 'http://localhost:5173', 'http://127.0.0.1:5173', 'http://localhost:5174', 'http://127.0.0.1:5174', 'http://localhost:5000', 'http://localhost:8080'];
 
 // Essential security & parsing middlewares
 app.use(helmet());
 app.use(cors({
   origin: (origin, callback) => {
-    if (!origin || allowedOrigins.includes(origin)) {
+    if (
+      !origin ||
+      allowedOrigins.includes(origin) ||
+      /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)
+    ) {
       callback(null, true);
     } else {
       callback(null, false);

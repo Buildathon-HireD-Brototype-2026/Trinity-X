@@ -189,7 +189,8 @@ export function CreateOrderPage() {
 
           <div
             style={{
-              background: '#F8FAFC',
+              background: 'var(--bg-muted)',
+              color: 'var(--text-main)',
               borderRadius: 'var(--radius-md)',
               padding: '1.25rem',
               textAlign: 'left',
