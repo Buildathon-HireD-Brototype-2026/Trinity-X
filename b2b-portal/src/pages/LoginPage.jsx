@@ -99,22 +99,10 @@ export function LoginPage({ initialMode }) {
     }
   }, [location]);
 
-  // Check lockout status and countdown timer
+  // Clear any legacy client-side lockout on mount
   useEffect(() => {
-    const status = authService.getLockoutStatus();
-    setLockout(status);
-
-    if (status.isLocked) {
-      const interval = setInterval(() => {
-        const updated = authService.getLockoutStatus();
-        setLockout(updated);
-        if (!updated.isLocked) {
-          clearInterval(interval);
-          setError('');
-        }
-      }, 1000);
-      return () => clearInterval(interval);
-    }
+    authService.resetAttempts();
+    setLockout({ isLocked: false, remainingSeconds: 0 });
   }, []);
 
   // Registration OTP resend countdown
@@ -165,7 +153,6 @@ export function LoginPage({ initialMode }) {
     } catch (err) {
       const friendly = getFriendlyErrorMessage(err, 'login');
       setError(friendly);
-      setLockout(authService.getLockoutStatus());
     } finally {
       setIsSubmitting(false);
     }
@@ -523,22 +510,8 @@ export function LoginPage({ initialMode }) {
               {/* -------------------- MODE: SIGN IN -------------------- */}
               {mode === 'login' && (
                 <>
-                  {/* Lockout Notice */}
-                  {lockout.isLocked && (
-                    <div className="notice-box notice-warning" style={{ alignItems: 'center', marginBottom: '1.25rem' }}>
-                      <ShieldAlert size={22} style={{ flexShrink: 0 }} />
-                      <div>
-                        <strong>Security Lockout:</strong> 5 failed attempts reached. Please wait{' '}
-                        <span style={{ fontWeight: 700 }}>
-                          {Math.floor(lockout.remainingSeconds / 60)}m {lockout.remainingSeconds % 60}s
-                        </span>{' '}
-                        before retrying.
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Standard Error Notice */}
-                  {error && !lockout.isLocked && (
+                  {/* Error Notice with Fast Reset Option */}
+                  {error && (
                     <div
                       className="notice-box"
                       style={{
@@ -546,11 +519,37 @@ export function LoginPage({ initialMode }) {
                         borderColor: 'var(--danger-border)',
                         color: 'var(--danger)',
                         alignItems: 'center',
+                        justifyContent: 'space-between',
                         marginBottom: '1.25rem',
+                        padding: '0.75rem 1rem',
+                        display: 'flex',
+                        borderRadius: '8px',
                       }}
                     >
-                      <AlertCircle size={18} style={{ flexShrink: 0 }} />
-                      <span>{error}</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <AlertCircle size={18} style={{ flexShrink: 0 }} />
+                        <span>{error}</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setForgotEmail(email);
+                          switchMode('forgot');
+                        }}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          color: 'var(--primary)',
+                          fontWeight: 600,
+                          fontSize: '0.8125rem',
+                          cursor: 'pointer',
+                          textDecoration: 'underline',
+                          whiteSpace: 'nowrap',
+                          marginLeft: '0.75rem',
+                        }}
+                      >
+                        Reset password
+                      </button>
                     </div>
                   )}
 
@@ -582,7 +581,7 @@ export function LoginPage({ initialMode }) {
                             setEmail(e.target.value);
                             if (error) setError('');
                           }}
-                          disabled={lockout.isLocked || isSubmitting}
+                          disabled={isSubmitting}
                           autoComplete="email"
                         />
                       </div>
@@ -638,7 +637,7 @@ export function LoginPage({ initialMode }) {
                             setPassword(e.target.value);
                             if (error) setError('');
                           }}
-                          disabled={lockout.isLocked || isSubmitting}
+                          disabled={isSubmitting}
                           autoComplete="current-password"
                         />
                         <button
@@ -667,7 +666,7 @@ export function LoginPage({ initialMode }) {
                       type="submit"
                       className="btn btn-primary"
                       style={{ width: '100%', marginTop: '0.5rem', height: '44px' }}
-                      disabled={lockout.isLocked || isSubmitting}
+                      disabled={isSubmitting}
                     >
                       {isSubmitting ? (
                         <span>Authenticating...</span>

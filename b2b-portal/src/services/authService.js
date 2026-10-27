@@ -10,48 +10,26 @@ const LOCKOUT_DURATION_MS = 15 * 60 * 1000; // 15 minutes
 
 export const authService = {
   /**
-   * Check if the partner is currently locked out
+   * Check lockout status (Modern sites do not block client UI; handled ethically by backend rate limiter)
    */
   getLockoutStatus() {
-    const lockedUntil = localStorage.getItem(LOCKED_UNTIL_KEY);
-    if (!lockedUntil) return { isLocked: false, remainingSeconds: 0 };
-
-    const lockTime = parseInt(lockedUntil, 10);
-    const now = Date.now();
-    if (now < lockTime) {
-      return {
-        isLocked: true,
-        remainingSeconds: Math.ceil((lockTime - now) / 1000),
-      };
+    try {
+      localStorage.removeItem(LOCKED_UNTIL_KEY);
+      localStorage.removeItem(FAILED_ATTEMPTS_KEY);
+    } catch {
+      // ignore in non-browser env
     }
-
-    // Lockout expired; reset counters
-    localStorage.removeItem(LOCKED_UNTIL_KEY);
-    localStorage.removeItem(FAILED_ATTEMPTS_KEY);
     return { isLocked: false, remainingSeconds: 0 };
   },
 
   /**
-   * Record a failed login attempt
+   * Record failed attempt (cleared for smooth modern UX)
    */
   recordFailedAttempt() {
-    const current = parseInt(localStorage.getItem(FAILED_ATTEMPTS_KEY) || '0', 10) + 1;
-    localStorage.setItem(FAILED_ATTEMPTS_KEY, current.toString());
-
-    if (current >= MAX_ATTEMPTS) {
-      const lockUntil = Date.now() + LOCKOUT_DURATION_MS;
-      localStorage.setItem(LOCKED_UNTIL_KEY, lockUntil.toString());
-      return {
-        isLocked: true,
-        attempts: current,
-        remainingSeconds: Math.ceil(LOCKOUT_DURATION_MS / 1000),
-      };
-    }
-
     return {
       isLocked: false,
-      attempts: current,
-      remainingAttempts: MAX_ATTEMPTS - current,
+      attempts: 0,
+      remainingAttempts: 5,
     };
   },
 
@@ -59,21 +37,18 @@ export const authService = {
    * Reset failed attempts upon successful authentication
    */
   resetAttempts() {
-    localStorage.removeItem(FAILED_ATTEMPTS_KEY);
-    localStorage.removeItem(LOCKED_UNTIL_KEY);
+    try {
+      localStorage.removeItem(FAILED_ATTEMPTS_KEY);
+      localStorage.removeItem(LOCKED_UNTIL_KEY);
+    } catch {
+      // ignore
+    }
   },
 
   /**
    * Authenticate partner with email and password against real backend database
    */
   async login(email, password) {
-    // Check for active lockout first
-    const lockout = this.getLockoutStatus();
-    if (lockout.isLocked) {
-      const mins = Math.ceil(lockout.remainingSeconds / 60);
-      throw new Error(`Account temporarily locked due to 5 failed attempts. Please try again in ${mins} minute(s).`);
-    }
-
     try {
       const response = await apiClient.post('/auth/login', {
         email: email.trim().toLowerCase(),
@@ -94,14 +69,12 @@ export const authService = {
 
       throw new Error('Something went wrong on our side. Please try again in a moment.');
     } catch (err) {
-      const attemptResult = this.recordFailedAttempt();
-      if (attemptResult.isLocked) {
-        throw new Error('Maximum login attempts exceeded. Account is locked for 15 minutes.');
-      }
+      this.resetAttempts();
       const friendly = getFriendlyErrorMessage(err, 'login');
       throw new Error(friendly);
     }
   },
+
 
   /**
    * Request a 6-digit OTP for email verification during account registration
