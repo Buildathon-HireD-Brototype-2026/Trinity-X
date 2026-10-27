@@ -1,3 +1,4 @@
+import dns from 'dns/promises';
 import prisma from '../../config/db.js';
 import {
   generateNumericOtp,
@@ -13,6 +14,59 @@ const OTP_VALID_MINUTES = 10;
 const COOLDOWN_SECONDS = 60;
 const MAX_ATTEMPTS = 3;
 
+const COMMON_DOMAIN_TYPOS = {
+  'gmial.com': 'gmail.com',
+  'gamil.com': 'gmail.com',
+  'gmaill.com': 'gmail.com',
+  'gmai.com': 'gmail.com',
+  'yaho.com': 'yahoo.com',
+  'yahooo.com': 'yahoo.com',
+  'hotmial.com': 'hotmail.com',
+  'outlok.com': 'outlook.com',
+  'outloo.com': 'outlook.com'
+};
+
+/**
+ * Validate that an email domain is real, has MX records, and is not a common typo.
+ */
+export async function validateEmailDomain(email) {
+  const parts = email.split('@');
+  if (parts.length !== 2) return;
+  const domain = parts[1].toLowerCase().trim();
+
+  // 1. Common typo suggestions
+  if (COMMON_DOMAIN_TYPOS[domain]) {
+    throw {
+      status: 400,
+      message: `Did you mean @${COMMON_DOMAIN_TYPOS[domain]}? Please check your email spelling.`
+    };
+  }
+
+  // 2. Allow test domains during unit tests & development
+  if (
+    domain.endsWith('.example.com') ||
+    domain === 'example.com' ||
+    domain === 'test.com' ||
+    domain === 'localhost' ||
+    process.env.NODE_ENV === 'test'
+  ) {
+    return;
+  }
+
+  // 3. DNS MX record resolution (ensures domain exists and accepts emails)
+  try {
+    const mxRecords = await dns.resolveMx(domain);
+    if (!mxRecords || mxRecords.length === 0) {
+      throw new Error('NO_MX');
+    }
+  } catch (dnsErr) {
+    throw {
+      status: 400,
+      message: `Email domain "${domain}" not found or cannot receive mail. Please check for typos.`
+    };
+  }
+}
+
 /**
  * 1. Request an OTP (with 60s cooldown, 10-minute expiry, SHA-256 hash).
  */
@@ -26,10 +80,14 @@ export async function requestEmailOtp({ email, purpose }) {
     throw { status: 400, message: 'Please enter a valid email address format.' };
   }
 
+  // Verify email domain existence & typos
+  await validateEmailDomain(normEmail);
+
   const validPurposes = ['EMAIL_VERIFY', 'PASSWORD_RESET'];
   if (!purpose || !validPurposes.includes(purpose)) {
     throw { status: 400, message: 'Invalid OTP purpose specified.' };
   }
+
 
   // Pre-checks based on purpose
   if (purpose === 'EMAIL_VERIFY') {

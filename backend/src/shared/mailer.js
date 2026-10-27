@@ -6,24 +6,35 @@ let transporter = null;
 function getTransporter() {
   if (transporter) return transporter;
 
-  const user = process.env.SMTP_USER || process.env.GMAIL_USER;
-  const pass = process.env.SMTP_PASS || process.env.GMAIL_APP_PASSWORD;
+  const rawUser = process.env.SMTP_USER || process.env.GMAIL_USER;
+  const rawPass = process.env.SMTP_PASS || process.env.GMAIL_APP_PASSWORD;
 
-  if (user && pass) {
-    const host = process.env.SMTP_HOST || (user.includes('gmail.com') ? 'smtp.gmail.com' : 'smtp.gmail.com');
-    const port = parseInt(process.env.SMTP_PORT || '465', 10);
-    const secure = port === 465;
+  if (rawUser && rawPass) {
+    const user = rawUser.trim();
+    const pass = rawPass.replace(/\s+/g, ''); // Removes spaces if copied as "abcd efgh ijkl mnop"
 
-    transporter = nodemailer.createTransport({
-      host,
-      port,
-      secure,
-      auth: { user, pass }
-    });
+    if (user.includes('gmail.com')) {
+      transporter = nodemailer.createTransport({
+        service: 'gmail',
+        auth: { user, pass }
+      });
+    } else {
+      const host = process.env.SMTP_HOST || 'smtp.gmail.com';
+      const port = parseInt(process.env.SMTP_PORT || '465', 10);
+      const secure = port === 465;
+
+      transporter = nodemailer.createTransport({
+        host,
+        port,
+        secure,
+        auth: { user, pass }
+      });
+    }
   }
 
   return transporter;
 }
+
 
 /**
  * Send an email notification or OTP.
