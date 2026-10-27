@@ -252,11 +252,12 @@ export function LoginPage({ initialMode }) {
         switchMode('login');
       }
     } catch (err) {
-      const friendly = getFriendlyErrorMessage(err, 'register');
-      setRegGeneralError(friendly);
+      const msg = err.message || getFriendlyErrorMessage(err, 'register');
+      setRegGeneralError(msg);
     } finally {
       setIsSubmitting(false);
     }
+
   };
 
   // Forgot password - Step 1: Send OTP
@@ -328,11 +329,12 @@ export function LoginPage({ initialMode }) {
       setPassword('');
       switchMode('login');
     } catch (err) {
-      const friendly = getFriendlyErrorMessage(err, 'reset_password');
-      setForgotError(friendly);
+      const msg = err.message || getFriendlyErrorMessage(err, 'reset_password');
+      setForgotError(msg);
     } finally {
       setIsSubmitting(false);
     }
+
   };
 
   const handleFillDemo = () => {

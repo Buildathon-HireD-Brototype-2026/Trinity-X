@@ -139,10 +139,12 @@ export const authService = {
 
       if (response.data?.access_token) {
         localStorage.setItem(TOKEN_KEY, response.data.access_token);
-        if (response.data.user) {
-          localStorage.setItem(USER_KEY, JSON.stringify(response.data.user));
+        const partnerData = response.data.company || response.data.user;
+        if (partnerData) {
+          localStorage.setItem(PARTNER_KEY, JSON.stringify(partnerData));
         }
       }
+
 
       return response.data;
     } catch (err) {
