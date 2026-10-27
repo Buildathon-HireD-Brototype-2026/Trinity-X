@@ -11,7 +11,10 @@ class ApiClient {
 
   getToken() {
     try {
-      const raw = localStorage.getItem('hired_admin_user');
+      const raw =
+        (typeof sessionStorage !== 'undefined' &&
+          (sessionStorage.getItem('hired_admin_session') || sessionStorage.getItem('hired_admin_user'))) ||
+        (typeof localStorage !== 'undefined' && localStorage.getItem('hired_admin_user'));
       if (!raw) return null;
       const user = JSON.parse(raw);
       return user.token || user.access_token || null;
