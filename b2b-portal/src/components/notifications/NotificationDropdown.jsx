@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import notificationService from '../../services/notificationService';
+import useTableSubscription from '../../hooks/useTableSubscription';
 import {
   Bell,
   CheckCircle2,
@@ -26,6 +27,11 @@ export function NotificationDropdown() {
   useEffect(() => {
     fetchNotifications();
   }, []);
+
+  // Real-time automatic subscription to database changes on notifications
+  useTableSubscription(['notifications'], () => {
+    fetchNotifications();
+  });
 
   // Close dropdown on click outside
   useEffect(() => {

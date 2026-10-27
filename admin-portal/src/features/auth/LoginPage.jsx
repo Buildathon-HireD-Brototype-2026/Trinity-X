@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Eye, EyeOff, Lock, Mail, AlertCircle, Loader2 } from 'lucide-react';
+import { Eye, EyeOff, Lock, Mail, AlertCircle, Loader2, Clock } from 'lucide-react';
 import { useAuth } from './AuthContext';
 import logoSvg from '../../assets/logo.svg';
 
@@ -10,6 +10,26 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [fieldErrors, setFieldErrors] = useState({});
+  const [logoutNotice, setLogoutNotice] = useState(() => {
+    try {
+      const reason = sessionStorage.getItem('hired_logout_reason');
+      if (reason === 'inactivity') {
+        return {
+          title: 'Session Expired',
+          message: 'You were automatically logged out after 15 minutes of inactivity for your security.',
+        };
+      }
+      if (reason === 'expired') {
+        return {
+          title: 'Session Expired',
+          message: 'Your 8-hour login session has expired. Please sign in again.',
+        };
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  });
 
   const validate = () => {
     const errors = {};
@@ -17,21 +37,37 @@ export default function LoginPage() {
 
     if (!trimmedEmail) {
       errors.email = 'Email address is required.';
+    } else if (trimmedEmail.length > 50) {
+      errors.email = 'Email cannot exceed 50 characters.';
     } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
       errors.email = 'Please enter a valid email address.';
     }
 
     if (!password) {
       errors.password = 'Password is required.';
+    } else if (password.length > 50) {
+      errors.password = 'Password cannot exceed 50 characters.';
     }
 
     setFieldErrors(errors);
     return Object.keys(errors).length === 0;
   };
 
+  const dismissLogoutNotice = () => {
+    if (logoutNotice) {
+      setLogoutNotice(null);
+      try {
+        sessionStorage.removeItem('hired_logout_reason');
+      } catch {
+        // ignore
+      }
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+    dismissLogoutNotice();
 
     if (!validate()) {
       return;
@@ -50,6 +86,7 @@ export default function LoginPage() {
     setPassword(testPassword);
     setFieldErrors({});
     setError('');
+    dismissLogoutNotice();
   };
 
   return (
@@ -61,6 +98,25 @@ export default function LoginPage() {
           <h1 className="login-title">Admin Portal</h1>
           <p className="login-subtitle">Sign in to manage the HireD fleet and operations</p>
         </div>
+
+        {/* Inactivity / Session Expired Notice Banner */}
+        {logoutNotice && (
+          <div className="inactivity-banner" role="alert">
+            <Clock size={18} className="inactivity-icon" />
+            <div className="inactivity-text">
+              <strong>{logoutNotice.title}</strong>
+              <span>{logoutNotice.message}</span>
+            </div>
+            <button
+              type="button"
+              className="inactivity-close-btn"
+              onClick={dismissLogoutNotice}
+              aria-label="Dismiss notice"
+            >
+              ×
+            </button>
+          </div>
+        )}
 
         {/* Global Error Banner */}
         {error && (
@@ -84,6 +140,7 @@ export default function LoginPage() {
                 type="email"
                 className="form-input"
                 placeholder="admin@hired.com"
+                maxLength={50}
                 value={email}
                 onChange={(e) => {
                   setEmail(e.target.value);
@@ -108,6 +165,7 @@ export default function LoginPage() {
                 type={showPassword ? 'text' : 'password'}
                 className="form-input"
                 placeholder="Enter your password"
+                maxLength={50}
                 value={password}
                 onChange={(e) => {
                   setPassword(e.target.value);

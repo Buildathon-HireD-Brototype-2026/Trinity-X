@@ -64,7 +64,7 @@ export function TripReportViewModal({ report, onClose }) {
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--success)', fontWeight: 600, fontSize: '0.875rem' }}>
             <FileCheck2 size={20} />
-            <span>Official HireD Closed Trip Report (PRD B-05)</span>
+            <span>Official HireD Closed Trip Report</span>
           </div>
 
           <div style={{ display: 'flex', gap: '0.5rem' }}>
@@ -119,7 +119,8 @@ export function TripReportViewModal({ report, onClose }) {
           {/* Route & Times */}
           <div
             style={{
-              background: '#F8FAFC',
+              background: 'var(--bg-muted)',
+              color: 'var(--text-main)',
               borderRadius: 'var(--radius-md)',
               padding: '1.25rem',
               border: '1px solid var(--border-subtle)',
@@ -232,13 +233,13 @@ export function TripReportViewModal({ report, onClose }) {
                   ) : (
                     <tr>
                       <td colSpan={2} style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>
-                        No out-of-pocket driver expenses logged for this trip.
+                        No out-of-pocket expenses logged for this trip.
                       </td>
                       <td style={{ textAlign: 'right' }}>₹0.00</td>
                     </tr>
                   )}
 
-                  <tr style={{ background: '#FAF5FF', fontWeight: 700, fontSize: '0.9375rem' }}>
+                  <tr style={{ background: 'var(--primary-50)', fontWeight: 700, fontSize: '0.9375rem' }}>
                     <td colSpan={2}>Total Amount Incurred</td>
                     <td style={{ textAlign: 'right', color: 'var(--primary)' }}>
                       ₹{Number(report.total_spend).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
@@ -253,7 +254,7 @@ export function TripReportViewModal({ report, onClose }) {
           <div className="notice-box notice-info" style={{ fontSize: '0.75rem', lineHeight: 1.4 }}>
             <ShieldCheck size={18} style={{ flexShrink: 0, marginTop: '2px' }} />
             <div>
-              <strong>Billing Note:</strong> Commission splits (Driver % vs. Platform %) are consolidated at the end of each calendar month. Complete itemized statements are published only following mandatory two-administrator verification (PRD 5.4).
+              <strong>Billing Note:</strong> Trip charges are consolidated at the end of each calendar month. Complete itemized statements are published only following mandatory two-administrator verification.
             </div>
           </div>
         </div>

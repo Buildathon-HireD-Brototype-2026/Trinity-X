@@ -2,6 +2,9 @@ import React, { useState, useEffect } from 'react';
 import statementService from '../services/statementService';
 import StatementDetailModal from '../components/statements/StatementDetailModal';
 import { StatusBadge } from '../components/common/StatusBadge';
+import useTableSubscription from '../hooks/useTableSubscription';
+import { PageErrorState } from '../components/common/PageErrorState';
+import { getFriendlyErrorMessage } from '../utils/errorHandler';
 import {
   Receipt,
   ShieldCheck,
@@ -10,28 +13,41 @@ import {
   Eye,
   Info,
   CreditCard,
-  RefreshCw,
   FileText,
 } from 'lucide-react';
 
 export function StatementsPage() {
   const [statements, setStatements] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [selectedStatement, setSelectedStatement] = useState(null);
 
-  const fetchStatements = async () => {
-    setLoading(true);
+  const fetchStatements = async (isQuiet = false) => {
+    if (!isQuiet) {
+      setLoading(true);
+      setError(null);
+    }
     try {
       const data = await statementService.getPublishedStatements();
-      setStatements(data);
+      setStatements(data || []);
+      setError(null);
+    } catch (err) {
+      if (!isQuiet) {
+        setError(getFriendlyErrorMessage(err, 'statements'));
+      }
     } finally {
-      setLoading(false);
+      if (!isQuiet) setLoading(false);
     }
   };
 
   useEffect(() => {
     fetchStatements();
   }, []);
+
+  // Real-time automatic subscription to database changes on invoices
+  useTableSubscription(['invoices'], () => {
+    fetchStatements(true);
+  });
 
   return (
     <div>
@@ -40,14 +56,9 @@ export function StatementsPage() {
         <div>
           <h1 className="page-title">Month-End Statements</h1>
           <p className="page-subtitle">
-            Consolidated monthly billing statements viewable exclusively after two-person administrator verification (PRD B-06).
+            Consolidated monthly billing statements viewable exclusively after two-person administrator verification.
           </p>
         </div>
-
-        <button type="button" className="btn btn-secondary" onClick={fetchStatements} title="Refresh Statements">
-          <RefreshCw size={16} />
-          <span>Refresh</span>
-        </button>
       </div>
 
       {/* Two-Person Verification Policy Notice */}
@@ -59,41 +70,44 @@ export function StatementsPage() {
         </div>
       </div>
 
-      {/* Statements Table */}
-      <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-        <div className="table-container" style={{ border: 'none' }}>
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Statement #</th>
-                <th>Billing Period</th>
-                <th>Closed Trips</th>
-                <th style={{ textAlign: 'right' }}>Total Gross Fare</th>
-                <th style={{ textAlign: 'right' }}>Net Payable</th>
-                <th>Verification Check</th>
-                <th>Status</th>
-                <th>Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
+      {/* Statements Table or Error State */}
+      {error && statements.length === 0 ? (
+        <PageErrorState message={error} onRetry={() => fetchStatements(false)} />
+      ) : (
+        <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+          <div className="table-container" style={{ border: 'none' }}>
+            <table className="data-table">
+              <thead>
                 <tr>
-                  <td colSpan={8} style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>
-                    Loading verified statements...
-                  </td>
+                  <th>Statement #</th>
+                  <th>Billing Period</th>
+                  <th>Closed Trips</th>
+                  <th style={{ textAlign: 'right' }}>Total Gross Fare</th>
+                  <th style={{ textAlign: 'right' }}>Net Payable</th>
+                  <th>Verification Check</th>
+                  <th>Status</th>
+                  <th>Action</th>
                 </tr>
-              ) : statements.length === 0 ? (
-                <tr>
-                  <td colSpan={8} style={{ textAlign: 'center', padding: '3rem' }}>
-                    <div style={{ color: 'var(--text-secondary)', marginBottom: '0.5rem', fontWeight: 600 }}>
-                      No published statements currently available
-                    </div>
-                    <p style={{ color: 'var(--text-muted)', fontSize: '0.8125rem' }}>
-                      Statements are generated at month-end and published following completion of the two-person verification process.
-                    </p>
-                  </td>
-                </tr>
-              ) : (
+              </thead>
+              <tbody>
+                {loading ? (
+                  <tr>
+                    <td colSpan={8} style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>
+                      Loading verified statements...
+                    </td>
+                  </tr>
+                ) : statements.length === 0 ? (
+                  <tr>
+                    <td colSpan={8} style={{ textAlign: 'center', padding: '3rem' }}>
+                      <div style={{ color: 'var(--text-secondary)', marginBottom: '0.5rem', fontWeight: 600 }}>
+                        No statements yet
+                      </div>
+                      <p style={{ color: 'var(--text-muted)', fontSize: '0.8125rem' }}>
+                        Statements are generated at month-end and published following completion of the two-person verification process.
+                      </p>
+                    </td>
+                  </tr>
+                ) : (
                 statements.map((stmt) => (
                   <tr key={stmt.invoice_id}>
                     <td>
@@ -157,6 +171,7 @@ export function StatementsPage() {
           </table>
         </div>
       </div>
+      )}
 
       {/* Statement Detail Modal */}
       {selectedStatement && (

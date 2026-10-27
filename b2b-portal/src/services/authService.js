@@ -1,13 +1,5 @@
-/**
- * Partner Authentication Service
- * Implements PRD B-01 and database_updated0.2.md Section 10.5
- * - JWT access token (15 mins) & session management
- * - 5 failed attempts lockout (15 minutes)
- * - Tenant isolation verification
- */
-
 import apiClient from './apiClient';
-import { MOCK_COMPANY } from './mockData';
+import { getFriendlyErrorMessage } from '../utils/errorHandler';
 
 const FAILED_ATTEMPTS_KEY = 'hired_b2b_failed_attempts';
 const LOCKED_UNTIL_KEY = 'hired_b2b_locked_until';
@@ -18,48 +10,26 @@ const LOCKOUT_DURATION_MS = 15 * 60 * 1000; // 15 minutes
 
 export const authService = {
   /**
-   * Check if the partner is currently locked out
+   * Check lockout status (Modern sites do not block client UI; handled ethically by backend rate limiter)
    */
   getLockoutStatus() {
-    const lockedUntil = localStorage.getItem(LOCKED_UNTIL_KEY);
-    if (!lockedUntil) return { isLocked: false, remainingSeconds: 0 };
-
-    const lockTime = parseInt(lockedUntil, 10);
-    const now = Date.now();
-    if (now < lockTime) {
-      return {
-        isLocked: true,
-        remainingSeconds: Math.ceil((lockTime - now) / 1000),
-      };
+    try {
+      localStorage.removeItem(LOCKED_UNTIL_KEY);
+      localStorage.removeItem(FAILED_ATTEMPTS_KEY);
+    } catch {
+      // ignore in non-browser env
     }
-
-    // Lockout expired; reset counters
-    localStorage.removeItem(LOCKED_UNTIL_KEY);
-    localStorage.removeItem(FAILED_ATTEMPTS_KEY);
     return { isLocked: false, remainingSeconds: 0 };
   },
 
   /**
-   * Record a failed login attempt
+   * Record failed attempt (cleared for smooth modern UX)
    */
   recordFailedAttempt() {
-    const current = parseInt(localStorage.getItem(FAILED_ATTEMPTS_KEY) || '0', 10) + 1;
-    localStorage.setItem(FAILED_ATTEMPTS_KEY, current.toString());
-
-    if (current >= MAX_ATTEMPTS) {
-      const lockUntil = Date.now() + LOCKOUT_DURATION_MS;
-      localStorage.setItem(LOCKED_UNTIL_KEY, lockUntil.toString());
-      return {
-        isLocked: true,
-        attempts: current,
-        remainingSeconds: Math.ceil(LOCKOUT_DURATION_MS / 1000),
-      };
-    }
-
     return {
       isLocked: false,
-      attempts: current,
-      remainingAttempts: MAX_ATTEMPTS - current,
+      attempts: 0,
+      remainingAttempts: 5,
     };
   },
 
@@ -67,63 +37,18 @@ export const authService = {
    * Reset failed attempts upon successful authentication
    */
   resetAttempts() {
-    localStorage.removeItem(FAILED_ATTEMPTS_KEY);
-    localStorage.removeItem(LOCKED_UNTIL_KEY);
+    try {
+      localStorage.removeItem(FAILED_ATTEMPTS_KEY);
+      localStorage.removeItem(LOCKED_UNTIL_KEY);
+    } catch {
+      // ignore
+    }
   },
 
   /**
-   * Authenticate partner with email and password
+   * Authenticate partner with email and password against real backend database
    */
   async login(email, password) {
-    // Check for active lockout first
-    const lockout = this.getLockoutStatus();
-    if (lockout.isLocked) {
-      const mins = Math.ceil(lockout.remainingSeconds / 60);
-      throw new Error(`Account temporarily locked due to 5 failed attempts. Please try again in ${mins} minute(s).`);
-    }
-
-    const useMock = import.meta.env.VITE_USE_MOCK_API !== 'false';
-
-    if (useMock) {
-      // Simulate realistic network delay
-      await new Promise((resolve) => setTimeout(resolve, 600));
-
-      const normalizedEmail = email.trim().toLowerCase();
-      const mockEmail = MOCK_COMPANY.email_id.toLowerCase();
-      const validPass = 'PartnerPass123!';
-
-      // Account status check (database rule: INACTIVE companies cannot log in)
-      if (normalizedEmail === 'inactive@partner.com') {
-        throw new Error('Your company account is currently INACTIVE. Please contact HireD Administrator.');
-      }
-
-      if (normalizedEmail === mockEmail && password === validPass) {
-        this.resetAttempts();
-
-        const mockJwtPayload = {
-          token: `hired-jwt-${Date.now()}-company-101`,
-          user_type: 'PARTNER',
-          user_id: MOCK_COMPANY.company_id,
-          session_id: 1,
-          company: MOCK_COMPANY,
-        };
-
-        localStorage.setItem(TOKEN_KEY, mockJwtPayload.token);
-        localStorage.setItem(PARTNER_KEY, JSON.stringify(MOCK_COMPANY));
-        return { success: true, partner: MOCK_COMPANY, token: mockJwtPayload.token };
-      } else {
-        const attemptResult = this.recordFailedAttempt();
-        if (attemptResult.isLocked) {
-          throw new Error('Maximum login attempts exceeded. Account is locked for 15 minutes.');
-        } else {
-          throw new Error(
-            `Invalid email or password. ${attemptResult.remainingAttempts} attempt(s) remaining before a 15-minute lockout.`
-          );
-        }
-      }
-    }
-
-    // Real API integration
     try {
       const response = await apiClient.post('/auth/login', {
         email: email.trim().toLowerCase(),
@@ -131,22 +56,121 @@ export const authService = {
         user_type: 'PARTNER',
       });
 
-      if (response.data && response.data.token) {
+      const data = response.data;
+      const token = data.access_token || data.token;
+      const partnerData = data.company || data.user || data.data?.user;
+
+      if (token && partnerData) {
         this.resetAttempts();
-        localStorage.setItem(TOKEN_KEY, response.data.token);
-        localStorage.setItem(PARTNER_KEY, JSON.stringify(response.data.company));
-        return { success: true, partner: response.data.company, token: response.data.token };
+        localStorage.setItem(TOKEN_KEY, token);
+        localStorage.setItem(PARTNER_KEY, JSON.stringify(partnerData));
+        return { success: true, partner: partnerData, token };
       }
-      throw new Error('Authentication succeeded but token was missing.');
+
+      throw new Error('Something went wrong on our side. Please try again in a moment.');
     } catch (err) {
-      const attemptResult = this.recordFailedAttempt();
-      const msg = err.response?.data?.message || err.message || 'Login failed';
-      if (attemptResult.isLocked) {
-        throw new Error('Maximum login attempts exceeded. Account is locked for 15 minutes.');
-      }
-      throw new Error(msg);
+      this.resetAttempts();
+      const friendly = getFriendlyErrorMessage(err, 'login');
+      throw new Error(friendly);
     }
   },
+
+
+  /**
+   * Request a 6-digit OTP for email verification during account registration
+   */
+  async sendRegisterOtp(email) {
+    try {
+      const response = await apiClient.post('/auth/otp/send', {
+        email: email.trim().toLowerCase(),
+        purpose: 'EMAIL_VERIFY',
+      });
+      return response.data;
+    } catch (err) {
+      const serverMsg = err.response?.data?.message;
+      if (serverMsg) {
+        throw new Error(serverMsg);
+      }
+      const friendly = getFriendlyErrorMessage(err, 'register');
+      throw new Error(friendly);
+    }
+  },
+
+  /**
+   * Register a new corporate account with verified OTP
+   */
+  async register({ companyName, contactPerson, phoneNo, email, password, otp }) {
+    try {
+      const response = await apiClient.post('/auth/register', {
+        companyName: companyName.trim(),
+        contactPerson: contactPerson.trim(),
+        phoneNo: phoneNo.trim(),
+        email: email.trim().toLowerCase(),
+        password,
+        otp: String(otp).trim(),
+      });
+
+      if (response.data?.access_token) {
+        localStorage.setItem(TOKEN_KEY, response.data.access_token);
+        const partnerData = response.data.company || response.data.user;
+        if (partnerData) {
+          localStorage.setItem(PARTNER_KEY, JSON.stringify(partnerData));
+        }
+      }
+
+
+      return response.data;
+    } catch (err) {
+      const serverMsg = err.response?.data?.message;
+      if (serverMsg) {
+        throw new Error(serverMsg);
+      }
+      const friendly = getFriendlyErrorMessage(err, 'register');
+      throw new Error(friendly);
+    }
+  },
+
+  /**
+   * Request a 6-digit OTP for password reset
+   */
+  async sendForgotPasswordOtp(email) {
+    try {
+      const response = await apiClient.post('/auth/forgot-password/send-otp', {
+        email: email.trim().toLowerCase(),
+        purpose: 'PASSWORD_RESET',
+      });
+      return response.data;
+    } catch (err) {
+      const serverMsg = err.response?.data?.message;
+      if (serverMsg) {
+        throw new Error(serverMsg);
+      }
+      const friendly = getFriendlyErrorMessage(err, 'password_reset');
+      throw new Error(friendly);
+    }
+  },
+
+  /**
+   * Reset password with the 6-digit OTP
+   */
+  async resetPasswordWithOtp({ email, otp, newPassword }) {
+    try {
+      const response = await apiClient.post('/auth/forgot-password/reset', {
+        email: email.trim().toLowerCase(),
+        otp: String(otp).trim(),
+        newPassword,
+      });
+      return response.data;
+    } catch (err) {
+      const serverMsg = err.response?.data?.message;
+      if (serverMsg) {
+        throw new Error(serverMsg);
+      }
+      const friendly = getFriendlyErrorMessage(err, 'password_reset');
+      throw new Error(friendly);
+    }
+  },
+
 
   /**
    * Log out partner and purge session

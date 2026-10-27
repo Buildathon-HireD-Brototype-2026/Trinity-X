@@ -18,59 +18,28 @@ import { errorResponse } from './shared/response.js';
 const app = express();
 const PORT = process.env.PORT || 5000;
 
+const allowedOrigins = (process.env.ALLOWED_ORIGINS || process.env.CORS_ORIGINS)
+  ? (process.env.ALLOWED_ORIGINS || process.env.CORS_ORIGINS).split(',').map((o) => o.trim()).filter(Boolean)
+  : ['http://localhost:3000', 'http://127.0.0.1:3000', 'http://localhost:5173', 'http://127.0.0.1:5173', 'http://localhost:5174', 'http://127.0.0.1:5174', 'http://localhost:5000', 'http://localhost:8080'];
+
 // Essential security & parsing middlewares
 app.use(helmet());
-
-// CORS configuration: explicit allowed origins, allowing mobile apps & server calls without origin
-const allowedOrigins = process.env.CORS_ORIGINS
-  ? process.env.CORS_ORIGINS.split(',').map((o) => o.trim()).filter(Boolean)
-  : ['http://localhost:3000', 'http://localhost:5173', 'http://localhost:5000', 'http://localhost:8080'];
-
 app.use(cors({
   origin: (origin, callback) => {
-    if (!origin) return callback(null, true);
-    if (process.env.NODE_ENV !== 'production' || allowedOrigins.includes(origin)) {
-      return callback(null, true);
+    if (
+      !origin ||
+      allowedOrigins.includes(origin) ||
+      /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)
+    ) {
+      callback(null, true);
+    } else {
+      callback(null, false);
     }
-    return callback(new Error(`CORS policy blocked access from origin: ${origin}`));
   },
   credentials: true
 }));
-
-app.use(express.json());
+app.use(express.json({ limit: '1mb' }));
 app.use(cookieParser());
- 
-// Signed document retrieval endpoint
-app.get('/api/v1/files/signed', downloadSignedFileHandler);
-app.get('/files/signed', downloadSignedFileHandler);
-
-// Route registration (both standard /api/v1 paths and direct paths for backward compatibility)
-app.use('/api/v1/auth', authRouter);
-app.use('/auth', authRouter);
-
-app.use('/api/v1/admin', adminRouter);
-app.use('/admin', adminRouter);
-
-app.use('/api/v1/orders', orderRouter);
-app.use('/orders', orderRouter);
-app.use('/api/v1/partner/orders', orderRouter);
-app.use('/partner/orders', orderRouter);
-
-app.use('/api/v1/invoices', invoiceRouter);
-app.use('/invoices', invoiceRouter);
-app.use('/api/v1/partner/invoices', invoiceRouter);
-app.use('/partner/invoices', invoiceRouter);
-
-app.use('/api/v1/reports', reportRouter);
-app.use('/reports', reportRouter);
-app.use('/api/v1/partner/trips', reportRouter);
-app.use('/partner/trips', reportRouter);
-
-app.use('/api/v1/notifications', notificationRouter);
-app.use('/notifications', notificationRouter);
-
-app.use('/api/v1/driver', driverRouter);
-app.use('/driver', driverRouter);
 
 // Health check endpoint to verify server and database connectivity
 const healthHandler = async (req, res) => {
@@ -93,6 +62,40 @@ const healthHandler = async (req, res) => {
 
 app.get('/health', healthHandler);
 app.get('/api/v1/health', healthHandler);
+
+// Signed document retrieval endpoint
+app.get('/api/v1/files/signed', downloadSignedFileHandler);
+app.get('/files/signed', downloadSignedFileHandler);
+
+// Route registration (both standard /api/v1 paths and direct paths for backward compatibility)
+app.use('/api/v1/auth', authRouter);
+app.use('/auth', authRouter);
+
+app.use('/api/v1/driver', driverRouter);
+app.use('/driver', driverRouter);
+
+app.use('/api/v1/orders', orderRouter);
+app.use('/orders', orderRouter);
+app.use('/api/v1/partner/orders', orderRouter);
+app.use('/partner/orders', orderRouter);
+
+app.use('/api/v1/invoices', invoiceRouter);
+app.use('/invoices', invoiceRouter);
+app.use('/api/v1/partner/invoices', invoiceRouter);
+app.use('/partner/invoices', invoiceRouter);
+
+app.use('/api/v1/reports', reportRouter);
+app.use('/reports', reportRouter);
+app.use('/api/v1/partner/trips', reportRouter);
+app.use('/partner/trips', reportRouter);
+
+app.use('/api/v1/notifications', notificationRouter);
+app.use('/notifications', notificationRouter);
+
+app.use('/api/v1/admin', adminRouter);
+app.use('/admin', adminRouter);
+app.use('/api/v1', adminRouter);
+
 
 // 404 Handler for undefined routes
 app.use((req, res) => {

@@ -1,6 +1,10 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import orderService from '../services/orderService';
+import { LocationPickerField } from '../components/orders/LocationPickerField';
+import { DateTimePicker12H } from '../components/orders/DateTimePicker12H';
+import { useToast } from '../context/ToastContext';
+import { getFriendlyErrorMessage } from '../utils/errorHandler';
 import {
   MapPin,
   Calendar,
@@ -16,6 +20,7 @@ import {
 
 export function CreateOrderPage() {
   const navigate = useNavigate();
+  const { showSuccess, showError } = useToast();
 
   // Form State
   const [formData, setFormData] = useState({
@@ -31,38 +36,73 @@ export function CreateOrderPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [createdOrder, setCreatedOrder] = useState(null);
 
-  // Field change handler
+  const pickupPickerRef = React.useRef(null);
+  const dropoffPickerRef = React.useRef(null);
+
+  // Field change handler - immediately clears field error when user starts typing
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
     if (errors[name]) {
       setErrors((prev) => ({ ...prev, [name]: '' }));
     }
+    if (errors.form) {
+      setErrors((prev) => ({ ...prev, form: '' }));
+    }
+  };
+
+  const handleLocationChange = (name, value) => {
+    setFormData((prev) => ({ ...prev, [name]: value }));
+    if (errors[name]) {
+      setErrors((prev) => ({ ...prev, [name]: '' }));
+    }
+    if (errors.form) {
+      setErrors((prev) => ({ ...prev, form: '' }));
+    }
   };
 
   // Validation
-  const validateForm = () => {
+  const validateForm = (data = formData) => {
     const errs = {};
-    if (!formData.pickup_spot.trim()) {
+    const trimmedPickup = (data.pickup_spot || '').trim();
+    const trimmedDropoff = (data.dropoff_spot || '').trim();
+
+    if (!trimmedPickup) {
       errs.pickup_spot = 'Pickup location is required.';
+    } else if (trimmedPickup.length > 300) {
+      errs.pickup_spot = 'Location is too long. Please shorten it.';
     }
-    if (!formData.dropoff_spot.trim()) {
-      errs.dropoff_spot = 'Drop-off destination is required.';
+
+    if (!trimmedDropoff) {
+      errs.dropoff_spot = 'Drop location is required.';
+    } else if (trimmedDropoff.length > 300) {
+      errs.dropoff_spot = 'Location is too long. Please shorten it.';
     }
-    if (!formData.pickup_time) {
+
+    if (
+      trimmedPickup &&
+      trimmedDropoff &&
+      trimmedPickup.toLowerCase() === trimmedDropoff.toLowerCase()
+    ) {
+      errs.dropoff_spot = 'Pickup and drop locations must be different.';
+    }
+
+    if (!data.pickup_time) {
       errs.pickup_time = 'Scheduled pickup date and time are required.';
     } else {
-      const selected = new Date(formData.pickup_time).getTime();
+      const selected = new Date(data.pickup_time).getTime();
       if (isNaN(selected)) {
         errs.pickup_time = 'Please enter a valid date and time.';
       }
     }
-    if (!formData.contact_name.trim()) {
+
+    if (!data.contact_name.trim()) {
       errs.contact_name = 'Passenger or coordinator contact name is required.';
     }
-    if (!formData.contact_phone.trim()) {
+
+    if (!data.contact_phone.trim()) {
       errs.contact_phone = 'Contact phone number is required.';
-    } else if (!/^[0-9+ -]{8,15}$/.test(formData.contact_phone.trim())) {
+    } else if (!/^[0-9+ -]{8,15}$/.test(data.contact_phone.trim())) {
       errs.contact_phone = 'Please enter a valid phone number.';
     }
 
@@ -72,14 +112,28 @@ export function CreateOrderPage() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!validateForm()) return;
+
+    // Apply any unapplied landmark drafts on submit
+    const pickupFinal = pickupPickerRef.current?.applyDraft?.() ?? formData.pickup_spot;
+    const dropoffFinal = dropoffPickerRef.current?.applyDraft?.() ?? formData.dropoff_spot;
+
+    const currentFormData = {
+      ...formData,
+      pickup_spot: pickupFinal,
+      dropoff_spot: dropoffFinal,
+    };
+
+    if (!validateForm(currentFormData)) return;
 
     setIsSubmitting(true);
     try {
-      const result = await orderService.createOrder(formData);
+      const result = await orderService.createOrder(currentFormData);
       setCreatedOrder(result.order);
+      showSuccess('Trip created successfully');
     } catch (err) {
-      setErrors({ form: err.message || 'Failed to submit transport order.' });
+      const friendly = getFriendlyErrorMessage(err, 'create_order');
+      setErrors((prev) => ({ ...prev, form: friendly }));
+      showError(friendly);
     } finally {
       setIsSubmitting(false);
     }
@@ -135,7 +189,8 @@ export function CreateOrderPage() {
 
           <div
             style={{
-              background: '#F8FAFC',
+              background: 'var(--bg-muted)',
+              color: 'var(--text-main)',
               borderRadius: 'var(--radius-md)',
               padding: '1.25rem',
               textAlign: 'left',
@@ -200,7 +255,7 @@ export function CreateOrderPage() {
         <div>
           <h1 className="page-title">Create Transport Order</h1>
           <p className="page-subtitle">
-            Request an on-demand or scheduled commercial driver for corporate transfers (PRD B-02).
+            Request an on-demand or scheduled commercial driver for corporate transfers.
           </p>
         </div>
         <button
@@ -224,66 +279,43 @@ export function CreateOrderPage() {
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1.5rem' }}>
             {/* Pickup Location */}
-            <div className="form-group" style={{ gridColumn: 'span 2' }}>
-              <label className="form-label" htmlFor="pickup_spot">
-                Pickup Spot & Address *
-              </label>
-              <div style={{ position: 'relative' }}>
-                <MapPin size={18} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--primary)' }} />
-                <input
-                  id="pickup_spot"
-                  name="pickup_spot"
-                  type="text"
-                  className="form-control"
-                  style={{ paddingLeft: '38px' }}
-                  placeholder="e.g. DLF Cyber City, Tower B, Gurugram"
-                  value={formData.pickup_spot}
-                  onChange={handleChange}
-                />
-              </div>
-              {errors.pickup_spot && <span style={{ color: 'var(--danger)', fontSize: '0.75rem', marginTop: '0.25rem', display: 'block' }}>{errors.pickup_spot}</span>}
-            </div>
+            <LocationPickerField
+              ref={pickupPickerRef}
+              id="pickup_spot"
+              name="pickup_spot"
+              label="Pickup location"
+              value={formData.pickup_spot}
+              onChange={handleLocationChange}
+              error={errors.pickup_spot}
+              placeholder="e.g. DLF Cyber City, Tower B, Gurugram"
+              pinColor="var(--primary)"
+              required={true}
+            />
 
             {/* Drop-off Location */}
-            <div className="form-group" style={{ gridColumn: 'span 2' }}>
-              <label className="form-label" htmlFor="dropoff_spot">
-                Drop-off Destination *
-              </label>
-              <div style={{ position: 'relative' }}>
-                <MapPin size={18} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#0D9488' }} />
-                <input
-                  id="dropoff_spot"
-                  name="dropoff_spot"
-                  type="text"
-                  className="form-control"
-                  style={{ paddingLeft: '38px' }}
-                  placeholder="e.g. Indira Gandhi International Airport, Terminal 3"
-                  value={formData.dropoff_spot}
-                  onChange={handleChange}
-                />
-              </div>
-              {errors.dropoff_spot && <span style={{ color: 'var(--danger)', fontSize: '0.75rem', marginTop: '0.25rem', display: 'block' }}>{errors.dropoff_spot}</span>}
-            </div>
+            <LocationPickerField
+              ref={dropoffPickerRef}
+              id="dropoff_spot"
+              name="dropoff_spot"
+              label="Drop location"
+              value={formData.dropoff_spot}
+              onChange={handleLocationChange}
+              error={errors.dropoff_spot}
+              placeholder="e.g. Indira Gandhi International Airport, Terminal 3"
+              pinColor="#0D9488"
+              required={true}
+            />
 
-            {/* Pickup Date & Time */}
-            <div className="form-group" style={{ gridColumn: 'span 2' }}>
-              <label className="form-label" htmlFor="pickup_time">
-                Pickup Date & Time *
-              </label>
-              <div style={{ position: 'relative' }}>
-                <Calendar size={18} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
-                <input
-                  id="pickup_time"
-                  name="pickup_time"
-                  type="datetime-local"
-                  className="form-control"
-                  style={{ paddingLeft: '38px' }}
-                  value={formData.pickup_time}
-                  onChange={handleChange}
-                />
-              </div>
-              {errors.pickup_time && <span style={{ color: 'var(--danger)', fontSize: '0.75rem', marginTop: '0.25rem', display: 'block' }}>{errors.pickup_time}</span>}
-            </div>
+            {/* Pickup Date & Time (12-Hour) */}
+            <DateTimePicker12H
+              id="pickup_time"
+              name="pickup_time"
+              label="Pickup Date & Time"
+              value={formData.pickup_time}
+              onChange={handleChange}
+              error={errors.pickup_time}
+              required={true}
+            />
 
             {/* Passenger Contact Name */}
             <div className="form-group">
@@ -354,7 +386,7 @@ export function CreateOrderPage() {
 
             <button type="submit" className="btn btn-primary" disabled={isSubmitting} style={{ minWidth: '160px' }}>
               {isSubmitting ? (
-                <span>Submitting...</span>
+                <span>Submitting order...</span>
               ) : (
                 <>
                   <Send size={16} />

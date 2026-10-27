@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import prisma from '../../config/db.js';
 import { AppError } from '../../shared/response.js';
 import { recordAuditLog } from '../../shared/audit.js';
@@ -111,6 +112,9 @@ export async function createPartnerOrder(companyId, payload) {
   }
   if (!contact_phone || !contact_phone.trim()) {
     errors.push({ field: 'contact_phone', message: 'Contact phone is required.' });
+  }
+  if (notes && typeof notes === 'string' && notes.length > 1000) {
+    errors.push({ field: 'notes', message: 'Notes cannot exceed 1000 characters.' });
   }
 
   if (errors.length > 0) {
@@ -241,20 +245,37 @@ export async function acceptOrder(orderId, adminId, { amount, eta, version } = {
       throw new AppError(409, 'VERSION_CONFLICT', 'Order version mismatch. Please reload and retry.');
     }
 
+    if (amount !== undefined && amount !== null && amount !== '') {
+      const numAmount = Number(amount);
+      if (isNaN(numAmount) || numAmount <= 0 || numAmount > 1000000) {
+        throw new AppError(422, 'VALIDATION_ERROR', 'Trip amount must be a positive number between 1 and 1,000,000.', [
+          { field: 'amount', message: 'must be a positive number between 1 and 1,000,000' }
+        ]);
+      }
+    }
+
     const tripAmount = amount ? Number(amount) : 1200.00;
     const tripEta = eta ? new Date(eta) : new Date(order.pickupTime);
-    // Generate 6-digit random numeric OTP
-    const generatedOtp = String(Math.floor(100000 + Math.random() * 900000));
+    // Generate 6-digit cryptographically secure random numeric OTP (CWE-330 / CWE-338 hardened)
+    const generatedOtp = String(crypto.randomInt(100000, 1000000));
 
-    // Update order
-    const updatedOrder = await tx.order.update({
-      where: { orderId: order.orderId },
+    // Atomic conditional update preventing race conditions
+    const updateResult = await tx.order.updateMany({
+      where: { orderId: order.orderId, status: 'RECEIVED' },
       data: {
         status: 'ACCEPTED',
         decidedByAdminId: Number(adminId),
         decidedAt: new Date(),
         version: { increment: 1 }
-      },
+      }
+    });
+
+    if (updateResult.count === 0) {
+      throw new AppError(409, 'VERSION_CONFLICT', 'Order was already decided or has changed.');
+    }
+
+    const updatedOrder = await tx.order.findUnique({
+      where: { orderId: order.orderId },
       include: { company: true }
     });
 
@@ -321,6 +342,11 @@ export async function rejectOrder(orderId, adminId, { reason, reject_reason, ver
       { field: 'reason', message: 'Rejection reason is required.' }
     ]);
   }
+  if (rejectionReason.length > 500) {
+    throw new AppError(422, 'VALIDATION_ERROR', 'Rejection reason cannot exceed 500 characters.', [
+      { field: 'reason', message: 'Rejection reason cannot exceed 500 characters.' }
+    ]);
+  }
 
   return prisma.$transaction(async (tx) => {
     const order = await tx.order.findUnique({
@@ -340,15 +366,24 @@ export async function rejectOrder(orderId, adminId, { reason, reject_reason, ver
       throw new AppError(409, 'VERSION_CONFLICT', 'Order version mismatch. Please reload and retry.');
     }
 
-    const updatedOrder = await tx.order.update({
-      where: { orderId: order.orderId },
+    // Atomic conditional update preventing race conditions
+    const updateResult = await tx.order.updateMany({
+      where: { orderId: order.orderId, status: 'RECEIVED' },
       data: {
         status: 'REJECTED',
         rejectReason: rejectionReason,
         decidedByAdminId: Number(adminId),
         decidedAt: new Date(),
         version: { increment: 1 }
-      },
+      }
+    });
+
+    if (updateResult.count === 0) {
+      throw new AppError(409, 'VERSION_CONFLICT', 'Order was already decided or has changed.');
+    }
+
+    const updatedOrder = await tx.order.findUnique({
+      where: { orderId: order.orderId },
       include: { company: true }
     });
 
