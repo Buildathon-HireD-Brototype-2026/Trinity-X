@@ -29,6 +29,8 @@ export default function OrderDetailModal({
   onClose,
   onAccept,
   onReject,
+  onOpenAccept,
+  onOpenReject,
   onResendEmail,
   canManageOrders = false
 }) {
@@ -587,20 +589,28 @@ export default function OrderDetailModal({
                     fontWeight: 600,
                     padding: '0.15rem 0.5rem',
                     borderRadius: '10px',
-                    background: isAccepted ? '#dcfce7' : '#fee2e2',
-                    color: isAccepted ? '#166534' : '#991b1b'
+                    background: order.emailStatus === 'failed' ? '#fee2e2' : '#dcfce7',
+                    color: order.emailStatus === 'failed' ? '#991b1b' : '#166534'
                   }}
                 >
-                  ✓ Dispatched
+                  {order.emailStatus === 'failed' ? '✕ Email failed' : '✓ Email sent'}
                 </span>
               </div>
 
               <div style={{ fontSize: '0.78125rem', color: 'var(--text-main)', lineHeight: 1.5 }}>
+                {order.emailStatus === 'failed' && (
+                  <div style={{ padding: '0.35rem 0.6rem', background: '#fee2e2', borderRadius: '4px', border: '1px solid #fecaca', color: '#991b1b', fontSize: '0.75rem', fontWeight: 600, marginBottom: '0.35rem' }}>
+                    ✕ Status updated, but email failed to send. Click Resend below to retry transmission.
+                  </div>
+                )}
                 <div>
-                  <strong>Recipient:</strong> {order.emailSentTo || order.companyEmail || 'Client Company Email'}
+                  <strong>From:</strong> {order.emailSentFrom || 'admin@hired.com'}
                 </div>
                 <div>
-                  <strong>Subject:</strong> {order.emailSubject || (isAccepted ? `[HireD] Booking Confirmed — Order #ORD-${order.orderId}` : `[HireD] Booking Declined — Order #ORD-${order.orderId}`)}
+                  <strong>Recipient:</strong> {order.emailSentTo || order.companyEmail || order.company?.email || 'Client Company Email'}
+                </div>
+                <div>
+                  <strong>Subject:</strong> {order.emailSubject || (isAccepted ? `Order #${order.orderId} Accepted` : `Order #${order.orderId} Rejected`)}
                 </div>
                 {order.emailDispatchedAt && (
                   <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.15rem' }}>
@@ -707,16 +717,23 @@ export default function OrderDetailModal({
               </span>
             )}
 
-            {canManageOrders && isPending && !isRejecting && (
+            {canManageOrders && isPending && (
               <button
                 type="button"
                 className="btn-danger"
-                onClick={() => setIsRejecting(true)}
+                onClick={() => {
+                  if (onOpenReject) {
+                    onOpenReject(order);
+                  } else {
+                    setIsRejecting(true);
+                  }
+                }}
                 disabled={isSubmitting}
                 style={{ background: 'transparent', color: '#dc2626', border: '1px solid #fca5a5' }}
+                id="modal-reject-order-btn"
               >
                 <XCircle size={14} />
-                <span>Reject Order</span>
+                <span>Reject</span>
               </button>
             )}
 
@@ -724,13 +741,19 @@ export default function OrderDetailModal({
               <button
                 type="button"
                 className="btn-primary"
-                onClick={handleAcceptClick}
+                onClick={() => {
+                  if (onOpenAccept) {
+                    onOpenAccept(order);
+                  } else {
+                    handleAcceptClick();
+                  }
+                }}
                 disabled={isSubmitting}
                 id="modal-accept-order-btn"
                 style={{ background: '#16a34a', borderColor: '#16a34a' }}
               >
                 <CheckCircle2 size={15} />
-                <span>{isSubmitting ? 'Converting to Trip...' : 'Accept & Convert to Trip'}</span>
+                <span>Accept</span>
               </button>
             )}
           </div>
