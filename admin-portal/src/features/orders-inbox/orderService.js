@@ -10,9 +10,32 @@
 // ---------------------------------------------------------------------------
 let _orders = [
   {
+    orderId: 1006,
+    companyId: 6,
+    companyName: 'Nova Enterprises Global',
+    companyEmail: 'maryneha2024@gmail.com',
+    pickupSpot: 'Infopark Expressway Gate 1, Kakkanad, Kochi',
+    dropoffSpot: 'Cochin International Airport (COK), Terminal 3',
+    pickupTime: '2026-10-29T10:00:00Z',
+    contactName: 'Neha Mary',
+    contactPhone: '+91 98765 43210',
+    vehicleType: 'Sedan',
+    notes: 'Airport transfer for executive delegate. Flight departs at 18:30.',
+    status: 'RECEIVED',
+    source: 'B2B_PORTAL',
+    estimatedFare: 1850.00,
+    tripAmount: null,
+    rejectReason: null,
+    emailDispatched: false,
+    emailSentTo: null,
+    emailDispatchedAt: null,
+    createdAt: '2026-10-28T05:30:00Z'
+  },
+  {
     orderId: 1001,
     companyId: 1,
     companyName: 'Acme Technologies Pvt Ltd',
+    companyEmail: 'aditi@acmetech.com',
     pickupSpot: 'Tech Park Gate 2, Whitefield, Bengaluru',
     dropoffSpot: 'Kempegowda International Airport (BLR), Terminal 2',
     pickupTime: '2026-10-21T09:30:00Z',
@@ -25,12 +48,16 @@ let _orders = [
     estimatedFare: 1450.00,
     tripAmount: null,
     rejectReason: null,
+    emailDispatched: false,
+    emailSentTo: null,
+    emailDispatchedAt: null,
     createdAt: '2026-10-20T21:15:00Z'
   },
   {
     orderId: 1002,
     companyId: 2,
     companyName: 'Nexus Logistics India',
+    companyEmail: 'karan@nexuslogistics.in',
     pickupSpot: 'Indiranagar 100ft Rd Metro Station, Bengaluru',
     dropoffSpot: 'Electronic City Phase 1, Toll Plaza, Bengaluru',
     pickupTime: '2026-10-21T11:00:00Z',
@@ -43,12 +70,16 @@ let _orders = [
     estimatedFare: 980.00,
     tripAmount: null,
     rejectReason: null,
+    emailDispatched: false,
+    emailSentTo: null,
+    emailDispatchedAt: null,
     createdAt: '2026-10-20T22:45:00Z'
   },
   {
     orderId: 1003,
     companyId: 1,
     companyName: 'Acme Technologies Pvt Ltd',
+    companyEmail: 'aditi@acmetech.com',
     pickupSpot: 'Outer Ring Road, Bellandur EcoSpace, Bengaluru',
     dropoffSpot: 'MG Road Trinity Metro Station, Bengaluru',
     pickupTime: '2026-10-21T14:15:00Z',
@@ -61,12 +92,16 @@ let _orders = [
     estimatedFare: 620.00,
     tripAmount: null,
     rejectReason: null,
+    emailDispatched: false,
+    emailSentTo: null,
+    emailDispatchedAt: null,
     createdAt: '2026-10-20T23:30:00Z'
   },
   {
     orderId: 1004,
     companyId: 4,
     companyName: 'Starlight Financial Services',
+    companyEmail: 'vikram@starlightfin.com',
     pickupSpot: 'HSR Layout Sector 1, Bengaluru',
     dropoffSpot: 'Manyata Embassy Business Park, Hebbal',
     pickupTime: '2026-10-21T08:00:00Z',
@@ -79,12 +114,19 @@ let _orders = [
     estimatedFare: 1100.00,
     tripAmount: 1150.00,
     rejectReason: null,
+    emailDispatched: true,
+    emailSentTo: 'vikram@starlightfin.com',
+    emailDispatchedAt: '2026-10-20T17:05:00Z',
+    emailType: 'ORDER_ACCEPTED',
+    emailSubject: '[HireD] Booking Confirmed — Order #ORD-1004 Converted to Live Trip',
+    emailSummary: 'Booking confirmed with trip fare ₹1150.00. Driver allocation in progress.',
     createdAt: '2026-10-20T17:00:00Z'
   },
   {
     orderId: 1005,
     companyId: 2,
     companyName: 'Nexus Logistics India',
+    companyEmail: 'karan@nexuslogistics.in',
     pickupSpot: 'Koramangala 5th Block, Bengaluru',
     dropoffSpot: 'Nelamangala Highway Toll, Bengaluru',
     pickupTime: '2026-10-20T19:00:00Z',
@@ -97,19 +139,26 @@ let _orders = [
     estimatedFare: 850.00,
     tripAmount: null,
     rejectReason: 'Service area out of standard operational dispatch radius for requested vehicle type.',
+    emailDispatched: true,
+    emailSentTo: 'karan@nexuslogistics.in',
+    emailDispatchedAt: '2026-10-20T15:25:00Z',
+    emailType: 'ORDER_REJECTED',
+    emailSubject: '[HireD] Booking Declined — Order #ORD-1005 Notification',
+    emailSummary: 'Booking declined with reason: "Service area out of standard operational dispatch radius for requested vehicle type."',
     createdAt: '2026-10-20T15:20:00Z'
   }
 ];
 
 // Active client companies available for manual order dispatch (PRD A-03, A-08)
 let _activeCompanies = [
-  { companyId: 1, name: 'Acme Technologies Pvt Ltd', hiredSplit: 20.00, driverSplit: 80.00, status: 'ACTIVE' },
-  { companyId: 2, name: 'Nexus Logistics India', hiredSplit: 20.00, driverSplit: 80.00, status: 'ACTIVE' },
-  { companyId: 4, name: 'Starlight Financial Services', hiredSplit: 20.00, driverSplit: 80.00, status: 'ACTIVE' },
-  { companyId: 5, name: 'Apex Cloud Solutions', hiredSplit: 20.00, driverSplit: 80.00, status: 'ACTIVE' }
+  { companyId: 1, name: 'Acme Technologies Pvt Ltd', emailId: 'aditi@acmetech.com', hiredSplit: 20.00, driverSplit: 80.00, status: 'ACTIVE' },
+  { companyId: 2, name: 'Nexus Logistics India', emailId: 'karan@nexuslogistics.in', hiredSplit: 20.00, driverSplit: 80.00, status: 'ACTIVE' },
+  { companyId: 4, name: 'Starlight Financial Services', emailId: 'vikram@starlightfin.com', hiredSplit: 20.00, driverSplit: 80.00, status: 'ACTIVE' },
+  { companyId: 5, name: 'Apex Cloud Solutions', emailId: 'meera@apexcloud.io', hiredSplit: 20.00, driverSplit: 80.00, status: 'ACTIVE' },
+  { companyId: 6, name: 'Nova Enterprises Global', emailId: 'maryneha2024@gmail.com', hiredSplit: 20.00, driverSplit: 80.00, status: 'ACTIVE' }
 ];
 
-let _nextOrderId = 1006;
+let _nextOrderId = 1007;
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
@@ -262,6 +311,7 @@ export async function createManualOrder(orderData) {
     orderId: _nextOrderId++,
     companyId: targetCompany.companyId,
     companyName: targetCompany.name,
+    companyEmail: targetCompany.emailId || 'corporate@client.com',
     pickupSpot: orderData.pickupSpot.trim(),
     dropoffSpot: orderData.dropoffSpot.trim(),
     pickupTime: orderData.pickupTime || new Date(Date.now() + 2 * 3600 * 1000).toISOString(),
@@ -274,6 +324,9 @@ export async function createManualOrder(orderData) {
     estimatedFare,
     tripAmount: null,
     rejectReason: null,
+    emailDispatched: false,
+    emailSentTo: null,
+    emailDispatchedAt: null,
     createdAt: new Date().toISOString()
   };
 
@@ -282,7 +335,8 @@ export async function createManualOrder(orderData) {
 }
 
 /**
- * Accept an incoming order and convert it into a trip (PRD A-05)
+ * Accept an incoming order and convert it into a trip (PRD A-05).
+ * Dispatches an automated confirmation email to the client corporate email address.
  * @param {number|string} orderId
  * @param {number|string} tripAmount
  * @returns {Promise<Object>}
@@ -320,18 +374,28 @@ export async function acceptOrder(orderId, tripAmount) {
     throw new Error(`Order #ORD-${numericId} is already in a terminal state (${_orders[idx].status}) and cannot be modified.`);
   }
 
+  const companyEmail = _orders[idx].companyEmail || 'billing@company.com';
+  console.log(`[email-dispatch] Dispatched booking acceptance confirmation for Order #${numericId} to ${companyEmail} with confirmed fare ₹${fare.toFixed(2)}`);
+
   _orders[idx] = {
     ..._orders[idx],
     status: 'ACCEPTED',
     tripAmount: fare,
-    decidedAt: new Date().toISOString()
+    decidedAt: new Date().toISOString(),
+    emailDispatched: true,
+    emailSentTo: companyEmail,
+    emailDispatchedAt: new Date().toISOString(),
+    emailType: 'ORDER_ACCEPTED',
+    emailSubject: `[HireD] Booking Confirmed — Order #ORD-${numericId} Converted to Live Trip`,
+    emailSummary: `Booking confirmed with trip fare ₹${fare.toFixed(2)}. Driver allocation in progress.`
   };
 
   return _orders[idx];
 }
 
 /**
- * Reject an incoming order with mandatory rejection reason (PRD A-05)
+ * Reject an incoming order with mandatory rejection reason (PRD A-05).
+ * Dispatches an automated decline notification email to the client corporate email address.
  * @param {number|string} orderId
  * @param {string} rejectReason
  * @returns {Promise<Object>}
@@ -372,12 +436,52 @@ export async function rejectOrder(orderId, rejectReason) {
     throw new Error(`Order #ORD-${numericId} is already in a terminal state (${_orders[idx].status}) and cannot be modified.`);
   }
 
+  const companyEmail = _orders[idx].companyEmail || 'billing@company.com';
+  console.log(`[email-dispatch] Dispatched booking rejection notice for Order #${numericId} to ${companyEmail} with reason: "${reason}"`);
+
   _orders[idx] = {
     ..._orders[idx],
     status: 'REJECTED',
     rejectReason: reason,
-    decidedAt: new Date().toISOString()
+    decidedAt: new Date().toISOString(),
+    emailDispatched: true,
+    emailSentTo: companyEmail,
+    emailDispatchedAt: new Date().toISOString(),
+    emailType: 'ORDER_REJECTED',
+    emailSubject: `[HireD] Booking Declined — Order #ORD-${numericId} Notification`,
+    emailSummary: `Booking declined with reason: "${reason}".`
   };
 
   return _orders[idx];
 }
+
+/**
+ * Resend the booking status notification email to the B2B corporate client.
+ * @param {number|string} orderId
+ * @returns {Promise<Object>}
+ */
+export async function resendOrderEmail(orderId) {
+  const numericId = Number(orderId);
+  await delay(300);
+
+  const idx = _orders.findIndex((o) => o.orderId === numericId);
+  if (idx === -1) throw new Error('Order not found.');
+
+  const order = _orders[idx];
+  if (order.status === 'RECEIVED') {
+    throw new Error('Cannot send decision email for a pending order that has not yet been accepted or rejected.');
+  }
+
+  const companyEmail = order.companyEmail || order.emailSentTo || 'corporate@client.com';
+  console.log(`[email-dispatch] Resent ${order.status} decision email for Order #${numericId} to ${companyEmail}`);
+
+  _orders[idx] = {
+    ...order,
+    emailDispatched: true,
+    emailSentTo: companyEmail,
+    emailDispatchedAt: new Date().toISOString()
+  };
+
+  return _orders[idx];
+}
+

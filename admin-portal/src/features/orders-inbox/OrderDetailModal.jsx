@@ -18,7 +18,9 @@ import {
   Globe,
   MessageSquare,
   ShieldCheck,
-  Percent
+  Percent,
+  Mail,
+  Send
 } from 'lucide-react';
 
 export default function OrderDetailModal({
@@ -27,6 +29,7 @@ export default function OrderDetailModal({
   onClose,
   onAccept,
   onReject,
+  onResendEmail,
   canManageOrders = false
 }) {
   const [tripAmount, setTripAmount] = useState('');
@@ -34,6 +37,8 @@ export default function OrderDetailModal({
   const [rejectReason, setRejectReason] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+  const [isResendingEmail, setIsResendingEmail] = useState(false);
+  const [emailSuccessMsg, setEmailSuccessMsg] = useState('');
 
   // Reset state when opening/closing modal or switching orders
   useEffect(() => {
@@ -43,6 +48,7 @@ export default function OrderDetailModal({
       setRejectReason('');
       setIsSubmitting(false);
       setErrorMsg('');
+      setEmailSuccessMsg('');
     }
   }, [order, isOpen]);
 
@@ -243,6 +249,12 @@ export default function OrderDetailModal({
                   {order.companyName}
                 </span>
               </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginTop: '0.2rem' }}>
+                <Mail size={12} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+                <span style={{ fontSize: '0.75rem', color: 'var(--primary)', fontWeight: 500 }}>
+                  {order.companyEmail || `billing@${order.companyName.toLowerCase().replace(/[^a-z0-9]/g, '')}.com`}
+                </span>
+              </div>
               <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', display: 'block', marginTop: '0.1rem' }}>
                 Corporate Account ID: CMP-{String(order.companyId).padStart(3, '0')}
               </span>
@@ -428,6 +440,26 @@ export default function OrderDetailModal({
                     Editable until trip closes.
                   </span>
                 </div>
+
+                <div
+                  style={{
+                    marginTop: '0.625rem',
+                    padding: '0.625rem 0.75rem',
+                    background: '#f0fdf4',
+                    border: '1px solid #bbf7d0',
+                    borderRadius: 'var(--radius-sm)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem',
+                    fontSize: '0.75rem',
+                    color: '#166534'
+                  }}
+                >
+                  <Mail size={14} style={{ flexShrink: 0, color: '#15803d' }} />
+                  <span>
+                    <strong>Client Email Notification:</strong> Accepting this order will immediately dispatch an official confirmation email with trip fare (<strong>₹{tripAmount ? Number(tripAmount).toFixed(2) : Number(order.estimatedFare || 0).toFixed(2)}</strong>) and journey schedule to <strong>{order.companyEmail || 'the corporate client'}</strong>.
+                  </span>
+                </div>
               </div>
             ) : (
               <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
@@ -487,6 +519,25 @@ export default function OrderDetailModal({
                 }}
               />
 
+              <div
+                style={{
+                  padding: '0.45rem 0.65rem',
+                  background: '#ffffff',
+                  border: '1px solid #fecdd3',
+                  borderRadius: '4px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.4rem',
+                  fontSize: '0.72rem',
+                  color: '#9f1239'
+                }}
+              >
+                <Mail size={13} style={{ flexShrink: 0, color: '#e11d48' }} />
+                <span>
+                  This rationale will be automatically emailed to <strong>{order.companyEmail || 'the corporate client'}</strong> upon confirmation.
+                </span>
+              </div>
+
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
                 <button
                   type="button"
@@ -504,14 +555,115 @@ export default function OrderDetailModal({
                   disabled={isSubmitting || !canManageOrders}
                   style={{ fontSize: '0.75rem', padding: '0.35rem 0.75rem' }}
                 >
-                  {isSubmitting ? 'Rejecting...' : 'Confirm Rejection'}
+                  {isSubmitting ? 'Rejecting...' : 'Confirm Rejection & Dispatch Email'}
                 </button>
               </div>
             </div>
           )}
 
+          {/* Section 6: B2B Notification & Email Dispatch Status (Settled Orders) */}
+          {(isAccepted || isRejected) && (
+            <div
+              style={{
+                background: isAccepted ? '#f0fdf4' : '#fef2f2',
+                border: `1px solid ${isAccepted ? '#bbf7d0' : '#fecaca'}`,
+                borderRadius: 'var(--radius-sm)',
+                padding: '0.875rem 1rem',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '0.5rem'
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                  <Mail size={15} style={{ color: isAccepted ? '#15803d' : '#b91c1c' }} />
+                  <span style={{ fontSize: '0.8125rem', fontWeight: 700, color: isAccepted ? '#15803d' : '#b91c1c' }}>
+                    {isAccepted ? 'Corporate Booking Confirmation Email Dispatched' : 'Corporate Booking Decline Notice Dispatched'}
+                  </span>
+                </div>
+                <span
+                  style={{
+                    fontSize: '0.7rem',
+                    fontWeight: 600,
+                    padding: '0.15rem 0.5rem',
+                    borderRadius: '10px',
+                    background: isAccepted ? '#dcfce7' : '#fee2e2',
+                    color: isAccepted ? '#166534' : '#991b1b'
+                  }}
+                >
+                  ✓ Dispatched
+                </span>
+              </div>
+
+              <div style={{ fontSize: '0.78125rem', color: 'var(--text-main)', lineHeight: 1.5 }}>
+                <div>
+                  <strong>Recipient:</strong> {order.emailSentTo || order.companyEmail || 'Client Company Email'}
+                </div>
+                <div>
+                  <strong>Subject:</strong> {order.emailSubject || (isAccepted ? `[HireD] Booking Confirmed — Order #ORD-${order.orderId}` : `[HireD] Booking Declined — Order #ORD-${order.orderId}`)}
+                </div>
+                {order.emailDispatchedAt && (
+                  <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.15rem' }}>
+                    Sent on {new Date(order.emailDispatchedAt).toLocaleString('en-IN', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                  </div>
+                )}
+                {isRejected && order.rejectReason && (
+                  <div style={{ marginTop: '0.35rem', padding: '0.4rem 0.6rem', background: '#ffffff', borderRadius: '4px', border: '1px solid #fca5a5', fontSize: '0.75rem', color: '#991b1b' }}>
+                    <strong>Rejection Rationale Emailed:</strong> {order.rejectReason}
+                  </div>
+                )}
+              </div>
+
+              {canManageOrders && onResendEmail && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.25rem', paddingTop: '0.4rem', borderTop: `1px solid ${isAccepted ? '#dcfce7' : '#fed7d7'}` }}>
+                  <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                    Need to notify the client again?
+                  </span>
+                  <button
+                    type="button"
+                    className="btn-ghost"
+                    onClick={async () => {
+                      setIsResendingEmail(true);
+                      setEmailSuccessMsg('');
+                      try {
+                        await onResendEmail(order.orderId);
+                        setEmailSuccessMsg(`Email successfully re-sent to ${order.emailSentTo || order.companyEmail}!`);
+                        setTimeout(() => setEmailSuccessMsg(''), 4000);
+                      } catch (err) {
+                        setErrorMsg(err.message || 'Failed to resend email');
+                      } finally {
+                        setIsResendingEmail(false);
+                      }
+                    }}
+                    disabled={isResendingEmail}
+                    style={{
+                      fontSize: '0.72rem',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.35rem',
+                      padding: '0.3rem 0.6rem',
+                      border: '1px solid var(--border)',
+                      borderRadius: 'var(--radius-sm)',
+                      background: 'var(--surface)',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    <Send size={11} className={isResendingEmail ? 'spin-animation' : ''} />
+                    <span>{isResendingEmail ? 'Resending...' : 'Resend Email Notification'}</span>
+                  </button>
+                </div>
+              )}
+
+              {emailSuccessMsg && (
+                <div style={{ fontSize: '0.72rem', color: '#15803d', fontWeight: 600, textAlign: 'right' }}>
+                  ✓ {emailSuccessMsg}
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Display previously rejected reason if already rejected */}
-          {isRejected && order.rejectReason && (
+          {isRejected && order.rejectReason && !order.emailDispatched && (
             <div
               style={{
                 background: '#fef2f2',
