@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import {
   ArrowUpDown,
   ArrowUp,
@@ -14,102 +14,43 @@ import {
   Phone,
   MapPin,
   Calendar,
-  AlertCircle
+  AlertCircle,
+  RefreshCw
 } from 'lucide-react';
-
-const MOCK_ORDERS = [
-  {
-    id: 'ORD-615',
-    tripId: null,
-    company: 'Apex Global Logistics',
-    pickup: 'Cyber City Tower C, DLF Phase 2, Gurugram',
-    dropoff: 'Terminal 3 International Departures, IGI Airport, New Delhi',
-    scheduledDate: '2026-10-12T10:00:00',
-    displayDate: '12 Oct 2026, 10:00 am',
-    passenger: 'Vikrant Roy',
-    passengerPhone: '+91 98450 12345',
-    status: 'PENDING',
-    fare: '₹1,450',
-    vehicleType: 'Sedan (Prime)',
-  },
-  {
-    id: 'ORD-618',
-    tripId: null,
-    company: 'Kochi Tech Ventures',
-    pickup: 'Infopark Expressway, Kakkanad, Kochi',
-    dropoff: 'Cochin International Airport (COK), Nedumbassery',
-    scheduledDate: '2026-10-13T07:30:00',
-    displayDate: '13 Oct 2026, 07:30 am',
-    passenger: 'Ananya Nair',
-    passengerPhone: '+91 94471 88920',
-    status: 'PENDING',
-    fare: '₹950',
-    vehicleType: 'EV Sedan',
-  },
-  {
-    id: 'ORD-621',
-    tripId: null,
-    company: 'Apex Global Logistics',
-    pickup: 'Lulu Cyber Tower 2, Infopark Kochi',
-    dropoff: 'Grand Hyatt Kochi Bolgatty, Mulavukad',
-    scheduledDate: '2026-10-14T14:15:00',
-    displayDate: '14 Oct 2026, 02:15 pm',
-    passenger: 'Siddharth Menon',
-    passengerPhone: '+91 98950 44321',
-    status: 'PENDING',
-    fare: '₹620',
-    vehicleType: 'SUV',
-  },
-  {
-    id: 'ORD-501',
-    tripId: 'TRIP-1001',
-    company: 'Apex Global Logistics',
-    pickup: 'DLF Cyber City, Tower B, Gurugram',
-    dropoff: 'IGI Airport, Terminal 3, New Delhi',
-    scheduledDate: '2026-10-10T20:00:00',
-    displayDate: '10 Oct 2026, 08:00 pm',
-    passenger: 'Pooja Verma',
-    passengerPhone: '+91 98111 22334',
-    status: 'ONGOING',
-    fare: '₹1,280',
-    vehicleType: 'Sedan (Prime)',
-  },
-  {
-    id: 'ORD-505',
-    tripId: 'TRIP-1008',
-    company: 'Malabar Logistics',
-    pickup: 'Marine Drive Walkway, Ernakulam, Kochi',
-    dropoff: 'SmartCity Kochi, Kakkanad',
-    scheduledDate: '2026-10-11T09:00:00',
-    displayDate: '11 Oct 2026, 09:00 am',
-    passenger: 'Rahul Krishna',
-    passengerPhone: '+91 97441 55667',
-    status: 'ONGOING',
-    fare: '₹780',
-    vehicleType: 'Hatchback',
-  },
-  {
-    id: 'ORD-480',
-    tripId: 'TRIP-982',
-    company: 'Apex Global Logistics',
-    pickup: 'Aerocity Hospitality District, New Delhi',
-    dropoff: 'Sector 29 Hub, Gurugram',
-    scheduledDate: '2026-10-09T18:30:00',
-    displayDate: '09 Oct 2026, 06:30 pm',
-    passenger: 'Arjun Kapoor',
-    passengerPhone: '+91 98200 11223',
-    status: 'COMPLETED',
-    fare: '₹1,150',
-    vehicleType: 'Sedan (Prime)',
-  },
-];
+import {
+  getDashboardOrders,
+  acceptOrder,
+  rejectOrder,
+  FALLBACK_ORDERS
+} from '../dashboardService';
 
 export default function RecentOrdersTable({ onNavigate }) {
-  const [orders, setOrders] = useState(MOCK_ORDERS);
+  const [orders, setOrders] = useState(FALLBACK_ORDERS);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isActionLoading, setIsActionLoading] = useState(false);
+  const [fetchError, setFetchError] = useState(null);
   const [statusFilter, setStatusFilter] = useState('PENDING'); // Default to Pending Orders filter per request
   const [sortDirection, setSortDirection] = useState('desc'); // 'desc' = Newest first, 'asc' = Oldest first
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedOrder, setSelectedOrder] = useState(null);
+
+  const fetchOrders = useCallback(async () => {
+    setIsLoading(true);
+    setFetchError(null);
+    try {
+      const data = await getDashboardOrders();
+      setOrders(data);
+    } catch (err) {
+      setOrders(FALLBACK_ORDERS);
+      setFetchError(err.message || 'Unable to connect to live server. Displaying cached operational records.');
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchOrders();
+  }, [fetchOrders]);
 
   // Filter and sort orders
   const filteredOrders = useMemo(() => {
@@ -142,12 +83,24 @@ export default function RecentOrdersTable({ onNavigate }) {
     setSortDirection((prev) => (prev === 'desc' ? 'asc' : 'desc'));
   };
 
-  const handleDecision = (orderId, newStatus) => {
-    setOrders((prev) =>
-      prev.map((o) => (o.id === orderId ? { ...o, status: newStatus } : o))
-    );
-    if (selectedOrder && selectedOrder.id === orderId) {
-      setSelectedOrder((prev) => ({ ...prev, status: newStatus }));
+  const handleDecision = async (orderId, newStatus) => {
+    setIsActionLoading(true);
+    try {
+      if (newStatus === 'REJECTED') {
+        await rejectOrder(orderId, 'Rejected by operations administrator');
+      } else {
+        await acceptOrder(orderId);
+      }
+      setOrders((prev) =>
+        prev.map((o) => (o.id === orderId ? { ...o, status: newStatus } : o))
+      );
+      if (selectedOrder && selectedOrder.id === orderId) {
+        setSelectedOrder((prev) => ({ ...prev, status: newStatus }));
+      }
+    } catch (err) {
+      console.error('[RecentOrdersTable] Decision error:', err);
+    } finally {
+      setIsActionLoading(false);
     }
   };
 
@@ -166,15 +119,40 @@ export default function RecentOrdersTable({ onNavigate }) {
           </p>
         </div>
 
-        <button
-          type="button"
-          className="recent-orders-view-all-btn"
-          onClick={() => onNavigate && onNavigate('orders')}
-          title="Open full Orders Inbox"
-        >
-          <span>View All</span>
-          <ArrowRight size={16} />
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem' }}>
+          <button
+            type="button"
+            className="btn-ghost"
+            onClick={fetchOrders}
+            disabled={isLoading}
+            title="Refresh Orders"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.375rem',
+              padding: '0.45rem 0.75rem',
+              borderRadius: 'var(--radius-sm)',
+              border: '1px solid var(--border)',
+              background: 'var(--surface)',
+              color: 'var(--text-main)',
+              fontSize: '0.8125rem',
+              cursor: 'pointer'
+            }}
+          >
+            <RefreshCw size={14} className={isLoading ? 'spin-icon' : ''} />
+            <span>{isLoading ? 'Updating...' : 'Refresh'}</span>
+          </button>
+
+          <button
+            type="button"
+            className="recent-orders-view-all-btn"
+            onClick={() => onNavigate && onNavigate('orders')}
+            title="Open full Orders Inbox"
+          >
+            <span>View All</span>
+            <ArrowRight size={16} />
+          </button>
+        </div>
       </div>
 
       {/* Filter and Sorting Toolbar */}
@@ -221,6 +199,7 @@ export default function RecentOrdersTable({ onNavigate }) {
             <input
               type="text"
               placeholder="Search booking, location, passenger..."
+              maxLength={100}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="orders-search-input"
@@ -255,6 +234,42 @@ export default function RecentOrdersTable({ onNavigate }) {
         </div>
       </div>
 
+      {/* Network Error / Offline Alert Banner */}
+      {fetchError && (
+        <div
+          className="orders-network-banner"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+            padding: '0.625rem 1rem',
+            background: 'rgba(239, 68, 68, 0.08)',
+            borderBottom: '1px solid rgba(239, 68, 68, 0.2)',
+            color: '#dc2626',
+            fontSize: '0.8125rem'
+          }}
+        >
+          <AlertCircle size={15} style={{ flexShrink: 0 }} />
+          <span>{fetchError}</span>
+          <button
+            type="button"
+            onClick={fetchOrders}
+            style={{
+              marginLeft: 'auto',
+              background: 'transparent',
+              border: 'none',
+              color: '#dc2626',
+              textDecoration: 'underline',
+              cursor: 'pointer',
+              fontWeight: 600,
+              fontSize: '0.78125rem'
+            }}
+          >
+            Retry Connection
+          </button>
+        </div>
+      )}
+
       {/* Orders Data Table */}
       <div className="orders-table-wrapper">
         <table className="orders-table">
@@ -275,7 +290,23 @@ export default function RecentOrdersTable({ onNavigate }) {
             </tr>
           </thead>
           <tbody>
-            {filteredOrders.length === 0 ? (
+            {isLoading ? (
+              Array.from({ length: 4 }).map((_, idx) => (
+                <tr key={`skeleton-${idx}`} className="orders-table-row">
+                  <td colSpan={7} style={{ padding: '1.25rem 1rem' }}>
+                    <div
+                      style={{
+                        height: '1.25rem',
+                        borderRadius: '4px',
+                        background: 'var(--border)',
+                        opacity: 0.5,
+                        animation: 'pulse 1.5s infinite ease-in-out'
+                      }}
+                    />
+                  </td>
+                </tr>
+              ))
+            ) : filteredOrders.length === 0 ? (
               <tr>
                 <td colSpan={7} className="orders-empty-state">
                   <AlertCircle size={28} className="empty-state-icon" />

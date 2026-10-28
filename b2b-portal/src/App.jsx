@@ -13,8 +13,10 @@ import NotFoundPage from './pages/NotFoundPage';
 export function App() {
   return (
     <Routes>
-      {/* Public Authentication Route */}
-      <Route path="/login" element={<LoginPage />} />
+      {/* Public Authentication Routes */}
+      <Route path="/login" element={<LoginPage initialMode="login" />} />
+      <Route path="/register" element={<LoginPage initialMode="register" />} />
+      <Route path="/forgot-password" element={<LoginPage initialMode="forgot" />} />
 
       {/* Protected Portal Routes */}
       <Route

@@ -50,6 +50,13 @@ export function generateRandomToken(bytes = 32) {
 }
 
 /**
+ * Generate a cryptographically secure 6-digit numeric OTP (100000 to 999999).
+ */
+export function generateNumericOtp() {
+  return crypto.randomInt(100000, 1000000).toString();
+}
+
+/**
  * Hash a token with SHA-256 for secure storage.
  */
 export function hashToken(token) {

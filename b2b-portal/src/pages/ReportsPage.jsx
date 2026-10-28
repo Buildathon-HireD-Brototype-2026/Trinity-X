@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import reportService from '../services/reportService';
 import TripReportViewModal from '../components/reports/TripReportViewModal';
+import { PageErrorState } from '../components/common/PageErrorState';
+import { getFriendlyErrorMessage } from '../utils/errorHandler';
 import {
   FileSpreadsheet,
   Search,
@@ -12,29 +14,44 @@ import {
   TrendingUp,
   Receipt,
   Car,
-  RefreshCw,
 } from 'lucide-react';
+
+import useTableSubscription from '../hooks/useTableSubscription';
 
 export function ReportsPage() {
   const [reports, setReports] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [periodFilter, setPeriodFilter] = useState('ALL');
   const [selectedReport, setSelectedReport] = useState(null);
 
-  const fetchReports = async () => {
-    setLoading(true);
+  const fetchReports = async (isQuiet = false) => {
+    if (!isQuiet) {
+      setLoading(true);
+      setError(null);
+    }
     try {
       const data = await reportService.getClosedTripReports();
-      setReports(data);
+      setReports(data || []);
+      setError(null);
+    } catch (err) {
+      if (!isQuiet) {
+        setError(getFriendlyErrorMessage(err, 'reports'));
+      }
     } finally {
-      setLoading(false);
+      if (!isQuiet) setLoading(false);
     }
   };
 
   useEffect(() => {
     fetchReports();
   }, []);
+
+  // Real-time automatic subscription to database changes on trips and expenses
+  useTableSubscription(['trips', 'expenses'], () => {
+    fetchReports(true);
+  });
 
   // Filter logic
   const filteredReports = reports.filter((rep) => {
@@ -97,32 +114,26 @@ export function ReportsPage() {
         <div>
           <h1 className="page-title">Trip Reports</h1>
           <p className="page-subtitle">
-            Inspect verified completion reports for closed trips, including fare breakdown and out-of-pocket expenses (PRD B-05).
+            Inspect verified completion reports for closed trips, including fare breakdown and out-of-pocket expenses.
           </p>
         </div>
 
-        <div style={{ display: 'flex', gap: '0.75rem' }}>
-          <button type="button" className="btn btn-secondary" onClick={fetchReports} title="Refresh">
-            <RefreshCw size={16} />
-            <span>Refresh</span>
-          </button>
-          <button
-            type="button"
-            className="btn btn-secondary"
-            onClick={handleExportCSV}
-            disabled={filteredReports.length === 0}
-            title="Download CSV"
-          >
-            <Download size={16} />
-            <span>Export CSV</span>
-          </button>
-        </div>
+        <button
+          type="button"
+          className="btn btn-secondary"
+          onClick={handleExportCSV}
+          disabled={filteredReports.length === 0}
+          title="Download CSV"
+        >
+          <Download size={16} />
+          <span>Export CSV</span>
+        </button>
       </div>
 
       {/* Metrics Cards */}
       <div className="metrics-grid">
         <div className="metric-card">
-          <div className="metric-icon-wrap" style={{ backgroundColor: '#F0FDF4', color: '#16A34A' }}>
+          <div className="metric-icon-wrap success">
             <CheckCircle2 size={24} />
           </div>
           <div>
@@ -132,7 +143,7 @@ export function ReportsPage() {
         </div>
 
         <div className="metric-card">
-          <div className="metric-icon-wrap" style={{ backgroundColor: '#FAF5FF', color: 'var(--primary)' }}>
+          <div className="metric-icon-wrap primary">
             <DollarSign size={24} />
           </div>
           <div>
@@ -142,7 +153,7 @@ export function ReportsPage() {
         </div>
 
         <div className="metric-card">
-          <div className="metric-icon-wrap" style={{ backgroundColor: '#FFFBEB', color: '#D97706' }}>
+          <div className="metric-icon-wrap warning">
             <Receipt size={24} />
           </div>
           <div>
@@ -152,7 +163,7 @@ export function ReportsPage() {
         </div>
 
         <div className="metric-card">
-          <div className="metric-icon-wrap" style={{ backgroundColor: '#EFF6FF', color: '#2563EB' }}>
+          <div className="metric-icon-wrap info">
             <TrendingUp size={24} />
           </div>
           <div>
@@ -205,41 +216,46 @@ export function ReportsPage() {
         </div>
       </div>
 
-      {/* Reports Table */}
-      <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-        <div className="table-container" style={{ border: 'none' }}>
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Trip & Order ID</th>
-                <th>Route (Pickup ➔ Destination)</th>
-                <th>Closed Timestamp</th>
-                <th>Driver</th>
-                <th style={{ textAlign: 'right' }}>Base Fare</th>
-                <th style={{ textAlign: 'right' }}>Expenses</th>
-                <th style={{ textAlign: 'right' }}>Total Cost</th>
-                <th>Report</th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
+      {/* Reports Table or Error State */}
+      {error && reports.length === 0 ? (
+        <PageErrorState message={error} onRetry={() => fetchReports(false)} />
+      ) : (
+        <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+          <div className="table-container" style={{ border: 'none' }}>
+            <table className="data-table">
+              <thead>
                 <tr>
-                  <td colSpan={8} style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>
-                    Loading trip reports...
-                  </td>
+                  <th>Trip & Order ID</th>
+                  <th>Route (Pickup ➔ Destination)</th>
+                  <th>Closed Timestamp</th>
+                  <th>Driver</th>
+                  <th style={{ textAlign: 'right' }}>Base Fare</th>
+                  <th style={{ textAlign: 'right' }}>Expenses</th>
+                  <th style={{ textAlign: 'right' }}>Total Cost</th>
+                  <th>Report</th>
                 </tr>
-              ) : filteredReports.length === 0 ? (
-                <tr>
-                  <td colSpan={8} style={{ textAlign: 'center', padding: '3rem' }}>
-                    <div style={{ color: 'var(--text-secondary)', marginBottom: '0.5rem', fontWeight: 600 }}>
-                      No closed trip reports found
-                    </div>
-                    <p style={{ color: 'var(--text-muted)', fontSize: '0.8125rem' }}>
-                      Trip reports become generated and available immediately upon trip closure via driver OTP.
-                    </p>
-                  </td>
-                </tr>
-              ) : (
+              </thead>
+              <tbody>
+                {loading ? (
+                  <tr>
+                    <td colSpan={8} style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>
+                      Loading trip reports...
+                    </td>
+                  </tr>
+                ) : filteredReports.length === 0 ? (
+                  <tr>
+                    <td colSpan={8} style={{ textAlign: 'center', padding: '3rem' }}>
+                      <div style={{ color: 'var(--text-secondary)', marginBottom: '0.5rem', fontWeight: 600 }}>
+                        {reports.length === 0 ? 'No trip reports yet' : 'No closed trip reports found'}
+                      </div>
+                      <p style={{ color: 'var(--text-muted)', fontSize: '0.8125rem' }}>
+                        {reports.length === 0
+                          ? 'Trip reports become available once trips are completed.'
+                          : 'Try adjusting the search query or billing period filter.'}
+                      </p>
+                    </td>
+                  </tr>
+                ) : (
                 filteredReports.map((rep) => (
                   <tr key={rep.trip_id}>
                     <td>
@@ -313,6 +329,7 @@ export function ReportsPage() {
           </table>
         </div>
       </div>
+      )}
 
       {/* Official Trip Report View Modal */}
       {selectedReport && (

@@ -24,7 +24,8 @@ admin-docs/
 ├── 00_admin_portal_overview.md        # Master index & system architecture overview
 ├── 01_admin_authentication.md         # Page 1: Admin login & session management (A-01)
 ├── 02_admin_dashboard.md              # Page 2: Operations dashboard & key metrics (A-13)
-└── 03_admin_profile.md                # Page 3: Admin profile & credential management (A-01, A-12)
+├── 03_admin_profile.md                # Page 3: Admin profile & credential management (A-01, A-12)
+└── 04_admin_onboarding.md             # Page 4: Admin onboarding & account management (A-01, Sec 2, Sec 8.1)
 ```
 
 > [!NOTE]

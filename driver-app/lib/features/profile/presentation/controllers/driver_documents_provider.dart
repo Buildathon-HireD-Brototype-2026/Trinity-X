@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../../../../core/errors/error_messages.dart';
 import '../../../../core/routing/route_names.dart';
 import '../../../../core/storage/local_cache_service.dart';
 import '../../domain/driver_document_model.dart';
@@ -166,7 +167,7 @@ class DriverDocumentsNotifier extends StateNotifier<DriverDocumentsState> {
       if (errStr.contains('permission') || errStr.contains('access_denied')) {
         return 'CAMERA_PERMISSION_PERMANENTLY_DENIED';
       }
-      return 'Failed to capture photo: ${e.toString()}';
+      return ErrorMessages.fileUploadFailed;
     }
   }
 
@@ -186,7 +187,7 @@ class DriverDocumentsNotifier extends StateNotifier<DriverDocumentsState> {
 
       final pickedFile = result.files.first;
       if (pickedFile.path == null) {
-        return 'Selected file path is unavailable.';
+        return ErrorMessages.fileUploadFailed;
       }
 
       return await _processPickedFile(
@@ -196,7 +197,7 @@ class DriverDocumentsNotifier extends StateNotifier<DriverDocumentsState> {
         fileName: pickedFile.name,
       );
     } catch (e) {
-      return 'Failed to select document: ${e.toString()}';
+      return ErrorMessages.fileUploadFailed;
     }
   }
 
@@ -208,17 +209,17 @@ class DriverDocumentsNotifier extends StateNotifier<DriverDocumentsState> {
   }) async {
     final file = File(filePath);
     if (!await file.exists()) {
-      return 'File does not exist on device.';
+      return ErrorMessages.fileUploadFailed;
     }
 
     final fileSize = await file.length();
     if (fileSize > maxFileSizeBytes) {
-      return 'File is too large (${(fileSize / (1024 * 1024)).toStringAsFixed(1)} MB). Maximum allowed size is 5 MB.';
+      return ErrorMessages.validationFile;
     }
 
     final extension = fileName.split('.').last.toLowerCase();
     if (!allowedExtensions.contains(extension)) {
-      return 'Unsupported format .$extension. Allowed formats: JPG, PNG, PDF.';
+      return ErrorMessages.validationFile;
     }
 
     final String mimeType = extension == 'pdf'

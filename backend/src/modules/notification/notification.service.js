@@ -17,7 +17,7 @@ function getDefaultTitle(type) {
 }
 
 function getDefaultMessage(n) {
-  if (n.lastError) return n.lastError;
+  if (n.lastError && n.lastError !== 'READ') return n.lastError;
   switch (n.type) {
     case 'ORDER_ACCEPTED':
       return `Transport order ORD-${n.entityId} was accepted by Admin and scheduled for dispatch.`;
@@ -44,7 +44,7 @@ export function formatNotification(n) {
     status: n.status,
     recipient_email: n.recipientEmail,
     created_at: n.createdAt ? n.createdAt.toISOString() : null,
-    is_read: n.status === 'READ'
+    is_read: n.lastError === 'READ'
   };
 }
 

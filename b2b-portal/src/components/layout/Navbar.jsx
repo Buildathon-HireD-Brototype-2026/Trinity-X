@@ -2,7 +2,7 @@ import React from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
 import NotificationDropdown from '../notifications/NotificationDropdown';
-import { Building2, ShieldCheck, Sun, Moon } from 'lucide-react';
+import { Building2, Sun, Moon } from 'lucide-react';
 
 export function Navbar() {
   const { partner } = useAuth();
@@ -29,15 +29,10 @@ export function Navbar() {
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center' }}>
             <span style={{ fontWeight: 700, color: 'var(--text-main)', fontSize: '0.9375rem', lineHeight: 1.2 }}>
               {partner?.name || 'Partner Company'}
             </span>
-            <span style={{ color: 'var(--border-strong)', fontSize: '0.8125rem' }}>•</span>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.75rem', color: 'var(--success)', fontWeight: 500 }}>
-              <ShieldCheck size={13} />
-              <span>Verified #{partner?.company_id || '101'}</span>
-            </div>
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>

@@ -14,19 +14,25 @@ import driverRouter from './routes/driver.routes.js';
 import { downloadSignedFileHandler } from './modules/driver/file.controller.js';
 import { errorHandler } from './middlewares/error.middleware.js';
 import { errorResponse } from './shared/response.js';
+import { checkCloudinaryInit } from './services/cloudinary.service.js';
+import { initSelfieCleanupCron } from './services/selfieCron.service.js';
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-const allowedOrigins = process.env.ALLOWED_ORIGINS
-  ? process.env.ALLOWED_ORIGINS.split(',').map(s => s.trim())
-  : ['http://localhost:3000', 'http://127.0.0.1:3000', 'http://localhost:5173', 'http://127.0.0.1:5173'];
+const allowedOrigins = (process.env.ALLOWED_ORIGINS || process.env.CORS_ORIGINS)
+  ? (process.env.ALLOWED_ORIGINS || process.env.CORS_ORIGINS).split(',').map((o) => o.trim()).filter(Boolean)
+  : ['http://localhost:3000', 'http://127.0.0.1:3000', 'http://localhost:5173', 'http://127.0.0.1:5173', 'http://localhost:5174', 'http://127.0.0.1:5174', 'http://localhost:5000', 'http://localhost:8080'];
 
 // Essential security & parsing middlewares
 app.use(helmet());
 app.use(cors({
   origin: (origin, callback) => {
-    if (!origin || allowedOrigins.includes(origin)) {
+    if (
+      !origin ||
+      allowedOrigins.includes(origin) ||
+      /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)
+    ) {
       callback(null, true);
     } else {
       callback(null, false);
@@ -37,15 +43,38 @@ app.use(cors({
 app.use(express.json({ limit: '1mb' }));
 app.use(cookieParser());
 
+// Health check endpoint to verify server and database connectivity
+const healthHandler = async (req, res) => {
+  let dbStatus = 'disconnected';
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+    dbStatus = 'connected';
+  } catch (err) {
+    dbStatus = `error: ${err.message}`;
+  }
+
+  res.status(dbStatus === 'connected' ? 200 : 503).json({
+    status: dbStatus === 'connected' ? 'ok' : 'degraded',
+    database: dbStatus,
+    uptime: process.uptime(),
+    timestamp: new Date().toISOString(),
+    environment: process.env.NODE_ENV || 'development'
+  });
+};
+
+app.get('/health', healthHandler);
+app.get('/api/v1/health', healthHandler);
+
 // Signed document retrieval endpoint
 app.get('/api/v1/files/signed', downloadSignedFileHandler);
 app.get('/files/signed', downloadSignedFileHandler);
 
-// Route registration (both standard /api/v1 paths and direct paths)
+// Route registration (both standard /api/v1 paths and direct paths for backward compatibility)
 app.use('/api/v1/auth', authRouter);
 app.use('/auth', authRouter);
 
 app.use('/api/v1/driver', driverRouter);
+app.use('/api/driver', driverRouter);
 app.use('/driver', driverRouter);
 
 app.use('/api/v1/orders', orderRouter);
@@ -67,51 +96,42 @@ app.use('/api/v1/notifications', notificationRouter);
 app.use('/notifications', notificationRouter);
 
 app.use('/api/v1/admin', adminRouter);
+app.use('/api/admin', adminRouter);
 app.use('/admin', adminRouter);
 app.use('/api/v1', adminRouter);
 
-// Health check endpoint to verify server and database connectivity
-app.get('/health', async (req, res) => {
-  let dbStatus = 'disconnected';
-  try {
-    await prisma.$queryRawUnsafe('SELECT 1');
-    dbStatus = 'connected';
-  } catch (err) {
-    dbStatus = `error: ${err.message}`;
-  }
-
-  res.status(dbStatus === 'connected' ? 200 : 503).json({
-    status: dbStatus === 'connected' ? 'ok' : 'degraded',
-    database: dbStatus,
-    uptime: process.uptime(),
-    timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV || 'development'
-  });
-});
 
 // 404 Handler for undefined routes
 app.use((req, res) => {
-  if (req.originalUrl?.startsWith('/api/v1')) {
-    return errorResponse(res, 404, 'NOT_FOUND', `Route not found: ${req.method} ${req.originalUrl}`);
+  if (req.originalUrl?.startsWith('/api/v1') || req.path?.startsWith('/api/v1')) {
+    return errorResponse(res, 404, 'NOT_FOUND', `Route not found: ${req.method} ${req.path}`);
   }
   return res.status(404).json({
     status: 'error',
-    message: `Endpoint ${req.method} ${req.url} does not exist.`
+    message: `Endpoint ${req.method} ${req.path} does not exist.`
   });
 });
 
 // Centralized error handling middleware
 app.use(errorHandler);
 
-const server = app.listen(PORT, async () => {
-  console.log(`[server] Server listening on port ${PORT} (${process.env.NODE_ENV || 'development'})`);
-  try {
-    await prisma.$queryRawUnsafe('SELECT 1');
-    console.log('[database] PostgreSQL connected successfully (database: hired_dev)');
-  } catch (error) {
-    console.error('[database] Database connection failed:', error.message);
-  }
-});
+let server = null;
+const isTestRun = process.env.NODE_ENV === 'test' || (process.argv[1] && process.argv[1].includes('test.js'));
+
+if (!isTestRun) {
+  checkCloudinaryInit();
+  initSelfieCleanupCron();
+
+  server = app.listen(PORT, async () => {
+    console.log(`[server] Server listening on port ${PORT} (${process.env.NODE_ENV || 'development'})`);
+    try {
+      await prisma.$queryRaw`SELECT 1`;
+      console.log('[database] PostgreSQL connected successfully');
+    } catch (error) {
+      console.error('[database] Database connection failed:', error.message);
+    }
+  });
+}
 
 // Graceful shutdown handler
 const handleShutdown = (signal) => {

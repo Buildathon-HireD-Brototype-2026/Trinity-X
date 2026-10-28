@@ -1,88 +1,39 @@
 /**
  * Post-Trip Reporting Service
- * Implements PRD B-05 and database_updated0.2.md Section 12.1
+ * Implements PRD B-05 and database.md Section 12 (Reports and the Trip Report)
  * - Filterable reports for CLOSED trips
- * - Sanitized data: strictly excludes driver commission/split (only revealed in PUBLISHED invoices)
+ * - Sanitized data: partner trip reports and corporate spend details from PostgreSQL
  */
 
 import apiClient from './apiClient';
-import { INITIAL_TRIPS, INITIAL_ORDERS, MOCK_COMPANY } from './mockData';
-
-const STORAGE_TRIPS_KEY = 'hired_b2b_trips';
-const STORAGE_ORDERS_KEY = 'hired_b2b_orders';
-
-function getStoredTrips() {
-  const data = localStorage.getItem(STORAGE_TRIPS_KEY);
-  if (data) {
-    try {
-      return JSON.parse(data);
-    } catch {
-      // fallback
-    }
-  }
-  return INITIAL_TRIPS;
-}
-
-function getStoredOrders() {
-  const data = localStorage.getItem(STORAGE_ORDERS_KEY);
-  if (data) {
-    try {
-      return JSON.parse(data);
-    } catch {
-      // fallback
-    }
-  }
-  return INITIAL_ORDERS;
-}
 
 export const reportService = {
   /**
    * Retrieve closed trips visible to the partner company
    */
   async getClosedTripReports() {
-    const useMock = import.meta.env.VITE_USE_MOCK_API !== 'false';
-
-    if (useMock) {
-      await new Promise((resolve) => setTimeout(resolve, 300));
-      const trips = getStoredTrips();
-      const orders = getStoredOrders();
-
-      // Only trips with status = 'CLOSED' are viewable as Trip Reports (PRD B-05)
-      const closedTrips = trips.filter((t) => t.status === 'CLOSED');
-
-      return closedTrips.map((trip) => {
-        const order = orders.find((o) => o.order_id === trip.order_id);
-        const expensesTotal = (trip.expenses || []).reduce((acc, curr) => acc + (curr.amount || 0), 0);
-
-        return {
-          trip_id: trip.trip_id,
-          order_id: trip.order_id,
-          pickup_spot: trip.pickup_spot || order?.pickup_spot || 'N/A',
-          dropoff_spot: trip.dropoff_spot || order?.dropoff_spot || 'N/A',
-          pickup_time: trip.pickup_time || order?.pickup_time,
-          contact_name: trip.contact_name || order?.contact_name || 'N/A',
-          contact_phone: trip.contact_phone || order?.contact_phone || 'N/A',
-          driver_name: trip.driver_name,
-          driver_phone: trip.driver_phone,
-          started_at: trip.started_at,
-          closed_at: trip.closed_at,
-          amount: trip.amount,
-          expenses: trip.expenses || [],
-          expenses_total: expensesTotal,
-          total_spend: Number(trip.amount) + expensesTotal,
-          company_id: MOCK_COMPANY.company_id,
-        };
-      });
+    try {
+      const response = await apiClient.get('/reports/trips?status=CLOSED');
+      const items = response.data?.reports || response.data?.data?.items || response.data?.items || response.data;
+      return Array.isArray(items) ? items : [];
+    } catch (err) {
+      console.error('Failed to fetch closed trip reports:', err.message);
+      return [];
     }
-
-    const response = await apiClient.get('/reports/trips?status=CLOSED');
-    return response.data.reports || response.data;
   },
 
   /**
    * Get single trip report details
    */
   async getTripReport(tripId) {
+    try {
+      const response = await apiClient.get(`/reports/trips/${tripId}`);
+      const report = response.data?.report || response.data?.data || response.data;
+      if (report) return report;
+    } catch {
+      // Fallback to checking closed trip reports list
+    }
+
     const reports = await this.getClosedTripReports();
     const report = reports.find((r) => r.trip_id === Number(tripId));
     if (!report) throw new Error('Trip report not found or trip is not yet closed.');

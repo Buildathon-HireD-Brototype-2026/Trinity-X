@@ -38,7 +38,7 @@ The Driver App serves onboarded drivers throughout their operational journey:
    ```bash
    cp .env.example .env
    ```
-   Configure `API_BASE_URL` in `.env` (default: `http://10.0.2.2:8000/api/v1` for Android emulator).
+   Configure `API_BASE_URL` in `.env` (default: `http://10.0.2.2:5000/api/v1` for Android emulator).
 
 3. **Install Dependencies:**
    ```bash
@@ -121,3 +121,24 @@ All assumed REST endpoints follow the HireD technical guidelines and database de
 | `POST` | `/api/v1/driver/trips/:trip_id/close` | Close trip via 6-digit `otp`. Validates expenses confirmed; credits wallet. |
 | `GET` | `/api/v1/driver/wallet` | Fetch driver wallet balance and transaction ledger. |
 | `GET` | `/api/v1/driver/trips/history` | Fetch completed trip history. |
+
+---
+
+## 7. Maps & Navigation Architecture (Zero Google API Keys / Zero Billing)
+
+The Driver App uses a completely free, open-source mapping stack requiring **zero Google API keys, zero Google cloud billing, and zero proprietary SDK dependencies**:
+
+* **In-App Interactive Maps:** Powered by [`LiveMap`](file:///home/thinkpad/Documents/project/Trinity-X/driver-app/lib/core/widgets/live_map.dart) using [`flutter_map`](https://pub.dev/packages/flutter_map) + [`latlong2`](https://pub.dev/packages/latlong2) with standard OpenStreetMap raster tiles (`https://tile.openstreetmap.org/{z}/{x}/{y}.png`).
+* **OpenStreetMap Tile Usage Policy:** Uses standard public OSM raster tiles with an identifying `userAgentPackageName: 'com.hired.driver_app'`. Suitable for demo, evaluation, and light use without cloud billing. Displays the required attribution: `"© OpenStreetMap contributors"`.
+* **Single GPS Stream Architecture:** Managed centrally by [`driverLocationProvider`](file:///home/thinkpad/Documents/project/Trinity-X/driver-app/lib/core/location/driver_location_provider.dart) using `geolocator`. Both the UI map and the tracking service subscribe to the same hardware stream (high accuracy, 5m filter) to prevent provider contention and conserve battery.
+* **Markers & Live Position:** Renders the driver's current location as a solid blue dot with a live GPS accuracy circle. Follows the driver automatically and pauses on user pan/drag, providing a floating "Recenter" button. Renders green pickup markers and red dropoff markers on assigned trips.
+* **Map Tap & External Turn-by-Turn Navigation:**
+  * Tapping anywhere on the map (`MapOptions.onTap`) opens Google Maps at the driver's current coordinates (`https://www.google.com/maps/search/?api=1&query=LAT,LNG`). Dragging and pinching do not trigger navigation.
+  * Dedicated "Open in Google Maps" and "Navigate" buttons launch external navigation via [`MapsConfig`](file:///home/thinkpad/Documents/project/Trinity-X/driver-app/lib/core/config/maps_config.dart) and [`url_launcher`](https://pub.dev/packages/url_launcher) with `LaunchMode.externalApplication`.
+* **Permissions Configured:**
+  * Android: `ACCESS_FINE_LOCATION`, `ACCESS_COARSE_LOCATION`, `INTERNET`, and `<queries>` HTTPS intent.
+  * iOS: `NSLocationWhenInUseUsageDescription` with clear explanation.
+* **Offline & Error Resilience:** Tile loading failures are caught via `errorTileCallback` showing a "Map needs internet" notification; GPS disabled and permission denied states display actionable enable banners.
+* **Zero Secrets & Credentials:** 0 Google Maps SDK, 0 `MAPS_API_KEY`, 0 `secrets.properties`, 0 `Secrets.xcconfig`, and 0 Google Directions, Places, Geocoding, or Street View APIs.
+
+

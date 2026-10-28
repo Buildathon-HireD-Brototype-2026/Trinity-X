@@ -98,7 +98,7 @@ export function OrderDetailModal({ order, onClose }) {
           <h3 style={{ fontSize: '0.875rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '0.75rem' }}>
             Route & Timing
           </h3>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', background: '#F8FAFC', padding: '1.25rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', background: 'var(--bg-muted)', padding: '1.25rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)' }}>
             <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-start' }}>
               <MapPin size={18} color="var(--primary)" style={{ flexShrink: 0, marginTop: '2px' }} />
               <div>
@@ -206,7 +206,7 @@ export function OrderDetailModal({ order, onClose }) {
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.75rem', fontWeight: 700, color: 'var(--primary)', textTransform: 'uppercase' }}>
                   <KeyRound size={14} />
-                  <span>Trip-Close OTP (PRD D-09)</span>
+                  <span>Trip-Close OTP</span>
                 </div>
                 <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.15rem' }}>
                   Share this 6-digit code with the driver upon drop-off to verify trip completion.

@@ -3,6 +3,9 @@ import { Link } from 'react-router-dom';
 import orderService from '../services/orderService';
 import { StatusBadge } from '../components/common/StatusBadge';
 import OrderDetailModal from '../components/orders/OrderDetailModal';
+import useTableSubscription from '../hooks/useTableSubscription';
+import { PageErrorState } from '../components/common/PageErrorState';
+import { getFriendlyErrorMessage } from '../utils/errorHandler';
 import {
   Search,
   Filter,
@@ -12,30 +15,43 @@ import {
   Eye,
   KeyRound,
   AlertCircle,
-  RefreshCw,
 } from 'lucide-react';
 
 export function OrdersPage() {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [activeTab, setActiveTab] = useState('ALL'); // ALL, ORDERS, ACTIVE_TRIPS, CLOSED_TRIPS
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [selectedOrder, setSelectedOrder] = useState(null);
 
-  const fetchOrders = async () => {
-    setLoading(true);
+  const fetchOrders = async (isQuiet = false) => {
+    if (!isQuiet) {
+      setLoading(true);
+      setError(null);
+    }
     try {
       const data = await orderService.getOrders();
-      setOrders(data);
+      setOrders(data || []);
+      setError(null);
+    } catch (err) {
+      if (!isQuiet) {
+        setError(getFriendlyErrorMessage(err, 'orders'));
+      }
     } finally {
-      setLoading(false);
+      if (!isQuiet) setLoading(false);
     }
   };
 
   useEffect(() => {
     fetchOrders();
   }, []);
+
+  // Real-time automatic subscription to database changes on orders and trips
+  useTableSubscription(['orders', 'trips'], () => {
+    fetchOrders(true);
+  });
 
   // Filter logic
   const filteredOrders = orders.filter((order) => {
@@ -77,24 +93,13 @@ export function OrdersPage() {
         <div>
           <h1 className="page-title">My Orders & Trips</h1>
           <p className="page-subtitle">
-            Track incoming transport requests, driver assignments, and live fulfillment (PRD B-03).
+            Track incoming transport requests, driver assignments, and live fulfillment.
           </p>
         </div>
-        <div style={{ display: 'flex', gap: '0.75rem' }}>
-          <button
-            type="button"
-            className="btn btn-secondary"
-            onClick={fetchOrders}
-            title="Refresh Orders"
-          >
-            <RefreshCw size={16} />
-            <span>Refresh</span>
-          </button>
-          <Link to="/orders/new" className="btn btn-primary">
-            <PlusCircle size={18} />
-            <span>Create New Order</span>
-          </Link>
-        </div>
+        <Link to="/orders/new" className="btn btn-primary">
+          <PlusCircle size={18} />
+          <span>Create New Order</span>
+        </Link>
       </div>
 
       {/* Tabs */}
@@ -194,40 +199,45 @@ export function OrdersPage() {
         </div>
       </div>
 
-      {/* Orders Table */}
-      <div className="card" style={{ padding: '0', overflow: 'hidden' }}>
-        <div className="table-container" style={{ border: 'none' }}>
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Booking ID</th>
-                <th>Route (Pickup ➔ Drop-off)</th>
-                <th>Pickup Date & Time</th>
-                <th>Passenger</th>
-                <th>Order Status</th>
-                <th>Trip Status</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
+      {/* Orders Table or Error State */}
+      {error && orders.length === 0 ? (
+        <PageErrorState message={error} onRetry={() => fetchOrders(false)} />
+      ) : (
+        <div className="card" style={{ padding: '0', overflow: 'hidden' }}>
+          <div className="table-container" style={{ border: 'none' }}>
+            <table className="data-table">
+              <thead>
                 <tr>
-                  <td colSpan={7} style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>
-                    Loading orders...
-                  </td>
+                  <th>Booking ID</th>
+                  <th>Route (Pickup ➔ Drop-off)</th>
+                  <th>Pickup Date & Time</th>
+                  <th>Passenger</th>
+                  <th>Order Status</th>
+                  <th>Trip Status</th>
+                  <th>Actions</th>
                 </tr>
-              ) : filteredOrders.length === 0 ? (
-                <tr>
-                  <td colSpan={7} style={{ textAlign: 'center', padding: '3rem' }}>
-                    <div style={{ color: 'var(--text-secondary)', marginBottom: '0.5rem', fontWeight: 600 }}>
-                      No transport bookings match your query
-                    </div>
-                    <p style={{ color: 'var(--text-muted)', fontSize: '0.8125rem' }}>
-                      Try adjusting the search filters or create a new transport order.
-                    </p>
-                  </td>
-                </tr>
-              ) : (
+              </thead>
+              <tbody>
+                {loading ? (
+                  <tr>
+                    <td colSpan={7} style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>
+                      Loading orders...
+                    </td>
+                  </tr>
+                ) : filteredOrders.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} style={{ textAlign: 'center', padding: '3rem' }}>
+                      <div style={{ color: 'var(--text-secondary)', marginBottom: '0.5rem', fontWeight: 600 }}>
+                        {orders.length === 0 ? 'No orders yet' : 'No transport bookings match your query'}
+                      </div>
+                      <p style={{ color: 'var(--text-muted)', fontSize: '0.8125rem' }}>
+                        {orders.length === 0
+                          ? 'Create your first transport order to get started.'
+                          : 'Try adjusting the search filters or create a new transport order.'}
+                      </p>
+                    </td>
+                  </tr>
+                ) : (
                 filteredOrders.map((order) => (
                   <tr key={order.order_id}>
                     <td>
@@ -295,6 +305,7 @@ export function OrdersPage() {
           </table>
         </div>
       </div>
+      )}
 
       {/* Order Detail Modal */}
       {selectedOrder && (

@@ -45,7 +45,8 @@ import {
   acceptOrderHandler,
   rejectOrderHandler,
   assignDriverHandler,
-  getEligibleDriversHandler
+  getEligibleDriversHandler,
+  updateTripHandler
 } from '../modules/order/order.controller.js';
 
 // Invoice & Month-End Verification controllers
@@ -56,6 +57,14 @@ import {
   verifySecondInvoiceHandler,
   dispatchInvoiceEmailHandler
 } from '../modules/invoice/invoice.controller.js';
+
+// Trip SOS Emergency controllers
+import {
+  getActiveSosAlertsForAdminHandler,
+  claimSosAlertHandler,
+  resolveSosAlertHandler,
+  getSosAlertDetailsHandler
+} from '../modules/sos/sos.controller.js';
 
 const router = Router();
 
@@ -101,6 +110,7 @@ router.get('/orders/:order_id/eligible-drivers', validateIdParam('order_id'), ge
 router.post('/orders/:order_id/accept', validateIdParam('order_id'), acceptOrderHandler);
 router.post('/orders/:order_id/reject', validateIdParam('order_id'), rejectOrderHandler);
 router.post('/trips/:trip_id/assign-driver', validateIdParam('trip_id'), assignDriverHandler);
+router.patch('/trips/:trip_id', validateIdParam('trip_id'), updateTripHandler);
 
 // ============================================================================
 // Month-End Invoice Verification Endpoints
@@ -121,5 +131,13 @@ router.patch('/drivers/:driverId/activate', activateDriverAccount);
 router.get('/partner-registrations', listRegistrations);
 router.patch('/partner-registrations/:requestId/approve', approveRegistration);
 router.patch('/partner-registrations/:requestId/reject', rejectRegistration);
+
+// ============================================================================
+// Emergency SOS Incident Management Endpoints
+// ============================================================================
+router.get('/sos/active', getActiveSosAlertsForAdminHandler);
+router.patch('/sos/:id/claim', validateIdParam('id'), claimSosAlertHandler);
+router.patch('/sos/:id/resolve', validateIdParam('id'), resolveSosAlertHandler);
+router.get('/sos/:id', validateIdParam('id'), getSosAlertDetailsHandler);
 
 export default router;

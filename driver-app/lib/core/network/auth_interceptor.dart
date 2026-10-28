@@ -39,31 +39,42 @@ class AuthInterceptor extends Interceptor {
   @override
   Future<void> onError(DioException err, ErrorInterceptorHandler handler) async {
     if (err.response?.statusCode == 401) {
-      final isAuthPath = err.requestOptions.path.contains('/auth/login') ||
+      final isAuthPath = err.requestOptions.path.contains('/auth/driver/login') ||
+                         err.requestOptions.path.contains('/auth/login') ||
                          err.requestOptions.path.contains('/auth/refresh');
 
-      if (!isAuthPath && onRefreshToken != null) {
-        try {
-          // If a refresh is already in progress, await the existing one; otherwise initiate.
-          _refreshFuture ??= onRefreshToken!();
-          final newToken = await _refreshFuture;
-          _refreshFuture = null;
-
-          if (newToken != null && newToken.isNotEmpty) {
-            // Update request header with the refreshed token and replay the original request
-            final options = err.requestOptions;
-            options.headers['Authorization'] = 'Bearer $newToken';
-            final client = dio ?? Dio();
-            final response = await client.fetch(options);
-            return handler.resolve(response);
+      if (!isAuthPath) {
+        if (onRefreshToken != null) {
+          // Prevent infinite retry loop if token replay also returns 401
+          final retryCount = (err.requestOptions.extra['retry_count'] as int? ?? 0);
+          if (retryCount >= 1) {
+            onSessionExpired?.call('Your session has ended. Please log in again.');
+            return super.onError(err, handler);
           }
-        } catch (_) {
-          _refreshFuture = null;
-        }
-      }
 
-      // Refresh failed or not available: revoke session per user specification
-      onSessionExpired?.call('Active session expired. Please log in again.');
+          try {
+            // If a refresh is already in progress, await the existing one; otherwise initiate.
+            _refreshFuture ??= onRefreshToken!();
+            final newToken = await _refreshFuture;
+            _refreshFuture = null;
+
+            if (newToken != null && newToken.isNotEmpty) {
+              // Update request header with the refreshed token and replay the original request
+              final options = err.requestOptions;
+              options.headers['Authorization'] = 'Bearer $newToken';
+              options.extra['retry_count'] = retryCount + 1;
+              final client = dio ?? Dio();
+              final response = await client.fetch(options);
+              return handler.resolve(response);
+            }
+          } catch (_) {
+            _refreshFuture = null;
+          }
+        }
+
+        // Refresh failed or not available on an authenticated screen: revoke session per user specification
+        onSessionExpired?.call('Your session has ended. Please log in again.');
+      }
     }
     super.onError(err, handler);
   }

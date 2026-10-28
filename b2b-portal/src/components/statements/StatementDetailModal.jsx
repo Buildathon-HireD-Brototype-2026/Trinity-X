@@ -60,7 +60,7 @@ export function StatementDetailModal({ statement, onClose }) {
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--success)', fontWeight: 600, fontSize: '0.875rem' }}>
             <ShieldCheck size={20} />
-            <span>Verified Month-End Statement (PRD B-06)</span>
+            <span>Verified Month-End Statement</span>
           </div>
 
           <div style={{ display: 'flex', gap: '0.5rem' }}>
@@ -118,14 +118,14 @@ export function StatementDetailModal({ statement, onClose }) {
           {/* Dual-Admin Verification Stamp */}
           <div
             style={{
-              background: '#F0FDF4',
+              background: 'var(--success-bg)',
               border: '1px solid var(--success-border)',
               borderRadius: 'var(--radius-md)',
               padding: '1.25rem',
               marginBottom: '1.75rem',
             }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem', color: '#166534', fontWeight: 700, fontSize: '0.875rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem', color: 'var(--success)', fontWeight: 700, fontSize: '0.875rem' }}>
               <CheckCircle2 size={18} />
               <span>Two-Person Administrator Verification Completed</span>
             </div>
@@ -158,7 +158,7 @@ export function StatementDetailModal({ statement, onClose }) {
                 <thead>
                   <tr>
                     <th>Component</th>
-                    <th>Rate / Split Ratio</th>
+                    <th>Details</th>
                     <th style={{ textAlign: 'right' }}>Amount (INR)</th>
                   </tr>
                 </thead>
@@ -171,27 +171,13 @@ export function StatementDetailModal({ statement, onClose }) {
                     </td>
                   </tr>
                   <tr>
-                    <td>Driver Allocated Share</td>
-                    <td>{statement.driver_share_pct || 30.0}% (PRD 5.4)</td>
-                    <td style={{ textAlign: 'right' }}>
-                      ₹{Number(statement.driver_share_total).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                    </td>
-                  </tr>
-                  <tr>
-                    <td>HireD Platform Share</td>
-                    <td>{statement.platform_share_pct || 70.0}% (PRD 5.4)</td>
-                    <td style={{ textAlign: 'right' }}>
-                      ₹{Number(statement.platform_share_total).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                    </td>
-                  </tr>
-                  <tr>
-                    <td>Reimbursable Driver Expenses</td>
+                    <td>Reimbursable Expenses</td>
                     <td>Tolls & Parking disbursements</td>
                     <td style={{ textAlign: 'right' }}>
                       ₹{Number(statement.expenses_total).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                     </td>
                   </tr>
-                  <tr style={{ background: '#FAF5FF', fontWeight: 800, fontSize: '1rem' }}>
+                  <tr style={{ background: 'var(--primary-50)', fontWeight: 800, fontSize: '1rem' }}>
                     <td colSpan={2}>Total Monthly Settlement Amount</td>
                     <td style={{ textAlign: 'right', color: 'var(--primary)' }}>
                       ₹{Number(statement.net_payable).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
@@ -214,9 +200,7 @@ export function StatementDetailModal({ statement, onClose }) {
                     <tr>
                       <th>Trip ID</th>
                       <th>Route Summary</th>
-                      <th>Total Fare</th>
-                      <th>Driver (30%)</th>
-                      <th>Platform (70%)</th>
+                      <th style={{ textAlign: 'right' }}>Total Fare</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -224,9 +208,7 @@ export function StatementDetailModal({ statement, onClose }) {
                       <tr key={t.trip_id}>
                         <td style={{ fontWeight: 600 }}>TRIP-{t.trip_id}</td>
                         <td>{t.pickup_spot} ➔ {t.dropoff_spot}</td>
-                        <td style={{ fontWeight: 600 }}>₹{t.amount.toFixed(2)}</td>
-                        <td>₹{t.driver_share.toFixed(2)}</td>
-                        <td>₹{t.platform_share.toFixed(2)}</td>
+                        <td style={{ fontWeight: 600, textAlign: 'right' }}>₹{Number(t.amount).toFixed(2)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -241,7 +223,7 @@ export function StatementDetailModal({ statement, onClose }) {
             <div>
               <strong>Payment Terms & Offline Settlement:</strong>
               <div>{statement.settlement_terms}</div>
-              <div style={{ marginTop: '0.35rem', color: '#1E40AF', fontSize: '0.75rem' }}>
+              <div style={{ marginTop: '0.35rem', color: 'var(--text-secondary)', fontSize: '0.75rem' }}>
                 Bank: HDFC Bank Ltd | A/C: 50200012345678 | IFSC: HDFC0000240 | Beneficiary: HireD Logistics Pvt Ltd
               </div>
             </div>

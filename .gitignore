@@ -3,6 +3,7 @@
 .env.*
 !.env.example
 
+
 # Dependencies
 node_modules/
 venv/
@@ -16,6 +17,8 @@ build/
 .vite/
 
 # User uploads & media
+uploads/
+backend/uploads/
 uploads/*
 !uploads/.gitkeep
 

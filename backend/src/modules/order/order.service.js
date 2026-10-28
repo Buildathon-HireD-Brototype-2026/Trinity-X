@@ -5,10 +5,54 @@ import { recordAuditLog } from '../../shared/audit.js';
 import { sendOrderDecisionEmail } from '../../shared/email.service.js';
 
 /**
+ * Validate and parse coordinate within [min, max].
+ * Returns null if coordinate is omitted or null.
+ */
+export function parseCoordinate(val, fieldName, min, max) {
+  if (val === undefined || val === null || val === '') {
+    return null;
+  }
+  const num = Number(val);
+  if (isNaN(num) || !isFinite(num)) {
+    throw new AppError(422, 'VALIDATION_ERROR', `${fieldName} must be a valid number.`, [
+      { field: fieldName, message: 'must be a valid number' }
+    ]);
+  }
+  if (num < min || num > max) {
+    throw new AppError(422, 'VALIDATION_ERROR', `${fieldName} must be between ${min} and ${max}.`, [
+      { field: fieldName, message: `must be between ${min} and ${max}` }
+    ]);
+  }
+  return num;
+}
+
+/**
+ * Extract and validate pickup and drop coordinates from payload supporting camelCase and snake_case.
+ */
+export function extractCoordinates(payload = {}) {
+  const pickupLat = payload.pickupLatitude !== undefined ? payload.pickupLatitude : payload.pickup_latitude;
+  const pickupLng = payload.pickupLongitude !== undefined ? payload.pickupLongitude : payload.pickup_longitude;
+  const dropLat = payload.dropLatitude !== undefined ? payload.dropLatitude : payload.drop_latitude;
+  const dropLng = payload.dropLongitude !== undefined ? payload.dropLongitude : payload.drop_longitude;
+
+  return {
+    pickupLatitude: parseCoordinate(pickupLat, 'pickupLatitude', -90, 90),
+    pickupLongitude: parseCoordinate(pickupLng, 'pickupLongitude', -180, 180),
+    dropLatitude: parseCoordinate(dropLat, 'dropLatitude', -90, 90),
+    dropLongitude: parseCoordinate(dropLng, 'dropLongitude', -180, 180)
+  };
+}
+
+/**
  * Format order entity for API responses (both B2B Portal and OpenAPI specs).
  */
 export function formatOrderResponse(order) {
   if (!order) return null;
+
+  const orderPickupLat = order.pickupLatitude !== null && order.pickupLatitude !== undefined ? Number(order.pickupLatitude) : null;
+  const orderPickupLng = order.pickupLongitude !== null && order.pickupLongitude !== undefined ? Number(order.pickupLongitude) : null;
+  const orderDropLat = order.dropLatitude !== null && order.dropLatitude !== undefined ? Number(order.dropLatitude) : null;
+  const orderDropLng = order.dropLongitude !== null && order.dropLongitude !== undefined ? Number(order.dropLongitude) : null;
 
   const tripObj = order.trip ? {
     trip_id: order.trip.tripId,
@@ -21,6 +65,19 @@ export function formatOrderResponse(order) {
     driver_id: order.trip.driverId || null,
     driver_name: order.trip.driver ? order.trip.driver.name : null,
     driver_phone: order.trip.driver ? order.trip.driver.phoneNo : null,
+    pickup_latitude: order.trip.pickupLatitude !== null && order.trip.pickupLatitude !== undefined ? Number(order.trip.pickupLatitude) : orderPickupLat,
+    pickup_longitude: order.trip.pickupLongitude !== null && order.trip.pickupLongitude !== undefined ? Number(order.trip.pickupLongitude) : orderPickupLng,
+    drop_latitude: order.trip.dropLatitude !== null && order.trip.dropLatitude !== undefined ? Number(order.trip.dropLatitude) : orderDropLat,
+    drop_longitude: order.trip.dropLongitude !== null && order.trip.dropLongitude !== undefined ? Number(order.trip.dropLongitude) : orderDropLng,
+    pickupLatitude: order.trip.pickupLatitude !== null && order.trip.pickupLatitude !== undefined ? Number(order.trip.pickupLatitude) : orderPickupLat,
+    pickupLongitude: order.trip.pickupLongitude !== null && order.trip.pickupLongitude !== undefined ? Number(order.trip.pickupLongitude) : orderPickupLng,
+    dropLatitude: order.trip.dropLatitude !== null && order.trip.dropLatitude !== undefined ? Number(order.trip.dropLatitude) : orderDropLat,
+    dropLongitude: order.trip.dropLongitude !== null && order.trip.dropLongitude !== undefined ? Number(order.trip.dropLongitude) : orderDropLng,
+    selfie_url: order.trip.startSelfieUrl || order.trip.selfieURL || null,
+    startSelfieUrl: order.trip.startSelfieUrl || order.trip.selfieURL || null,
+    startSelfieUploadedAt: order.trip.startSelfieUploadedAt ? order.trip.startSelfieUploadedAt.toISOString() : null,
+    startSelfieDeletedAt: order.trip.startSelfieDeletedAt ? order.trip.startSelfieDeletedAt.toISOString() : null,
+    startSelfieExpiresAt: order.trip.startSelfieExpiresAt ? order.trip.startSelfieExpiresAt.toISOString() : null,
     created_at: order.trip.createdAt ? order.trip.createdAt.toISOString() : null
   } : null;
 
@@ -30,6 +87,14 @@ export function formatOrderResponse(order) {
     company_name: order.company ? order.company.name : undefined,
     pickup_spot: order.pickupSpot,
     dropoff_spot: order.dropoffSpot,
+    pickup_latitude: orderPickupLat,
+    pickup_longitude: orderPickupLng,
+    drop_latitude: orderDropLat,
+    drop_longitude: orderDropLng,
+    pickupLatitude: orderPickupLat,
+    pickupLongitude: orderPickupLng,
+    dropLatitude: orderDropLat,
+    dropLongitude: orderDropLng,
     pickup_time: order.pickupTime ? order.pickupTime.toISOString() : null,
     contact_name: order.contactName,
     contact_phone: order.contactPhone,
@@ -131,11 +196,18 @@ export async function createPartnerOrder(companyId, payload) {
     throw new AppError(403, 'FORBIDDEN', 'Company account is not active.');
   }
 
+  // Extract and validate coordinates (optional, defaults to null)
+  const coords = extractCoordinates(payload);
+
   const order = await prisma.order.create({
     data: {
       companyId: Number(companyId),
       pickupSpot: pickup_spot.trim(),
       dropoffSpot: dropoff_spot.trim(),
+      pickupLatitude: coords.pickupLatitude,
+      pickupLongitude: coords.pickupLongitude,
+      dropLatitude: coords.dropLatitude,
+      dropLongitude: coords.dropLongitude,
       pickupTime: new Date(pickup_time),
       contactName: contact_name.trim(),
       contactPhone: contact_phone.trim(),
@@ -346,7 +418,9 @@ export async function getEligibleDriversForOrder(orderId, dateOverride) {
 /**
  * Admin accepts an order and generates trip with 6-digit OTP, optionally assigning an eligible driver.
  */
-export async function acceptOrder(orderId, adminId, { amount, eta, version, driver_id, driverId, driverName } = {}, ipAddress) {
+export async function acceptOrder(orderId, adminId, payload = {}, ipAddress) {
+  const { amount, eta, version, driver_id, driverId, driverName } = payload;
+  const coordsFromPayload = extractCoordinates(payload);
   return prisma.$transaction(async (tx) => {
     const order = await tx.order.findUnique({
       where: { orderId: Number(orderId) },
@@ -378,6 +452,20 @@ export async function acceptOrder(orderId, adminId, { amount, eta, version, driv
     const tripEta = eta ? new Date(eta) : new Date(order.pickupTime);
     // Generate 6-digit cryptographically secure random numeric OTP (CWE-330 / CWE-338 hardened)
     const generatedOtp = String(crypto.randomInt(100000, 1000000));
+
+    // Coordinates: payload takes precedence; fallback to order coordinates; otherwise null
+    const pickupLatitude = coordsFromPayload.pickupLatitude !== null
+      ? coordsFromPayload.pickupLatitude
+      : (order.pickupLatitude !== null && order.pickupLatitude !== undefined ? Number(order.pickupLatitude) : null);
+    const pickupLongitude = coordsFromPayload.pickupLongitude !== null
+      ? coordsFromPayload.pickupLongitude
+      : (order.pickupLongitude !== null && order.pickupLongitude !== undefined ? Number(order.pickupLongitude) : null);
+    const dropLatitude = coordsFromPayload.dropLatitude !== null
+      ? coordsFromPayload.dropLatitude
+      : (order.dropLatitude !== null && order.dropLatitude !== undefined ? Number(order.dropLatitude) : null);
+    const dropLongitude = coordsFromPayload.dropLongitude !== null
+      ? coordsFromPayload.dropLongitude
+      : (order.dropLongitude !== null && order.dropLongitude !== undefined ? Number(order.dropLongitude) : null);
 
     // Resolve driver if specified during accept
     let assignedDriver = null;
@@ -467,7 +555,11 @@ export async function acceptOrder(orderId, adminId, { amount, eta, version, driv
         eta: tripEta,
         otp: generatedOtp,
         tripStatus: assignedDriver ? 'ASSIGNED' : 'UNASSIGNED',
-        assignedAt: assignedDriver ? new Date() : null
+        assignedAt: assignedDriver ? new Date() : null,
+        pickupLatitude,
+        pickupLongitude,
+        dropLatitude,
+        dropLongitude
       },
       include: {
         driver: true
@@ -520,7 +612,11 @@ export async function acceptOrder(orderId, adminId, { amount, eta, version, driv
         status: 'ACCEPTED',
         tripId: trip.tripId,
         amount: tripAmount,
-        driverId: assignedDriver ? assignedDriver.driverId : null
+        driverId: assignedDriver ? assignedDriver.driverId : null,
+        pickupLatitude,
+        pickupLongitude,
+        dropLatitude,
+        dropLongitude
       },
       ipAddress
     });
@@ -538,7 +634,15 @@ export async function acceptOrder(orderId, adminId, { amount, eta, version, driv
         trip_status: trip.tripStatus,
         amount: Number(trip.amount).toFixed(2),
         eta: trip.eta ? trip.eta.toISOString() : null,
-        otp: trip.otp
+        otp: trip.otp,
+        pickup_latitude: pickupLatitude,
+        pickup_longitude: pickupLongitude,
+        drop_latitude: dropLatitude,
+        drop_longitude: dropLongitude,
+        pickupLatitude,
+        pickupLongitude,
+        dropLatitude,
+        dropLongitude
       }
     };
   });
@@ -650,17 +754,19 @@ export async function rejectOrder(orderId, adminId, { reason, reject_reason, ver
 /**
  * Admin assigns an active driver to a trip.
  */
-export async function assignDriverToTrip(tripId, adminId, { driver_id, driverId, version } = {}, ipAddress) {
+export async function assignDriverToTrip(tripId, adminId, payload = {}, ipAddress) {
+  const { driver_id, driverId, version } = payload;
   let targetDriverId = driver_id || driverId;
   if (typeof targetDriverId === 'string' && targetDriverId.startsWith('DRV-')) {
     targetDriverId = parseInt(targetDriverId.replace('DRV-', ''), 10);
   } else {
     targetDriverId = Number(targetDriverId);
   }
-
   if (!targetDriverId || isNaN(targetDriverId)) {
     throw new AppError(422, 'VALIDATION_ERROR', 'Valid driver_id is required.');
   }
+
+  const coords = extractCoordinates(payload);
 
   return prisma.$transaction(async (tx) => {
     const [trip, driver] = await Promise.all([
@@ -726,14 +832,21 @@ export async function assignDriverToTrip(tripId, adminId, { driver_id, driverId,
       throw new AppError(409, 'DRIVER_CONFLICT', 'Driver is already assigned to another trip on this date. Please pick another driver.');
     }
 
+    const updateData = {
+      driverId: targetDriverId,
+      tripStatus: 'ASSIGNED',
+      assignedAt: new Date(),
+      version: { increment: 1 }
+    };
+
+    if (coords.pickupLatitude !== null) updateData.pickupLatitude = coords.pickupLatitude;
+    if (coords.pickupLongitude !== null) updateData.pickupLongitude = coords.pickupLongitude;
+    if (coords.dropLatitude !== null) updateData.dropLatitude = coords.dropLatitude;
+    if (coords.dropLongitude !== null) updateData.dropLongitude = coords.dropLongitude;
+
     const updatedTrip = await tx.trip.update({
       where: { tripId: trip.tripId },
-      data: {
-        driverId: targetDriverId,
-        tripStatus: 'ASSIGNED',
-        assignedAt: new Date(),
-        version: { increment: 1 }
-      },
+      data: updateData,
       include: {
         driver: true,
         order: {
@@ -755,6 +868,11 @@ export async function assignDriverToTrip(tripId, adminId, { driver_id, driverId,
       ipAddress
     });
 
+    const pLat = updatedTrip.pickupLatitude !== null && updatedTrip.pickupLatitude !== undefined ? Number(updatedTrip.pickupLatitude) : (updatedTrip.order?.pickupLatitude !== null && updatedTrip.order?.pickupLatitude !== undefined ? Number(updatedTrip.order.pickupLatitude) : null);
+    const pLng = updatedTrip.pickupLongitude !== null && updatedTrip.pickupLongitude !== undefined ? Number(updatedTrip.pickupLongitude) : (updatedTrip.order?.pickupLongitude !== null && updatedTrip.order?.pickupLongitude !== undefined ? Number(updatedTrip.order.pickupLongitude) : null);
+    const dLat = updatedTrip.dropLatitude !== null && updatedTrip.dropLatitude !== undefined ? Number(updatedTrip.dropLatitude) : (updatedTrip.order?.dropLatitude !== null && updatedTrip.order?.dropLatitude !== undefined ? Number(updatedTrip.order.dropLatitude) : null);
+    const dLng = updatedTrip.dropLongitude !== null && updatedTrip.dropLongitude !== undefined ? Number(updatedTrip.dropLongitude) : (updatedTrip.order?.dropLongitude !== null && updatedTrip.order?.dropLongitude !== undefined ? Number(updatedTrip.order.dropLongitude) : null);
+
     return {
       trip: {
         trip_id: updatedTrip.tripId,
@@ -766,8 +884,122 @@ export async function assignDriverToTrip(tripId, adminId, { driver_id, driverId,
         trip_status: updatedTrip.tripStatus,
         amount: Number(updatedTrip.amount).toFixed(2),
         eta: updatedTrip.eta ? updatedTrip.eta.toISOString() : null,
-        assigned_at: updatedTrip.assignedAt ? updatedTrip.assignedAt.toISOString() : null
-      }
+        assigned_at: updatedTrip.assignedAt ? updatedTrip.assignedAt.toISOString() : null,
+        pickup_latitude: pLat,
+        pickup_longitude: pLng,
+        drop_latitude: dLat,
+        drop_longitude: dLng,
+        pickupLatitude: pLat,
+        pickupLongitude: pLng,
+        dropLatitude: dLat,
+        dropLongitude: dLng
+      },
+      warnings: []
     };
+  });
+}
+
+/**
+ * Admin updates trip details (including pickup/drop coordinates and amounts).
+ */
+export async function updateTrip(tripId, adminId, payload = {}, ipAddress) {
+  const coords = extractCoordinates(payload);
+  const { amount, eta, version, driver_id, driverId } = payload;
+
+  return prisma.$transaction(async (tx) => {
+    const trip = await tx.trip.findUnique({
+      where: { tripId: Number(tripId) },
+      include: {
+        order: {
+          include: {
+            company: true
+          }
+        },
+        driver: true
+      }
+    });
+
+    if (!trip) {
+      throw new AppError(404, 'NOT_FOUND', 'Trip not found.');
+    }
+
+    if (version !== undefined && version !== null && trip.version !== Number(version)) {
+      throw new AppError(409, 'VERSION_CONFLICT', 'Trip version mismatch. Please reload.');
+    }
+
+    const updateData = {
+      version: { increment: 1 }
+    };
+
+    if (coords.pickupLatitude !== null) updateData.pickupLatitude = coords.pickupLatitude;
+    if (coords.pickupLongitude !== null) updateData.pickupLongitude = coords.pickupLongitude;
+    if (coords.dropLatitude !== null) updateData.dropLatitude = coords.dropLatitude;
+    if (coords.dropLongitude !== null) updateData.dropLongitude = coords.dropLongitude;
+
+    if (amount !== undefined && amount !== null && amount !== '') {
+      const numAmount = Number(amount);
+      if (isNaN(numAmount) || numAmount <= 0) {
+        throw new AppError(422, 'VALIDATION_ERROR', 'Trip amount must be a positive number.');
+      }
+      updateData.amount = numAmount;
+    }
+
+    if (eta !== undefined && eta !== null && eta !== '') {
+      const d = new Date(eta);
+      if (isNaN(d.getTime())) {
+        throw new AppError(422, 'VALIDATION_ERROR', 'Invalid ETA format.');
+      }
+      updateData.eta = d;
+    }
+
+    const targetDriver = driver_id || driverId;
+    if (targetDriver) {
+      const numDriverId = Number(targetDriver);
+      const driver = await tx.driver.findUnique({ where: { driverId: numDriverId } });
+      if (!driver || driver.status !== 'ACTIVE') {
+        throw new AppError(422, 'DRIVER_NOT_ACTIVE', 'Only ACTIVE drivers can be assigned.');
+      }
+      updateData.driverId = numDriverId;
+      if (trip.tripStatus === 'UNASSIGNED') {
+        updateData.tripStatus = 'ASSIGNED';
+        updateData.assignedAt = new Date();
+      }
+    }
+
+    const updatedTrip = await tx.trip.update({
+      where: { tripId: trip.tripId },
+      data: updateData,
+      include: {
+        driver: true,
+        order: {
+          include: {
+            company: true
+          }
+        }
+      }
+    });
+
+    await recordAuditLog(tx, {
+      actorId: adminId,
+      actorType: 'ADMIN',
+      action: 'TRIP_UPDATED',
+      entityType: 'TRIP',
+      entityId: trip.tripId,
+      oldValue: {
+        pickupLatitude: trip.pickupLatitude,
+        pickupLongitude: trip.pickupLongitude,
+        dropLatitude: trip.dropLatitude,
+        dropLongitude: trip.dropLongitude
+      },
+      newValue: {
+        pickupLatitude: updatedTrip.pickupLatitude,
+        pickupLongitude: updatedTrip.pickupLongitude,
+        dropLatitude: updatedTrip.dropLatitude,
+        dropLongitude: updatedTrip.dropLongitude
+      },
+      ipAddress
+    });
+
+    return formatOrderResponse({ ...updatedTrip.order, trip: updatedTrip });
   });
 }
