@@ -5,7 +5,6 @@ import '../../../../core/routing/route_names.dart';
 import '../../../../core/theme/app_theme_colors.dart';
 import '../controllers/current_trip_provider.dart';
 import '../controllers/trip_mini_overlay_controller.dart';
-import 'trip_map_view.dart';
 
 /// In-App Floating Mini Card showing live driver location map at street level.
 /// Wrapped in a RepaintBoundary so dragging stays smooth.
@@ -104,16 +103,17 @@ class TripMiniFloatingCard extends ConsumerWidget {
                 ),
                 const SizedBox(height: 6),
 
-                // Live Map in driverLocation mode
+                // Fixed ONGOING label in place of map/route area
                 Expanded(
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(10),
-                    child: TripMapView(
-                      mode: TripMapMode.driverLocation,
-                      driverLat: overlayState.currentDriverLat,
-                      driverLng: overlayState.currentDriverLng,
-                      isLiteMode: overlayState.isLiteMode,
-                      interactive: false,
+                  child: Center(
+                    child: Text(
+                      'ONGOING',
+                      style: TextStyle(
+                        color: themeColors.purpleAccent,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.5,
+                      ),
                     ),
                   ),
                 ),
