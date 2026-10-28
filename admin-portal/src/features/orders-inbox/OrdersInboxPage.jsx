@@ -19,7 +19,7 @@ import {
   Building2,
   Calendar
 } from 'lucide-react';
-import { getOrders, acceptOrder, rejectOrder, createManualOrder } from './orderService';
+import { getOrders, acceptOrder, rejectOrder, createManualOrder, resendOrderEmail } from './orderService';
 import { useAuth } from '../auth/AuthContext';
 import OrderDetailModal from './OrderDetailModal';
 import CreateOrderModal from './CreateOrderModal';
@@ -82,8 +82,9 @@ export default function OrdersInboxPage({ onOpenDetail, onOpenCreate }) {
     setOrders((prev) =>
       prev.map((o) => (o.orderId === Number(orderId) ? updated : o))
     );
-    setSelectedOrderForDetail(null);
-    showToast(`Order #${orderId} accepted and converted to live trip for ₹${Number(tripAmount).toFixed(2)}!`);
+    setSelectedOrderForDetail(updated);
+    const emailTarget = updated.emailSentTo || updated.companyEmail || updated.companyName;
+    showToast(`Order #${orderId} accepted! Confirmation email dispatched to ${emailTarget}.`);
   };
 
   const handleRejectOrder = async (orderId, rejectReason) => {
@@ -91,8 +92,19 @@ export default function OrdersInboxPage({ onOpenDetail, onOpenCreate }) {
     setOrders((prev) =>
       prev.map((o) => (o.orderId === Number(orderId) ? updated : o))
     );
-    setSelectedOrderForDetail(null);
-    showToast(`Order #${orderId} has been declined. Client notified.`, 'error');
+    setSelectedOrderForDetail(updated);
+    const emailTarget = updated.emailSentTo || updated.companyEmail || updated.companyName;
+    showToast(`Order #${orderId} declined. Rejection reason emailed to ${emailTarget}.`, 'error');
+  };
+
+  const handleResendEmail = async (orderId) => {
+    const updated = await resendOrderEmail(orderId);
+    setOrders((prev) =>
+      prev.map((o) => (o.orderId === Number(orderId) ? updated : o))
+    );
+    setSelectedOrderForDetail(updated);
+    const emailTarget = updated.emailSentTo || updated.companyEmail || updated.companyName;
+    showToast(`Notification email successfully resent to ${emailTarget}!`);
   };
 
   const handleCreateOrder = async (orderData) => {
@@ -629,6 +641,7 @@ export default function OrdersInboxPage({ onOpenDetail, onOpenCreate }) {
         onClose={() => setSelectedOrderForDetail(null)}
         onAccept={handleAcceptOrder}
         onReject={handleRejectOrder}
+        onResendEmail={handleResendEmail}
         canManageOrders={canManageOrders}
       />
 
