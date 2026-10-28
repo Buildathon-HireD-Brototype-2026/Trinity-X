@@ -1105,9 +1105,6 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
     List<TripModel> assignedTrips,
   ) {
     final hasTrip = selectedTrip != null;
-    final isTrip1 = hasTrip &&
-        assignedTrips.isNotEmpty &&
-        selectedTrip.tripId == assignedTrips.first.tripId;
     final themeColors = context.appColors;
     final isDark = context.isDarkMode;
 
@@ -1191,15 +1188,19 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
           // OpenStreetMap Preview using flutter_map + latlong2 & Navigation Launcher
           LiveMap(
             height: 190,
-            pickupPosition: hasTrip
-                ? (isTrip1
-                    ? const LatLng(10.0158, 76.3418)
-                    : const LatLng(9.9312, 76.2673))
+            pickupPosition: hasTrip &&
+                    selectedTrip.pickupLatitude != null &&
+                    selectedTrip.pickupLongitude != null &&
+                    selectedTrip.pickupLatitude != 0.0 &&
+                    selectedTrip.pickupLongitude != 0.0
+                ? LatLng(selectedTrip.pickupLatitude!, selectedTrip.pickupLongitude!)
                 : null,
-            dropoffPosition: hasTrip
-                ? (isTrip1
-                    ? const LatLng(10.1518, 76.4019)
-                    : const LatLng(9.9816, 76.2999))
+            dropoffPosition: hasTrip &&
+                    selectedTrip.dropLatitude != null &&
+                    selectedTrip.dropLongitude != null &&
+                    selectedTrip.dropLatitude != 0.0 &&
+                    selectedTrip.dropLongitude != 0.0
+                ? LatLng(selectedTrip.dropLatitude!, selectedTrip.dropLongitude!)
                 : null,
             pickupLabel: selectedTrip?.pickupSpot,
             dropoffLabel: selectedTrip?.dropoffSpot,
