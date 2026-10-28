@@ -71,6 +71,11 @@ async function runTests() {
           status: 'ACTIVE'
         }
       });
+    } else {
+      await prisma.admin.update({
+        where: { adminId: admin1.adminId },
+        data: { passwordHash, failedLoginAttempts: 0, lockedUntil: null, status: 'ACTIVE' }
+      });
     }
 
     // Ensure Admin 2 (Verification Admin)
@@ -85,6 +90,11 @@ async function runTests() {
           passwordHash,
           status: 'ACTIVE'
         }
+      });
+    } else {
+      await prisma.admin.update({
+        where: { adminId: admin2.adminId },
+        data: { passwordHash, failedLoginAttempts: 0, lockedUntil: null, status: 'ACTIVE' }
       });
     }
 

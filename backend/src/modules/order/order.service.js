@@ -2,6 +2,7 @@ import crypto from 'crypto';
 import prisma from '../../config/db.js';
 import { AppError } from '../../shared/response.js';
 import { recordAuditLog } from '../../shared/audit.js';
+import { sendOrderDecisionEmail } from '../../shared/email.service.js';
 
 /**
  * Format order entity for API responses (both B2B Portal and OpenAPI specs).
@@ -304,6 +305,24 @@ export async function acceptOrder(orderId, adminId, { amount, eta, version } = {
       }
     });
 
+    // Transmit real email notification to B2B corporate client
+    try {
+      await sendOrderDecisionEmail({
+        to: order.company.emailId,
+        companyName: order.company.name,
+        orderId: order.orderId,
+        status: 'ACCEPTED',
+        pickupSpot: order.pickupSpot,
+        dropoffSpot: order.dropoffSpot,
+        pickupTime: order.pickupTime,
+        fare: tripAmount,
+        passengerName: order.contactName,
+        passengerPhone: order.contactPhone
+      });
+    } catch (mailErr) {
+      console.error('[order-accept] Email dispatch warning:', mailErr.message);
+    }
+
     // Record audit log
     await recordAuditLog(tx, {
       actorId: adminId,
@@ -400,6 +419,24 @@ export async function rejectOrder(orderId, adminId, { reason, reject_reason, ver
         lastError: rejectionReason
       }
     });
+
+    // Transmit real decline notification email to B2B corporate client
+    try {
+      await sendOrderDecisionEmail({
+        to: order.company.emailId,
+        companyName: order.company.name,
+        orderId: order.orderId,
+        status: 'REJECTED',
+        pickupSpot: order.pickupSpot,
+        dropoffSpot: order.dropoffSpot,
+        pickupTime: order.pickupTime,
+        rejectReason: rejectionReason,
+        passengerName: order.contactName,
+        passengerPhone: order.contactPhone
+      });
+    } catch (mailErr) {
+      console.error('[order-reject] Email dispatch warning:', mailErr.message);
+    }
 
     await recordAuditLog(tx, {
       actorId: adminId,
