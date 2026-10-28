@@ -1,3 +1,4 @@
+import { getFriendlyError, getFriendlyLoadError } from '../../utils/friendlyError';
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   Users,
@@ -73,7 +74,7 @@ export default function DriverOnboardingPage() {
       });
       setDrivers(data);
     } catch (err) {
-      setPageError(err.message || 'Failed to load drivers.');
+      setPageError(getFriendlyLoadError(err));
     } finally {
       setIsLoading(false);
     }
@@ -104,7 +105,7 @@ export default function DriverOnboardingPage() {
         setSelectedDriverForReview(null);
       }
     } catch (err) {
-      showToast(err.message || 'Failed to approve driver.', 'error');
+      showToast(getFriendlyError(err), 'error');
     }
   };
 
@@ -119,7 +120,7 @@ export default function DriverOnboardingPage() {
         setSelectedDriverForReview(null);
       }
     } catch (err) {
-      showToast(err.message || 'Failed to reject application.', 'error');
+      showToast(getFriendlyError(err), 'error');
     }
   };
 
@@ -131,7 +132,7 @@ export default function DriverOnboardingPage() {
       );
       showToast(`Driver status updated to ${updated.status}.`);
     } catch (err) {
-      showToast(err.message || 'Failed to change driver status.', 'error');
+      showToast(getFriendlyError(err), 'error');
     }
   };
 
@@ -142,8 +143,12 @@ export default function DriverOnboardingPage() {
   };
 
   const handleAddDriverSubmit = async (formData) => {
-    const newDriver = await addDriver(formData);
-    handleAddDriverSuccess(newDriver);
+    try {
+      const newDriver = await addDriver(formData);
+      handleAddDriverSuccess(newDriver);
+    } catch (err) {
+      showToast(getFriendlyError(err), 'error');
+    }
   };
 
   return (

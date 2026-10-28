@@ -1,3 +1,4 @@
+import { getFriendlyError } from '../../utils/friendlyError';
 import React, { useState, useEffect } from 'react';
 import {
   X,
@@ -175,7 +176,7 @@ export default function AddCompanyModal({ isOpen, onClose, onSubmit }) {
         onClose();
       }, 900);
     } catch (err) {
-      setSubmitError(err.message || 'Failed to onboard company. Please try again.');
+      setSubmitError(getFriendlyError(err));
       setIsSubmitting(false);
     }
   };

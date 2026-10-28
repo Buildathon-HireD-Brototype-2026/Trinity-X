@@ -9,6 +9,8 @@
  *   const data = await apiGet('/api/v1/admins/1', token);
  */
 
+import { getFriendlyError } from '../utils/friendlyError';
+
 const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
 /**
@@ -25,10 +27,19 @@ async function apiFetch(path, options = {}, token = null) {
     headers['Authorization'] = `Bearer ${token}`;
   }
 
-  const response = await fetch(`${BASE_URL}${path}`, {
-    ...options,
-    headers,
-  });
+  let response;
+  try {
+    response = await fetch(`${BASE_URL}${path}`, {
+      ...options,
+      headers,
+    });
+  } catch (netErr) {
+    const err = new Error('Cannot connect right now. Please check your internet and try again.');
+    err.isNetworkError = true;
+    err.friendlyMessage = 'Cannot connect right now. Please check your internet and try again.';
+    console.error('[apiFetch Network Failure]:', netErr);
+    throw err;
+  }
 
   // Parse body regardless of status so we can extract error messages
   let body = null;
@@ -46,6 +57,7 @@ async function apiFetch(path, options = {}, token = null) {
     const err = new Error(message);
     err.status = response.status;
     err.code = body?.error?.code || null;
+    err.friendlyMessage = getFriendlyError(err);
     throw err;
   }
 

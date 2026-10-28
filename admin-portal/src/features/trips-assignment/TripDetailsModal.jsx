@@ -1,3 +1,4 @@
+import { getFriendlyError } from '../../utils/friendlyError';
 import React, { useState, useEffect } from 'react';
 import {
   X,
@@ -86,7 +87,7 @@ export default function TripDetailsModal({
       const updated = await updateTripStatus(trip.tripId, nextStatus);
       onStatusUpdated(updated);
     } catch (err) {
-      setErrorMsg(err.message || 'Failed to update trip status.');
+      setErrorMsg(getFriendlyError(err));
       setIsSubmitting(false);
     }
   };
@@ -111,7 +112,7 @@ export default function TripDetailsModal({
       const updated = await updateTripStatus(trip.tripId, 'CANCELLED', { cancelReason: trimmed });
       onStatusUpdated(updated);
     } catch (err) {
-      setErrorMsg(err.message || 'Failed to cancel trip.');
+      setErrorMsg(getFriendlyError(err));
       setIsSubmitting(false);
     }
   };

@@ -1,3 +1,4 @@
+import { getFriendlyError, getFriendlyLoadError } from '../../utils/friendlyError';
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   BarChart3,
@@ -31,6 +32,7 @@ import { useAuth } from '../auth/AuthContext';
 import {
   REPORT_TYPES,
   COMPANIES_LIST,
+  getReportCompanies,
   getReportData,
   exportReportToCsv
 } from './reportService';
@@ -46,8 +48,16 @@ export default function TripReportsPage() {
     normalizedRole === 'OPERATIONS_ADMIN' ||
     normalizedRole === 'FINANCIAL_ADMIN' ||
     normalizedRole === 'ADMIN' ||
-    userEmail === 'admin1@hired.com' ||
-    !user?.role; // Default authorized in local mock
+    normalizedRole === 'SUPERADMIN' ||
+    normalizedRole === 'OPERATIONS';
+
+  const [companiesList, setCompaniesList] = useState([]);
+
+  useEffect(() => {
+    getReportCompanies()
+      .then((data) => setCompaniesList(Array.isArray(data) ? data : []))
+      .catch(() => setCompaniesList([]));
+  }, []);
 
   // ── Selected Report Category ───────────────────────────────────────────────
   const [activeReport, setActiveReport] = useState('trips'); // 'trips' | 'billing_issues' | 'driver_delays' | 'client_volume' | 'driver_payouts' | 'orders' | 'driver_work'
@@ -104,7 +114,7 @@ export default function TripReportsPage() {
       });
       setReportResult(data);
     } catch (err) {
-      setErrorMessage(err.message || 'Failed to aggregate fleet reports.');
+      setErrorMessage(getFriendlyLoadError(err));
     } finally {
       setIsLoading(false);
     }
@@ -559,7 +569,7 @@ export default function TripReportsPage() {
                 }}
               >
                 <option value="ALL">All Corporate Clients</option>
-                {COMPANIES_LIST.map((c) => (
+                {(companiesList.length > 0 ? companiesList : COMPANIES_LIST).map((c) => (
                   <option key={c.id} value={c.id}>{c.name}</option>
                 ))}
               </select>

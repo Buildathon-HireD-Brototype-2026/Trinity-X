@@ -1,3 +1,4 @@
+import { getFriendlyError } from '../../utils/friendlyError';
 import React, { useState, useEffect } from 'react';
 import { X, UserPlus, Mail, Phone, User, Eye, EyeOff, AlertCircle, CheckCircle2 } from 'lucide-react';
 
@@ -150,7 +151,7 @@ export default function AddAdminModal({ isOpen, onClose, onSubmit }) {
       // Auto-close after brief success flash
       setTimeout(() => onClose(), 1200);
     } catch (err) {
-      setSubmitError(err.message || 'Something went wrong. Please try again.');
+      setSubmitError(getFriendlyError(err));
       setIsSubmitting(false);
     }
   };

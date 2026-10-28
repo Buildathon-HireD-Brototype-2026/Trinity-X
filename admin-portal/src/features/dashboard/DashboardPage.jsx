@@ -7,17 +7,21 @@ import { getDashboardMetrics } from './dashboardService';
 
 export default function DashboardPage({ onNavigate }) {
   const [metrics, setMetrics] = useState({
-    ongoingTrips: '8',
-    pendingInvoices: '3',
+    ongoingTrips: '0',
+    pendingInvoices: '0',
   });
 
   useEffect(() => {
     let isMounted = true;
-    getDashboardMetrics().then((data) => {
-      if (isMounted && data) {
-        setMetrics(data);
-      }
-    });
+    getDashboardMetrics()
+      .then((data) => {
+        if (isMounted && data) {
+          setMetrics(data);
+        }
+      })
+      .catch((err) => {
+        console.error('[Dashboard Metrics Load Error]:', err);
+      });
     return () => {
       isMounted = false;
     };

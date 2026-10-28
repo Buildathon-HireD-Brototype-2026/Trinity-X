@@ -1,3 +1,4 @@
+import { getFriendlyError, getFriendlyLoadError } from '../../utils/friendlyError';
 import React, { useState, useEffect, useCallback } from 'react';
 import { ShieldCheck, UserPlus, AlertCircle, X } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
@@ -30,7 +31,7 @@ export default function AdminManagementPage() {
       const data = await getAdmins();
       setAdmins(data);
     } catch (err) {
-      setPageError(err.message || 'Failed to load admin accounts.');
+      setPageError(getFriendlyLoadError(err));
     } finally {
       setIsLoading(false);
     }
@@ -48,9 +49,14 @@ export default function AdminManagementPage() {
 
   // ── Add admin submit ───────────────────────────────────────────────────────
   const handleAddAdmin = async (formData) => {
-    const newAdmin = await addAdmin(formData); // throws on error
-    setAdmins((prev) => [...prev, newAdmin]);
-    showToast(`${newAdmin.admin_name} has been added as an admin.`);
+    try {
+      const newAdmin = await addAdmin(formData);
+      setAdmins((prev) => [...prev, newAdmin]);
+      showToast(`${newAdmin.admin_name} has been added as an admin.`);
+    } catch (err) {
+      showToast(getFriendlyError(err), 'error');
+      throw err;
+    }
   };
 
   // ── Deactivate flow ────────────────────────────────────────────────────────
@@ -84,7 +90,7 @@ export default function AdminManagementPage() {
       showToast(`${confirmTarget.admin_name} has been deactivated.`);
       setConfirmTarget(null);
     } catch (err) {
-      setDeactivateError(err.message || 'Could not deactivate admin.');
+      setDeactivateError(getFriendlyError(err));
     } finally {
       setIsDeactivating(false);
     }

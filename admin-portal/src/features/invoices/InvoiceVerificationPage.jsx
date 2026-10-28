@@ -1,3 +1,4 @@
+import { getFriendlyError, getFriendlyLoadError } from '../../utils/friendlyError';
 import React, { useState, useEffect, useCallback } from 'react';
 import { Search, Plus, RefreshCw, FileText, CheckCircle2, AlertCircle } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
@@ -35,9 +36,10 @@ export default function InvoiceVerificationPage() {
     try {
       setLoading(true);
       const data = await invoiceService.getInvoices({ search: searchQuery });
-      setInvoices(data);
-    } catch {
-      showToast('Failed to load invoice statements', 'error');
+      setInvoices(Array.isArray(data) ? data : []);
+    } catch (err) {
+      setInvoices([]);
+      showToast(getFriendlyLoadError(err), 'error');
     } finally {
       setLoading(false);
     }
@@ -68,17 +70,25 @@ export default function InvoiceVerificationPage() {
 
   // ── Approval Handlers ──────────────────────────────────────────────────────
   const handleApproveFirst = async (id) => {
-    const updated = await invoiceService.approveFirst(id, currentUser || { email: 'admin@hired.com', name: 'Admin' });
-    setSelectedInvoice(updated);
-    showToast(`1st approval recorded for #${updated.id}`, 'success');
-    await loadInvoices();
+    try {
+      const updated = await invoiceService.approveFirst(id, currentUser || { email: 'admin@hired.com', name: 'Admin' });
+      setSelectedInvoice(updated);
+      showToast(`1st approval recorded for #${updated.id || id}`, 'success');
+      await loadInvoices();
+    } catch (err) {
+      showToast(getFriendlyError(err), 'error');
+    }
   };
 
   const handleApproveSecond = async (id) => {
-    const updated = await invoiceService.approveSecond(id, currentUser || { email: 'ops@hired.com', name: 'Operations Admin' });
-    setSelectedInvoice(updated);
-    showToast(`Verification complete (2/2) for #${updated.id}! Ready to send.`, 'success');
-    await loadInvoices();
+    try {
+      const updated = await invoiceService.approveSecond(id, currentUser || { email: 'ops@hired.com', name: 'Operations Admin' });
+      setSelectedInvoice(updated);
+      showToast(`Verification complete (2/2) for #${updated.id || id}! Ready to send.`, 'success');
+      await loadInvoices();
+    } catch (err) {
+      showToast(getFriendlyError(err), 'error');
+    }
   };
 
   // ── Send Email Dispatch Handler ───────────────────────────────────────────

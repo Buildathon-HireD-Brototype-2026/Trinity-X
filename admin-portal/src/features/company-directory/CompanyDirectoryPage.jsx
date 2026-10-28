@@ -30,6 +30,7 @@ import CompanyReviewModal from './CompanyReviewModal';
 import CompanyDetailsModal from './CompanyDetailsModal';
 import AddCompanyModal from './AddCompanyModal';
 import { useAuth } from '../auth/AuthContext';
+import { getFriendlyError, getFriendlyLoadError } from '../../utils/friendlyError';
 
 export default function CompanyDirectoryPage() {
   const { user } = useAuth();
@@ -83,7 +84,7 @@ export default function CompanyDirectoryPage() {
       setCompanies(compList);
       setRegistrationRequests(reqList);
     } catch (err) {
-      setPageError(err.message || 'Failed to load company directory data.');
+      setPageError(getFriendlyLoadError(err));
     } finally {
       setIsLoading(false);
     }
@@ -117,7 +118,7 @@ export default function CompanyDirectoryPage() {
         setSelectedRequestForReview(null);
       }
     } catch (err) {
-      showToast(err.message || 'Failed to approve registration.', 'error');
+      showToast(getFriendlyError(err), 'error');
     } finally {
       setProcessingRequestId(null);
     }
@@ -140,7 +141,7 @@ export default function CompanyDirectoryPage() {
         setSelectedRequestForReview(null);
       }
     } catch (err) {
-      showToast(err.message || 'Failed to reject registration.', 'error');
+      showToast(getFriendlyError(err), 'error');
     } finally {
       setProcessingRequestId(null);
     }
@@ -156,7 +157,7 @@ export default function CompanyDirectoryPage() {
       );
       showToast(`Company status updated to ${updated.status}.`);
     } catch (err) {
-      showToast(err.message || 'Failed to toggle status.', 'error');
+      showToast(getFriendlyError(err), 'error');
     } finally {
       setProcessingCompanyId(null);
     }
@@ -173,16 +174,20 @@ export default function CompanyDirectoryPage() {
       }
       showToast(`Payout split updated to ${updated.hiredSplit}% HireD / ${updated.driverSplit}% Driver.`);
     } catch (err) {
-      showToast(err.message || 'Failed to update payout split.', 'error');
+      showToast(getFriendlyError(err), 'error');
       throw err;
     }
   };
 
   const handleAddCompanySubmit = async (formData) => {
-    const newCompany = await addCompany(formData);
-    setCompanies((prev) => [newCompany, ...prev]);
-    setIsAddCompanyModalOpen(false);
-    showToast(`Company ${newCompany.name} onboarded successfully!`);
+    try {
+      const newCompany = await addCompany(formData);
+      setCompanies((prev) => [newCompany, ...prev]);
+      setIsAddCompanyModalOpen(false);
+      showToast(`Company ${newCompany.name} onboarded successfully!`);
+    } catch (err) {
+      showToast(getFriendlyError(err), 'error');
+    }
   };
 
   // Helper for masking phone numbers for PII compliance

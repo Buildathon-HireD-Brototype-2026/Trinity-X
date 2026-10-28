@@ -1,3 +1,4 @@
+import { getFriendlySaveError } from '../../utils/friendlyError';
 import React, { useState } from 'react';
 import {
   User,
@@ -25,9 +26,9 @@ export default function AdminProfilePage({ onNavigate }) {
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
 
-  const adminName = user?.name || 'Neha Sharma';
-  const adminEmail = user?.email || 'admin2@hired.com';
-  const adminPhone = user?.phone || '+91 98765 43210';
+  const adminName = user?.name || user?.admin_name || 'Administrator';
+  const adminEmail = user?.email || user?.email_id || '';
+  const adminPhone = user?.phone || user?.phone_no || '—';
   const adminRole = user?.role || 'Admin';
   const initial = adminName.charAt(0).toUpperCase();
 
@@ -136,7 +137,7 @@ export default function AdminProfilePage({ onNavigate }) {
       } catch (err) {
         // Surface backend validation errors; 401/403 falls through to local update
         if (err.status && err.status !== 401 && err.status !== 403) {
-          setSaveError(err.message || 'Failed to update profile. Please try again.');
+          setSaveError(getFriendlySaveError(err));
           setIsSaving(false);
           return;
         }

@@ -1,3 +1,4 @@
+import { getFriendlyError } from '../../utils/friendlyError';
 import React, { useState, useEffect } from 'react';
 import {
   X,
@@ -222,7 +223,7 @@ export default function CreateOrderModal({ isOpen, onClose, onSubmit }) {
         onClose();
       }, 700);
     } catch (err) {
-      setSubmitError(err.message || 'Failed to create order. Please try again.');
+      setSubmitError(getFriendlyError(err));
       setIsSubmitting(false);
     }
   };

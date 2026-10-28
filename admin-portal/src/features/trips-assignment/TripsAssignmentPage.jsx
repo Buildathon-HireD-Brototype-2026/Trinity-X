@@ -1,3 +1,4 @@
+import { getFriendlyError, getFriendlyLoadError } from '../../utils/friendlyError';
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   Navigation,
@@ -70,7 +71,7 @@ export default function TripsAssignmentPage() {
       });
       setTrips(data);
     } catch (err) {
-      setPageError(err.message || 'Failed to load trips dispatch roster.');
+      setPageError(getFriendlyLoadError(err));
     } finally {
       setIsLoading(false);
     }

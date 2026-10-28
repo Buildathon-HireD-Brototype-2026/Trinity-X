@@ -1,3 +1,4 @@
+import { getFriendlyError, getFriendlyLoadError } from '../../utils/friendlyError';
 import React, { useState, useEffect } from 'react';
 import {
   X,
@@ -47,7 +48,7 @@ export default function AssignDriverModal({
           }
         })
         .catch((err) => {
-          setErrorMsg(err.message || 'Failed to fetch eligible drivers.');
+          setErrorMsg(getFriendlyLoadError(err));
         })
         .finally(() => {
           setIsLoadingDrivers(false);
@@ -92,7 +93,7 @@ export default function AssignDriverModal({
       const updated = await assignDriverToTrip(trip.tripId, selectedDriverId);
       onAssigned(updated);
     } catch (err) {
-      setErrorMsg(err.message || 'Failed to assign driver. Please try again.');
+      setErrorMsg(getFriendlyError(err));
       setIsSubmitting(false);
     }
   };

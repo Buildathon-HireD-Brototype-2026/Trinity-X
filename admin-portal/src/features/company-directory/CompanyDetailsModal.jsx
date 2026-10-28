@@ -1,3 +1,4 @@
+import { getFriendlyError } from '../../utils/friendlyError';
 import React, { useState, useEffect } from 'react';
 import {
   X,
@@ -91,7 +92,7 @@ export default function CompanyDetailsModal({
       await onUpdateSplit(company.companyId, h, d);
       setIsEditingSplit(false);
     } catch (err) {
-      setSplitError(err.message || 'Failed to update payout split.');
+      setSplitError(getFriendlyError(err));
     } finally {
       setIsSubmitting(false);
     }

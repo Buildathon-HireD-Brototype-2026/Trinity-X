@@ -1,3 +1,5 @@
+import { getFriendlyError } from '../utils/friendlyError';
+
 const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api/v1';
 
 /**
@@ -46,19 +48,32 @@ class ApiClient {
       const data = isJson ? await res.json() : null;
 
       if (!res.ok) {
-        const errorMsg = data?.message || data?.error || `Request failed with status ${res.status}`;
-        const err = new Error(errorMsg);
+        if (res.status === 401 && typeof window !== 'undefined') {
+          try {
+            sessionStorage.removeItem('hired_admin_session');
+            sessionStorage.removeItem('hired_admin_user');
+            sessionStorage.setItem('hired_logout_reason', 'relogin');
+            window.dispatchEvent(new CustomEvent('hired:auth_expired'));
+          } catch {
+            // ignore session cleanup error
+          }
+        }
+
+        const rawMsg = data?.message || data?.error?.message || data?.error || '';
+        const err = new Error(rawMsg || `Request failed with status ${res.status}`);
         err.status = res.status;
         err.data = data;
+        err.friendlyMessage = getFriendlyError(err);
         throw err;
       }
 
       return data;
     } catch (err) {
-      // Re-throw if already formatted, or wrap network failure
       if (err.status) throw err;
-      const networkErr = new Error('Network error: Unable to connect to backend server');
+      const networkErr = new Error('Cannot connect right now. Please check your internet and try again.');
       networkErr.isNetworkError = true;
+      networkErr.friendlyMessage = 'Cannot connect right now. Please check your internet and try again.';
+      console.error('[ApiClient Network Failure]:', err);
       throw networkErr;
     }
   }

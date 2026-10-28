@@ -1,3 +1,4 @@
+import { getFriendlyError, getFriendlyLoadError } from '../../utils/friendlyError';
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   Inbox,
@@ -79,7 +80,7 @@ export default function OrdersInboxPage({ onOpenDetail, onOpenCreate }) {
       });
       setOrders(data);
     } catch (err) {
-      setPageError(err.message || 'Failed to load booking orders.');
+      setPageError(getFriendlyLoadError(err));
     } finally {
       setIsLoading(false);
     }
@@ -135,7 +136,7 @@ export default function OrdersInboxPage({ onOpenDetail, onOpenCreate }) {
         );
       }
     } catch (err) {
-      showToast(err.message || 'Failed to process order decision', 'error');
+      showToast(getFriendlyError(err), 'error');
     } finally {
       setIsSubmittingDecision(false);
     }
@@ -157,15 +158,19 @@ export default function OrdersInboxPage({ onOpenDetail, onOpenCreate }) {
         showToast('Status updated, but email failed to send', 'error');
       }
     } catch (err) {
-      showToast(err.message || 'Failed to resend email', 'error');
+      showToast(getFriendlyError(err), 'error');
     }
   };
 
   const handleCreateOrder = async (orderData) => {
-    const newOrder = await createManualOrder(orderData);
-    setOrders((prev) => [newOrder, ...prev]);
-    setIsCreateModalOpen(false);
-    showToast(`Order #ORD-${newOrder.orderId} created successfully on behalf of ${newOrder.companyName}!`);
+    try {
+      const newOrder = await createManualOrder(orderData);
+      setOrders((prev) => [newOrder, ...prev]);
+      setIsCreateModalOpen(false);
+      showToast(`Order #ORD-${newOrder.orderId} created successfully on behalf of ${newOrder.companyName || 'client'}!`);
+    } catch (err) {
+      showToast(getFriendlyError(err), 'error');
+    }
   };
   const stats = useMemo(() => {
     const total = orders.length;

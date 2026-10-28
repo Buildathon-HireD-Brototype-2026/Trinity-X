@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { Eye, EyeOff, Lock, Mail, AlertCircle, Loader2, Clock } from 'lucide-react';
+import { Eye, EyeOff, Lock, Mail, AlertCircle, Loader2 } from 'lucide-react';
 import { useAuth } from './AuthContext';
 import logoImg from '../../assets/logo.png';
+import { getFriendlyError } from '../../utils/friendlyError';
 
 export default function LoginPage() {
   const { login, loading } = useAuth();
@@ -10,20 +11,11 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [fieldErrors, setFieldErrors] = useState({});
-  const [logoutNotice, setLogoutNotice] = useState(() => {
+  const [notice, setNotice] = useState(() => {
     try {
       const reason = sessionStorage.getItem('hired_logout_reason');
-      if (reason === 'inactivity') {
-        return {
-          title: 'Session Expired',
-          message: 'You were automatically logged out after 15 minutes of inactivity for your security.',
-        };
-      }
-      if (reason === 'expired') {
-        return {
-          title: 'Session Expired',
-          message: 'Your 8-hour login session has expired. Please sign in again.',
-        };
+      if (reason) {
+        return 'Please log in again to continue.';
       }
       return null;
     } catch {
@@ -36,15 +28,15 @@ export default function LoginPage() {
     const trimmedEmail = email.trim();
 
     if (!trimmedEmail) {
-      errors.email = 'Email address is required.';
+      errors.email = 'Please enter your email address.';
     } else if (trimmedEmail.length > 50) {
-      errors.email = 'Email cannot exceed 50 characters.';
+      errors.email = 'Email address cannot exceed 50 characters.';
     } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
       errors.email = 'Please enter a valid email address.';
     }
 
     if (!password) {
-      errors.password = 'Password is required.';
+      errors.password = 'Please enter your password.';
     } else if (password.length > 50) {
       errors.password = 'Password cannot exceed 50 characters.';
     }
@@ -53,9 +45,9 @@ export default function LoginPage() {
     return Object.keys(errors).length === 0;
   };
 
-  const dismissLogoutNotice = () => {
-    if (logoutNotice) {
-      setLogoutNotice(null);
+  const dismissNotice = () => {
+    if (notice) {
+      setNotice(null);
       try {
         sessionStorage.removeItem('hired_logout_reason');
       } catch {
@@ -67,7 +59,7 @@ export default function LoginPage() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
-    dismissLogoutNotice();
+    dismissNotice();
 
     if (!validate()) {
       return;
@@ -76,17 +68,9 @@ export default function LoginPage() {
     try {
       await login(email, password);
     } catch (err) {
-      setError(err.message || 'Failed to authenticate. Please try again.');
+      setError(getFriendlyError(err, 'Invalid email or password. Please try again.'));
       setPassword('');
     }
-  };
-
-  const fillTestCredentials = (testEmail, testPassword) => {
-    setEmail(testEmail);
-    setPassword(testPassword);
-    setFieldErrors({});
-    setError('');
-    dismissLogoutNotice();
   };
 
   return (
@@ -99,18 +83,17 @@ export default function LoginPage() {
           <p className="login-subtitle">Sign in to manage the HireD fleet and operations</p>
         </div>
 
-        {/* Inactivity / Session Expired Notice Banner */}
-        {logoutNotice && (
+        {/* User-friendly Re-login Notice Banner */}
+        {notice && (
           <div className="inactivity-banner" role="alert">
-            <Clock size={18} className="inactivity-icon" />
+            <AlertCircle size={18} className="inactivity-icon" />
             <div className="inactivity-text">
-              <strong>{logoutNotice.title}</strong>
-              <span>{logoutNotice.message}</span>
+              <span>{notice}</span>
             </div>
             <button
               type="button"
               className="inactivity-close-btn"
-              onClick={dismissLogoutNotice}
+              onClick={dismissNotice}
               aria-label="Dismiss notice"
             >
               ×
@@ -200,27 +183,6 @@ export default function LoginPage() {
             )}
           </button>
         </form>
-
-        {/* Testing Hint */}
-        <div className="test-credentials-box">
-          <span className="test-label">Demo Credentials:</span>
-          <div className="test-accounts">
-            <button
-              type="button"
-              className="test-account-chip"
-              onClick={() => fillTestCredentials('admin1@hired.com', 'Password@123')}
-            >
-              admin1@hired.com
-            </button>
-            <button
-              type="button"
-              className="test-account-chip"
-              onClick={() => fillTestCredentials('admin2@hired.com', 'Password@123')}
-            >
-              admin2@hired.com
-            </button>
-          </div>
-        </div>
       </div>
     </div>
   );

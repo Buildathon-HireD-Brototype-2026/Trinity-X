@@ -1,42 +1,9 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useIdleTimer } from '../../hooks/useIdleTimer';
 import apiClient from '../../services/apiClient';
+import { getFriendlyError } from '../../utils/friendlyError';
 
 const AuthContext = createContext(null);
-
-// Security Safeguard (OWASP ASVS): In production environments, mock administrative credentials
-// must never be bundled or shipped to clients.
-const DEFAULT_ADMINS = import.meta.env.PROD
-  ? []
-  : [
-      {
-        id: 'ADM-001',
-        name: 'Admin One',
-        email: 'admin1@hired.com',
-        phone: '+91 98450 11223',
-        password: 'Password@123',
-        role: 'Admin',
-        status: 'ACTIVE',
-      },
-      {
-        id: 'ADM-002',
-        name: 'Neha Sharma',
-        email: 'admin2@hired.com',
-        phone: '+91 98765 43210',
-        password: 'Password@123',
-        role: 'Admin',
-        status: 'ACTIVE',
-      },
-      {
-        id: 'ADM-003',
-        name: 'Inactive Admin',
-        email: 'inactive@hired.com',
-        phone: '+91 98111 22334',
-        password: 'Password@123',
-        role: 'Admin',
-        status: 'INACTIVE',
-      },
-    ];
 
 const MAX_SESSION_DURATION_MS = 8 * 60 * 60 * 1000; // 8 hours absolute token validity
 const SESSION_STORAGE_KEY = 'hired_admin_session';
@@ -49,12 +16,13 @@ function sanitizeSessionUser(rawUser, existingExpiresAt = null) {
   if (!rawUser) return null;
   const now = Date.now();
   return {
-    id: String(rawUser.id || ''),
-    name: String(rawUser.name || ''),
-    email: String(rawUser.email || '').toLowerCase(),
-    phone: String(rawUser.phone || (rawUser.email === 'admin1@hired.com' ? '+91 98450 11223' : '+91 98765 43210')),
+    id: String(rawUser.id || rawUser.admin_id || ''),
+    adminId: Number(rawUser.adminId || rawUser.admin_id || rawUser.id) || null,
+    name: String(rawUser.name || rawUser.admin_name || 'Administrator'),
+    email: String(rawUser.email || rawUser.email_id || '').toLowerCase(),
+    phone: String(rawUser.phone || rawUser.phone_no || rawUser.phoneNo || ''),
     role: String(rawUser.role || 'Admin'),
-    token: rawUser.token || `hired_admin_token_${now}`,
+    token: rawUser.token || rawUser.access_token || null,
     expiresAt: existingExpiresAt || rawUser.expiresAt || now + MAX_SESSION_DURATION_MS,
   };
 }
@@ -62,14 +30,12 @@ function sanitizeSessionUser(rawUser, existingExpiresAt = null) {
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(() => {
     try {
-      // 1. Read from isolated sessionStorage (prevents disk exposure and tab leaks)
       let saved = sessionStorage.getItem(SESSION_STORAGE_KEY) || sessionStorage.getItem('hired_admin_user');
 
-      // 2. Migration fallback: purge legacy localStorage to protect existing users
       if (!saved) {
         saved = localStorage.getItem('hired_admin_user');
         if (saved) {
-          localStorage.removeItem('hired_admin_user'); // Clean disk storage
+          localStorage.removeItem('hired_admin_user');
           sessionStorage.setItem(SESSION_STORAGE_KEY, saved);
         }
       }
@@ -77,11 +43,15 @@ export function AuthProvider({ children }) {
       if (saved) {
         const parsed = JSON.parse(saved);
 
-        // 3. Enforce token expiration validation
+        // Enforce token expiration validation
         if (parsed.expiresAt && Date.now() > parsed.expiresAt) {
           sessionStorage.removeItem(SESSION_STORAGE_KEY);
           sessionStorage.removeItem('hired_admin_user');
-          sessionStorage.setItem('hired_logout_reason', 'expired');
+          sessionStorage.setItem('hired_logout_reason', 'relogin');
+          return null;
+        }
+
+        if (!parsed.token) {
           return null;
         }
 
@@ -98,15 +68,28 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(false);
   const [failedAttempts, setFailedAttempts] = useState(0);
 
+  // Listen for auto-logout / session expiration events triggered by API client
+  useEffect(() => {
+    const handleAuthExpired = () => {
+      logout('relogin');
+    };
+    if (typeof window !== 'undefined') {
+      window.addEventListener('hired:auth_expired', handleAuthExpired);
+      return () => {
+        window.removeEventListener('hired:auth_expired', handleAuthExpired);
+      };
+    }
+  }, []);
+
   const login = async (email, password) => {
     setLoading(true);
 
     if (typeof navigator !== 'undefined' && !navigator.onLine) {
       setLoading(false);
-      throw new Error('Unable to connect to server. Please check your connection.');
+      throw new Error('Cannot connect right now. Please check your internet and try again.');
     }
 
-    // Check account lockout rate-limiting
+    // Rate-limiting safeguard on local client
     if (failedAttempts >= 5) {
       setLoading(false);
       throw new Error('Too many failed attempts. Please try again in 15 minutes.');
@@ -114,72 +97,45 @@ export function AuthProvider({ children }) {
 
     const normalizedEmail = (email || '').trim().toLowerCase();
 
-    // 1. Attempt live backend login
     try {
       const res = await apiClient.post('/auth/admin/login', {
         email: normalizedEmail,
-        password
+        password,
       });
 
-      if (res?.data?.access_token || res?.access_token) {
-        const token = res?.data?.access_token || res?.access_token;
-        const backendUser = res?.data?.user || res?.user || {};
-        const sessionUser = {
-          id: backendUser.admin_id ? `ADM-${backendUser.admin_id}` : backendUser.id || 'ADM-001',
-          adminId: backendUser.adminId || backendUser.admin_id || 1,
-          name: backendUser.admin_name || backendUser.name || 'Administrator',
-          email: backendUser.email_id || backendUser.email || normalizedEmail,
-          role: backendUser.role || 'Admin',
-          token,
-          expiresAt: Date.now() + MAX_SESSION_DURATION_MS,
-        };
-
-        setFailedAttempts(0);
-        sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(sessionUser));
-        localStorage.setItem('hired_admin_user', JSON.stringify(sessionUser));
-        setUser(sessionUser);
-        setLoading(false);
-        return sessionUser;
+      const token = res?.data?.access_token || res?.access_token;
+      if (!token) {
+        throw new Error('Invalid email or password. Please try again.');
       }
+
+      const backendUser = res?.data?.user || res?.user || {};
+      const sessionUser = sanitizeSessionUser({
+        ...backendUser,
+        token,
+        expiresAt: Date.now() + MAX_SESSION_DURATION_MS,
+      });
+
+      setFailedAttempts(0);
+      sessionStorage.removeItem('hired_logout_reason');
+      sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(sessionUser));
+      localStorage.removeItem('hired_admin_user');
+
+      setUser(sessionUser);
+      setLoading(false);
+      return sessionUser;
     } catch (apiErr) {
-      console.warn('[AuthContext] Backend login attempt skipped/failed, evaluating local credentials:', apiErr.message);
-    }
-
-    // 2. Fallback to local admin credentials
-    await new Promise((resolve) => setTimeout(resolve, 200));
-    const adminByEmail = DEFAULT_ADMINS.find((a) => a.email.toLowerCase() === normalizedEmail);
-
-    if (!adminByEmail || adminByEmail.password !== password) {
+      setLoading(false);
       const nextFailures = failedAttempts + 1;
       setFailedAttempts(nextFailures);
-      setLoading(false);
 
       if (nextFailures >= 5) {
         throw new Error('Too many failed attempts. Please try again in 15 minutes.');
       }
-      throw new Error('Invalid email or password. Please try again.');
+
+      // Format friendly error message
+      const friendlyMsg = getFriendlyError(apiErr, 'Invalid email or password. Please try again.');
+      throw new Error(friendlyMsg);
     }
-
-    // Check deactivated account status
-    if (adminByEmail.status === 'INACTIVE') {
-      setLoading(false);
-      throw new Error('Your account is deactivated. Please contact support.');
-    }
-
-    // Login success: sanitize session and enforce absolute expiry
-    setFailedAttempts(0);
-    const sessionUser = sanitizeSessionUser(adminByEmail);
-
-    // Clear any previous logout reason on fresh login
-    sessionStorage.removeItem('hired_logout_reason');
-
-    // Securely persist in sessionStorage only (NOT long-lived localStorage)
-    sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(sessionUser));
-    localStorage.removeItem('hired_admin_user'); // Clean disk storage
-
-    setUser(sessionUser);
-    setLoading(false);
-    return sessionUser;
   };
 
   const logout = (reason = null) => {
@@ -199,19 +155,16 @@ export function AuthProvider({ children }) {
   useIdleTimer({
     timeoutMs: 15 * 60 * 1000,
     onIdle: () => {
-      logout('inactivity');
+      logout('relogin');
     },
     isEnabled: !!user,
   });
 
   const updateProfile = (updatedData) => {
     setUser((prev) => {
+      if (!prev) return null;
       const updated = sanitizeSessionUser({ ...prev, ...updatedData }, prev?.expiresAt);
       sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(updated));
-      const idx = DEFAULT_ADMINS.findIndex((a) => a.id === updated.id || a.email === prev?.email);
-      if (idx !== -1) {
-        DEFAULT_ADMINS[idx] = { ...DEFAULT_ADMINS[idx], ...updatedData };
-      }
       return updated;
     });
   };
@@ -239,32 +192,3 @@ export function useAuth() {
   }
   return context;
 }
-
-export function registerAuthAdmin({ id, name, email, phone, password, status = 'ACTIVE' }) {
-  const normalizedEmail = (email || '').trim().toLowerCase();
-  const existing = DEFAULT_ADMINS.find((a) => a.email.toLowerCase() === normalizedEmail);
-  if (!existing) {
-    DEFAULT_ADMINS.push({
-      id,
-      name,
-      email: normalizedEmail,
-      phone,
-      password: password || 'Password@123',
-      role: 'Admin',
-      status,
-    });
-  } else {
-    existing.status = status;
-    if (password) existing.password = password;
-  }
-}
-
-export function updateAuthAdminStatus(idOrEmail, newStatus) {
-  const target = DEFAULT_ADMINS.find(
-    (a) => a.id === idOrEmail || a.email.toLowerCase() === (idOrEmail || '').toLowerCase()
-  );
-  if (target) {
-    target.status = newStatus;
-  }
-}
-

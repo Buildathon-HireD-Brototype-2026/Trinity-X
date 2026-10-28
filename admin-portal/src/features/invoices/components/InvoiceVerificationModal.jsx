@@ -1,3 +1,4 @@
+import { getFriendlyError } from '../../../utils/friendlyError';
 import React, { useState } from 'react';
 import { X, CheckCircle, ShieldCheck, AlertCircle, FileText, Send, UserCheck, Calendar, IndianRupee } from 'lucide-react';
 
@@ -38,7 +39,7 @@ export default function InvoiceVerificationModal({
       setError(null);
       await onApproveFirst(invoice.id);
     } catch (err) {
-      setError(err.message || 'Failed to submit first approval.');
+      setError(getFriendlyError(err));
     } finally {
       setLoading(false);
     }
@@ -50,7 +51,7 @@ export default function InvoiceVerificationModal({
       setError(null);
       await onApproveSecond(invoice.id);
     } catch (err) {
-      setError(err.message || 'Failed to submit second approval.');
+      setError(getFriendlyError(err));
     } finally {
       setLoading(false);
     }

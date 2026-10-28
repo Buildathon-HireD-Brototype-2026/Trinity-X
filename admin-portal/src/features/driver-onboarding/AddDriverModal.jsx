@@ -1,3 +1,4 @@
+import { getFriendlyError } from '../../utils/friendlyError';
 import React, { useState, useEffect } from 'react';
 import {
   X,
@@ -136,7 +137,7 @@ export default function AddDriverModal({ isOpen, onClose, onSubmit }) {
         onClose();
       }, 900);
     } catch (err) {
-      setSubmitError(err.message || 'Failed to onboard driver. Please try again.');
+      setSubmitError(getFriendlyError(err));
       setIsSubmitting(false);
     }
   };

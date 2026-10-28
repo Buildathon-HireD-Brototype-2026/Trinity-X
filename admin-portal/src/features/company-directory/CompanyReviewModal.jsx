@@ -1,3 +1,4 @@
+import { getFriendlyError } from '../../utils/friendlyError';
 import React, { useState, useEffect } from 'react';
 import {
   X,
@@ -69,7 +70,7 @@ export default function CompanyReviewModal({
     try {
       await onApprove(request.requestId);
     } catch (err) {
-      setErrorMsg(err.message || 'Failed to approve registration request.');
+      setErrorMsg(getFriendlyError(err));
       setIsSubmitting(false);
     }
   };
@@ -85,7 +86,7 @@ export default function CompanyReviewModal({
     try {
       await onReject(request.requestId, rejectReason.trim());
     } catch (err) {
-      setErrorMsg(err.message || 'Failed to reject registration request.');
+      setErrorMsg(getFriendlyError(err));
       setIsSubmitting(false);
     }
   };

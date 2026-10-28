@@ -22,160 +22,17 @@ import {
 import {
   getDashboardOrders,
   acceptOrder,
-  rejectOrder,
-  FALLBACK_ORDERS
+  rejectOrder
 } from '../dashboardService';
 import OrderDecisionEmailModal from '../../orders-inbox/OrderDecisionEmailModal';
 import { useAuth } from '../../auth/AuthContext';
-
-const MOCK_ORDERS = [
-  {
-    id: 'ORD-615',
-    orderId: 615,
-    tripId: null,
-    company: 'Apex Global Logistics',
-    companyName: 'Apex Global Logistics',
-    companyEmail: 'logistics@apexglobal.com',
-    pickup: 'Cyber City Tower C, DLF Phase 2, Gurugram',
-    pickupSpot: 'Cyber City Tower C, DLF Phase 2, Gurugram',
-    dropoff: 'Terminal 3 International Departures, IGI Airport, New Delhi',
-    dropoffSpot: 'Terminal 3 International Departures, IGI Airport, New Delhi',
-    scheduledDate: '2026-10-12T10:00:00',
-    pickupTime: '2026-10-12T10:00:00',
-    displayDate: '12 Oct 2026, 10:00 am',
-    passenger: 'Vikrant Roy',
-    passengerPhone: '+91 98450 12345',
-    status: 'PENDING',
-    fare: '₹1,450',
-    vehicleType: 'Sedan (Prime)',
-  },
-  {
-    id: 'ORD-618',
-    orderId: 618,
-    tripId: null,
-    company: 'Kochi Tech Ventures',
-    companyName: 'Kochi Tech Ventures',
-    companyEmail: 'tech@kochiventures.com',
-    pickup: 'Infopark Expressway, Kakkanad, Kochi',
-    pickupSpot: 'Infopark Expressway, Kakkanad, Kochi',
-    dropoff: 'Cochin International Airport (COK), Nedumbassery',
-    dropoffSpot: 'Cochin International Airport (COK), Nedumbassery',
-    scheduledDate: '2026-10-13T07:30:00',
-    pickupTime: '2026-10-13T07:30:00',
-    displayDate: '13 Oct 2026, 07:30 am',
-    passenger: 'Ananya Nair',
-    passengerPhone: '+91 94471 88920',
-    status: 'PENDING',
-    fare: '₹950',
-    vehicleType: 'EV Sedan',
-  },
-  {
-    id: 'ORD-621',
-    orderId: 621,
-    tripId: null,
-    company: 'Apex Global Logistics',
-    companyName: 'Apex Global Logistics',
-    companyEmail: 'logistics@apexglobal.com',
-    pickup: 'Lulu Cyber Tower 2, Infopark Kochi',
-    pickupSpot: 'Lulu Cyber Tower 2, Infopark Kochi',
-    dropoff: 'Grand Hyatt Kochi Bolgatty, Mulavukad',
-    dropoffSpot: 'Grand Hyatt Kochi Bolgatty, Mulavukad',
-    scheduledDate: '2026-10-14T14:15:00',
-    pickupTime: '2026-10-14T14:15:00',
-    displayDate: '14 Oct 2026, 02:15 pm',
-    passenger: 'Siddharth Menon',
-    passengerPhone: '+91 98950 44321',
-    status: 'PENDING',
-    fare: '₹620',
-    vehicleType: 'SUV',
-  },
-  {
-    id: 'ORD-625',
-    orderId: 625,
-    tripId: null,
-    company: 'Nova Enterprises Global',
-    companyName: 'Nova Enterprises Global',
-    companyEmail: 'maryneha2024@gmail.com',
-    pickup: 'Kaloor Stadium Link Road, Kochi',
-    pickupSpot: 'Kaloor Stadium Link Road, Kochi',
-    dropoff: 'Fort Kochi Heritage Zone',
-    dropoffSpot: 'Fort Kochi Heritage Zone',
-    scheduledDate: '2026-10-31T09:00:00',
-    pickupTime: '2026-10-31T09:00:00',
-    displayDate: '31 Oct 2026, 09:00 am',
-    passenger: 'Joseph Thomas',
-    passengerPhone: '+91 98951 99887',
-    status: 'PENDING',
-    fare: '₹850',
-    vehicleType: 'Sedan',
-  },
-  {
-    id: 'ORD-501',
-    orderId: 501,
-    tripId: 'TRIP-1001',
-    company: 'Apex Global Logistics',
-    companyName: 'Apex Global Logistics',
-    companyEmail: 'logistics@apexglobal.com',
-    pickup: 'DLF Cyber City, Tower B, Gurugram',
-    pickupSpot: 'DLF Cyber City, Tower B, Gurugram',
-    dropoff: 'IGI Airport, Terminal 3, New Delhi',
-    dropoffSpot: 'IGI Airport, Terminal 3, New Delhi',
-    scheduledDate: '2026-10-10T20:00:00',
-    pickupTime: '2026-10-10T20:00:00',
-    displayDate: '10 Oct 2026, 08:00 pm',
-    passenger: 'Pooja Verma',
-    passengerPhone: '+91 98111 22334',
-    status: 'ONGOING',
-    fare: '₹1,280',
-    vehicleType: 'Sedan (Prime)',
-  },
-  {
-    id: 'ORD-505',
-    orderId: 505,
-    tripId: 'TRIP-1008',
-    company: 'Malabar Logistics',
-    companyName: 'Malabar Logistics',
-    companyEmail: 'admin@malabarlogistics.in',
-    pickup: 'Marine Drive Walkway, Ernakulam, Kochi',
-    pickupSpot: 'Marine Drive Walkway, Ernakulam, Kochi',
-    dropoff: 'SmartCity Kochi, Kakkanad',
-    dropoffSpot: 'SmartCity Kochi, Kakkanad',
-    scheduledDate: '2026-10-11T09:00:00',
-    pickupTime: '2026-10-11T09:00:00',
-    displayDate: '11 Oct 2026, 09:00 am',
-    passenger: 'Rahul Krishna',
-    passengerPhone: '+91 97441 55667',
-    status: 'ONGOING',
-    fare: '₹780',
-    vehicleType: 'Hatchback',
-  },
-  {
-    id: 'ORD-480',
-    orderId: 480,
-    tripId: 'TRIP-982',
-    company: 'Apex Global Logistics',
-    companyName: 'Apex Global Logistics',
-    companyEmail: 'logistics@apexglobal.com',
-    pickup: 'Aerocity Hospitality District, New Delhi',
-    pickupSpot: 'Aerocity Hospitality District, New Delhi',
-    dropoff: 'Sector 29 Hub, Gurugram',
-    dropoffSpot: 'Sector 29 Hub, Gurugram',
-    scheduledDate: '2026-10-09T18:30:00',
-    pickupTime: '2026-10-09T18:30:00',
-    displayDate: '09 Oct 2026, 06:30 pm',
-    passenger: 'Arjun Kapoor',
-    passengerPhone: '+91 98200 11223',
-    status: 'COMPLETED',
-    fare: '₹1,150',
-    vehicleType: 'Sedan (Prime)',
-  },
-];
+import { getFriendlyError, getFriendlyLoadError } from '../../../utils/friendlyError';
 
 export default function RecentOrdersTable({ onNavigate }) {
   const { user } = useAuth ? useAuth() : {};
   const adminEmail = user?.email || 'admin@hired.com';
 
-  const [orders, setOrders] = useState(FALLBACK_ORDERS || MOCK_ORDERS);
+  const [orders, setOrders] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isActionLoading, setIsActionLoading] = useState(false);
   const [fetchError, setFetchError] = useState(null);
@@ -189,10 +46,10 @@ export default function RecentOrdersTable({ onNavigate }) {
     setFetchError(null);
     try {
       const data = await getDashboardOrders();
-      setOrders(data);
+      setOrders(Array.isArray(data) ? data : []);
     } catch (err) {
-      setOrders(FALLBACK_ORDERS || MOCK_ORDERS);
-      setFetchError(err.message || 'Unable to connect to live server. Displaying cached operational records.');
+      setOrders([]);
+      setFetchError(getFriendlyLoadError(err));
     } finally {
       setIsLoading(false);
     }
@@ -284,7 +141,7 @@ export default function RecentOrdersTable({ onNavigate }) {
           : `Order #${targetId} rejected. Decline email sent.`
       );
     } catch (err) {
-      showToast(err.message || 'Operation failed', 'error');
+      showToast(getFriendlyError(err), 'error');
     } finally {
       setIsSubmittingDecision(false);
     }
@@ -301,11 +158,11 @@ export default function RecentOrdersTable({ onNavigate }) {
         // Search Query
         if (searchQuery.trim()) {
           const q = searchQuery.toLowerCase();
-          const matchId = order.id.toLowerCase().includes(q);
-          const matchPickup = order.pickup.toLowerCase().includes(q);
-          const matchDropoff = order.dropoff.toLowerCase().includes(q);
-          const matchPassenger = order.passenger.toLowerCase().includes(q);
-          const matchCompany = order.company.toLowerCase().includes(q);
+          const matchId = String(order.id || '').toLowerCase().includes(q);
+          const matchPickup = String(order.pickup || '').toLowerCase().includes(q);
+          const matchDropoff = String(order.dropoff || '').toLowerCase().includes(q);
+          const matchPassenger = String(order.passenger || '').toLowerCase().includes(q);
+          const matchCompany = String(order.company || '').toLowerCase().includes(q);
           return matchId || matchPickup || matchDropoff || matchPassenger || matchCompany;
         }
         return true;
@@ -337,6 +194,7 @@ export default function RecentOrdersTable({ onNavigate }) {
       }
     } catch (err) {
       console.error('[RecentOrdersTable] Decision error:', err);
+      showToast(getFriendlyError(err), 'error');
     } finally {
       setIsActionLoading(false);
     }
