@@ -44,12 +44,14 @@ const upload = multer({
 });
 
 // Configure memory upload for selfie images (max 5MB, jpeg/png/webp)
-const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/jpg'];
+const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/jpg', 'application/octet-stream'];
 const selfieMulter = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
-    if (!ALLOWED_IMAGE_TYPES.includes(file.mimetype)) {
+    const isAllowedMime = ALLOWED_IMAGE_TYPES.includes(file.mimetype);
+    const hasImageExt = /\.(jpg|jpeg|png|webp)$/i.test(file.originalname || '');
+    if (!isAllowedMime && !hasImageExt) {
       const err = new Error('Invalid file type. Only JPEG, PNG, and WebP images are allowed.');
       err.code = 'INVALID_FILE_TYPE';
       err.statusCode = 400;

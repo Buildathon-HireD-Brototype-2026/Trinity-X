@@ -607,8 +607,14 @@ class ApiTripRepository implements TripRepository {
   Future<String?> uploadStartSelfie(String tripId, String selfiePath) async {
     try {
       debugPrint('[ApiTripRepository] Uploading start selfie for trip $tripId: $selfiePath');
+      final rawName = selfiePath.split('/').last;
+      final fileName = rawName.contains('.') ? rawName : '$rawName.jpg';
       final formData = FormData.fromMap({
-        'selfie': await MultipartFile.fromFile(selfiePath),
+        'selfie': await MultipartFile.fromFile(
+          selfiePath,
+          filename: fileName,
+          contentType: DioMediaType('image', 'jpeg'),
+        ),
       });
       final response = await _dio.post(
         '/driver/trips/$tripId/start-selfie',
@@ -638,8 +644,14 @@ class ApiTripRepository implements TripRepository {
     try {
       dynamic data;
       if (selfiePath != null && selfiePath.isNotEmpty) {
+        final rawName = selfiePath.split('/').last;
+        final fileName = rawName.contains('.') ? rawName : '$rawName.jpg';
         data = FormData.fromMap({
-          'selfie': await MultipartFile.fromFile(selfiePath),
+          'selfie': await MultipartFile.fromFile(
+            selfiePath,
+            filename: fileName,
+            contentType: DioMediaType('image', 'jpeg'),
+          ),
         });
       }
       await _dio.post(
