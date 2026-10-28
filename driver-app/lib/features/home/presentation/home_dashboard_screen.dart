@@ -104,7 +104,7 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
             }
 
             final isOnline = driver.isOnline;
-            final driverName = driver.name.isNotEmpty ? driver.name : 'Amal';
+            final driverName = driver.name.isNotEmpty ? driver.name : 'Driver';
 
             return RefreshIndicator(
               color: themeColors.purpleAccent,

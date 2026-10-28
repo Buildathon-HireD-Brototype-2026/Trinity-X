@@ -28,13 +28,16 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
     final driverName = driver != null && driver.name.isNotEmpty
         ? driver.name
-        : 'Rajesh Kumar';
+        : (driverAsync.isLoading ? 'Loading...' : 'Driver');
     final driverPhone = driver != null && driver.phone.isNotEmpty
         ? (driver.phone.startsWith('+91') ? driver.phone : '+91 ${driver.phone}')
-        : '+91 98765 43210';
+        : (driverAsync.isLoading ? 'Loading...' : 'Not Available');
     final driverId = driver != null
         ? 'HD-${driver.id.toString().padLeft(5, '0')}'
-        : 'HD-94821';
+        : 'HD- —';
+    final driverZone = driver?.currentLocation?.isNotEmpty == true
+        ? driver!.currentLocation!
+        : (driverAsync.isLoading ? 'Loading...' : 'Location Unavailable');
 
     final themeColors = context.appColors;
     final isDark = context.isDarkMode;
@@ -124,6 +127,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       driverName: driverName,
                       driverPhone: driverPhone,
                       driverId: driverId,
+                      driverZone: driverZone,
                       photoPath: driver?.photoPath,
                     ),
 
@@ -155,6 +159,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     required String driverName,
     required String driverPhone,
     required String driverId,
+    required String driverZone,
     String? photoPath,
   }) {
     final themeColors = context.appColors;
@@ -192,27 +197,15 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               ],
             ),
             child: ClipOval(
-              child: Image.network(
-                photoPath != null && photoPath.isNotEmpty
-                    ? photoPath
-                    : 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
-                fit: BoxFit.cover,
-                cacheWidth: 160,
-                cacheHeight: 160,
-                errorBuilder: (_, __, ___) => Container(
-                  color: themeColors.primaryButton,
-                  child: Center(
-                    child: Text(
-                      driverName.isNotEmpty ? driverName[0].toUpperCase() : 'R',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 32,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
+              child: photoPath != null && photoPath.isNotEmpty
+                  ? Image.network(
+                      photoPath,
+                      fit: BoxFit.cover,
+                      cacheWidth: 160,
+                      cacheHeight: 160,
+                      errorBuilder: (_, __, ___) => _buildAvatarInitial(themeColors, driverName),
+                    )
+                  : _buildAvatarInitial(themeColors, driverName),
             ),
           ),
           const SizedBox(height: 14),
@@ -354,7 +347,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                           ),
                           const SizedBox(height: 2),
                           Text(
-                            'Electronic City, BLR',
+                            driverZone,
                             style: TextStyle(
                               color: themeColors.textPrimary,
                               fontSize: 12,
@@ -372,6 +365,25 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             ],
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildAvatarInitial(dynamic themeColors, String driverName) {
+    final initial = driverName.trim().isNotEmpty && driverName != 'Loading...' && driverName != 'Driver'
+        ? driverName.trim()[0].toUpperCase()
+        : 'D';
+    return Container(
+      color: themeColors.primaryButton,
+      child: Center(
+        child: Text(
+          initial,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 32,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
       ),
     );
   }
