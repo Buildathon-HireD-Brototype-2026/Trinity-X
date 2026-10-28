@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Eye, EyeOff, Lock, Mail, AlertCircle, Loader2, Clock } from 'lucide-react';
 import { useAuth } from './AuthContext';
-import logoSvg from '../../assets/logo.svg';
+import logoImg from '../../assets/logo.png';
 
 export default function LoginPage() {
   const { login, loading } = useAuth();
@@ -94,7 +94,7 @@ export default function LoginPage() {
       <div className="login-card">
         {/* Header with Logo */}
         <div className="login-header">
-          <img src={logoSvg} alt="HireD Logo" className="login-logo" />
+          <img src={logoImg} alt="HireD Logo" className="login-logo" />
           <h1 className="login-title">Admin Portal</h1>
           <p className="login-subtitle">Sign in to manage the HireD fleet and operations</p>
         </div>

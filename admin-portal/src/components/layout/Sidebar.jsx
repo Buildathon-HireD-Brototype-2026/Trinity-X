@@ -13,7 +13,7 @@ import {
   ShieldCheck
 } from 'lucide-react';
 import { useAuth } from '../../features/auth/AuthContext';
-import logoSvg from '../../assets/logo.svg';
+import logoImg from '../../assets/logo.png';
 
 const NAV_ITEMS = [
   {
@@ -86,7 +86,7 @@ export default function Sidebar({
             tabIndex={0}
             title="HireD Admin Dashboard"
           >
-            <img src={logoSvg} alt="HireD" className="sidebar-logo" />
+            <img src={logoImg} alt="HireD" className="sidebar-logo" />
           </div>
         )}
 
