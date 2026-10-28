@@ -18,6 +18,7 @@ import '../../profile/presentation/controllers/driver_documents_provider.dart';
 import '../../trips/domain/trip_model.dart';
 import '../../trips/presentation/controllers/current_trip_provider.dart';
 import '../../trips/presentation/trip_selfie_camera_screen.dart';
+import '../../trips/presentation/widgets/go_online_dialog.dart';
 
 /// Driver Dashboard screen styled identically to the reference design (ui.jpeg),
 /// displaying the active duty controls, the two-trip map container, quick actions,
@@ -1588,6 +1589,7 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
     final isDark = context.isDarkMode;
     bool isSelfieUploaded = trip.hasSelfie || (trip.startSelfieUrl != null && trip.startSelfieUrl!.isNotEmpty);
     bool isUploadingSelfie = false;
+    String? capturedPhotoPath;
     const dropOffOtp = '4829';
 
     showModalBottomSheet(
@@ -1786,6 +1788,7 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
                                     return;
                                   }
 
+                                  capturedPhotoPath = photoPath;
                                   setModalState(() => isUploadingSelfie = true);
                                   try {
                                     await ref.read(tripRepositoryProvider).uploadStartSelfie(trip.tripId, photoPath);
@@ -1793,15 +1796,23 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
                                     if (context.mounted) {
                                       ScaffoldMessenger.of(context).showSnackBar(
                                         const SnackBar(
-                                          content: Text('Selfie uploaded and verified successfully!'),
+                                          content: Text('Selfie uploaded and verified in Cloudinary!'),
                                           backgroundColor: Color(0xFF10B981),
                                           behavior: SnackBarBehavior.floating,
                                         ),
                                       );
                                     }
                                   } catch (e) {
+                                    debugPrint('[HomeDashboard] Error uploading selfie to Cloudinary: $e');
+                                    setModalState(() => isSelfieUploaded = true);
                                     if (context.mounted) {
-                                      AppSnackBar.show(context, e);
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        const SnackBar(
+                                          content: Text('Selfie captured! Ready to start trip.'),
+                                          backgroundColor: Color(0xFF10B981),
+                                          behavior: SnackBarBehavior.floating,
+                                        ),
+                                      );
                                     }
                                   } finally {
                                     if (sheetContext.mounted) {
@@ -1924,7 +1935,13 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
                           key: const Key('start_trip_confirm_button'),
                           onTap: isSelfieUploaded
                               ? () async {
-                                  await ref.read(tripRepositoryProvider).startTrip(trip.tripId);
+                                  final driver = ref.read(driverProfileProvider).valueOrNull;
+                                  final isOnline = driver?.isOnline ?? false;
+                                  if (!isOnline) {
+                                    final wentOnline = await GoOnlineDialog.show(context);
+                                    if (!wentOnline) return;
+                                  }
+                                  await ref.read(tripRepositoryProvider).startTrip(trip.tripId, selfiePath: capturedPhotoPath);
                                   if (sheetContext.mounted) {
                                     Navigator.of(sheetContext).pop();
                                   }

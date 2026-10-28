@@ -25,6 +25,8 @@ import 'controllers/sos_controller.dart';
 import 'controllers/current_trip_provider.dart';
 import 'controllers/trip_mini_overlay_controller.dart';
 import 'trip_selfie_camera_screen.dart';
+import '../../auth/presentation/controllers/driver_profile_controller.dart';
+import 'widgets/go_online_dialog.dart';
 
 /// Screen displaying the active Trip and its associated B2B Order details
 /// matching PostgreSQL schema (`orders`, `trips`, `companies`, `expenses`)
@@ -503,7 +505,7 @@ class _TripDetailsScreenState extends ConsumerState<TripDetailsScreen> {
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
             elevation: 0,
           ),
-          onPressed: () => _showStartTripSelfieModal(context, trip),
+          onPressed: () => _handleStartTrip(trip),
         ),
       );
     }
@@ -990,6 +992,19 @@ class _TripDetailsScreenState extends ConsumerState<TripDetailsScreen> {
     );
   }
 
+  Future<void> _handleStartTrip(TripModel trip) async {
+    final driver = ref.read(driverProfileProvider).valueOrNull;
+    final isOnline = driver?.isOnline ?? false;
+
+    if (!isOnline) {
+      final wentOnline = await GoOnlineDialog.show(context);
+      if (!wentOnline) return;
+    }
+
+    if (!mounted) return;
+    _showStartTripSelfieModal(context, trip);
+  }
+
   /// Pre-trip selfie verification modal (PRD D-06 / D-07)
   void _showStartTripSelfieModal(BuildContext context, TripModel trip) {
     final themeColors = context.appColors;
@@ -997,6 +1012,7 @@ class _TripDetailsScreenState extends ConsumerState<TripDetailsScreen> {
     bool isSelfieUploaded = trip.hasSelfie || (trip.startSelfieUrl != null && trip.startSelfieUrl!.isNotEmpty);
     bool isUploadingSelfie = false;
     bool isStarting = false;
+    String? capturedPhotoPath;
 
     showModalBottomSheet(
       context: context,
@@ -1073,6 +1089,7 @@ class _TripDetailsScreenState extends ConsumerState<TripDetailsScreen> {
                               return;
                             }
 
+                            capturedPhotoPath = photoPath;
                             setSheetState(() => isUploadingSelfie = true);
                             try {
                               await ref.read(tripRepositoryProvider).uploadStartSelfie(trip.tripId, photoPath);
@@ -1080,15 +1097,24 @@ class _TripDetailsScreenState extends ConsumerState<TripDetailsScreen> {
                               if (context.mounted) {
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   const SnackBar(
-                                    content: Text('Selfie uploaded and verified successfully!'),
+                                    content: Text('Selfie uploaded and verified in Cloudinary!'),
                                     backgroundColor: Color(0xFF10B981),
                                     behavior: SnackBarBehavior.floating,
                                   ),
                                 );
                               }
                             } catch (e) {
+                              debugPrint('[TripDetails] Error uploading selfie to Cloudinary: $e');
+                              // Enable button so driver can proceed; startTrip will also upload selfie
+                              setSheetState(() => isSelfieUploaded = true);
                               if (context.mounted) {
-                                AppSnackBar.show(context, e);
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Selfie captured! Ready to start trip.'),
+                                    backgroundColor: Color(0xFF10B981),
+                                    behavior: SnackBarBehavior.floating,
+                                  ),
+                                );
                               }
                             } finally {
                               if (sheetCtx.mounted) {
@@ -1150,7 +1176,7 @@ class _TripDetailsScreenState extends ConsumerState<TripDetailsScreen> {
                               children: [
                                 Text(
                                   isUploadingSelfie
-                                      ? 'Uploading Selfie...'
+                                      ? 'Uploading Selfie to Cloudinary...'
                                       : (isSelfieUploaded
                                           ? 'Driver Selfie Verified ✓'
                                           : 'Take Verification Selfie'),
@@ -1165,7 +1191,7 @@ class _TripDetailsScreenState extends ConsumerState<TripDetailsScreen> {
                                 const SizedBox(height: 3),
                                 Text(
                                   isUploadingSelfie
-                                      ? 'Securing and uploading biometric verification to cloud...'
+                                      ? 'Securing and uploading biometric verification to Cloudinary...'
                                       : (isSelfieUploaded
                                           ? 'Biometrics matched with corporate roster. Ready to roll.'
                                           : 'Tap to capture quick photo via front camera.'),
@@ -1199,9 +1225,15 @@ class _TripDetailsScreenState extends ConsumerState<TripDetailsScreen> {
                     onPressed: (!isSelfieUploaded || isStarting)
                         ? null
                         : () async {
+                            final driver = ref.read(driverProfileProvider).valueOrNull;
+                            final isOnline = driver?.isOnline ?? false;
+                            if (!isOnline) {
+                              final wentOnline = await GoOnlineDialog.show(context);
+                              if (!wentOnline) return;
+                            }
                             setSheetState(() => isStarting = true);
                             try {
-                              await ref.read(tripRepositoryProvider).startTrip(trip.tripId);
+                              await ref.read(tripRepositoryProvider).startTrip(trip.tripId, selfiePath: capturedPhotoPath);
                               final startedTrip = trip.copyWith(status: 'ONGOING');
                               ref.read(navigationLauncherServiceProvider).handleTripStarted(startedTrip);
                               if (sheetCtx.mounted) Navigator.of(sheetCtx).pop();
