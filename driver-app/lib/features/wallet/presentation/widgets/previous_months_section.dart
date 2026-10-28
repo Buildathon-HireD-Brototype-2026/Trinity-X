@@ -1,0 +1,229 @@
+import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import '../../../../core/routing/route_names.dart';
+import '../../../../core/theme/app_theme_colors.dart';
+import '../../domain/wallet_models.dart';
+
+/// Section showing the previous 2 months settlement records (PRD Section 5).
+/// Heading: "Previous Months"
+/// Shows only the last 2 months before the current one.
+/// Each month row shows: month name, total driver earning of completed trips,
+/// number of trips, total expense, and settlement chip "Paid" or "Pending".
+/// A Pending month shows pending amount; Paid month shows amount paid & paid date.
+/// Tapping a month navigates to Trip History with that month preselected.
+class PreviousMonthsSection extends StatelessWidget {
+  final List<MonthlySettlementRecord> previousMonths;
+  final bool isLoading;
+
+  const PreviousMonthsSection({
+    super.key,
+    required this.previousMonths,
+    this.isLoading = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final themeColors = context.appColors;
+
+    // PRD Section 5: Show only the last 2 months before the current one
+    final displayMonths = previousMonths.take(2).toList();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Previous Months',
+          style: TextStyle(
+            color: themeColors.textPrimary,
+            fontSize: 16,
+            fontWeight: FontWeight.w700,
+            letterSpacing: -0.3,
+          ),
+        ),
+        const SizedBox(height: 12),
+        if (isLoading)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 20.0),
+            child: Center(
+              child: SizedBox(
+                width: 24,
+                height: 24,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+            ),
+          )
+        else if (displayMonths.isEmpty)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: themeColors.cardBackground,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: themeColors.border),
+            ),
+            child: Center(
+              child: Text(
+                'No previous months',
+                style: TextStyle(
+                  color: themeColors.textMuted,
+                  fontSize: 13,
+                ),
+              ),
+            ),
+          )
+        else
+          ListView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: displayMonths.length,
+            itemBuilder: (context, index) {
+              final month = displayMonths[index];
+              return _buildMonthRow(context, month);
+            },
+          ),
+      ],
+    );
+  }
+
+  Widget _buildMonthRow(
+    BuildContext context,
+    MonthlySettlementRecord month,
+  ) {
+    final themeColors = context.appColors;
+    final isDark = context.isDarkMode;
+
+    final isPaid = month.isPaid;
+    final formattedTotal = IstDateTimeHelper.formatCurrency(month.totalDriverEarning);
+
+    // Paid / Pending settlement details (PRD Section 5)
+    String settlementDetail;
+    if (isPaid) {
+      final dateStr = month.paidDate != null
+          ? IstDateTimeHelper.formatDate(month.paidDate!)
+          : '';
+      final amountStr = month.paidAmount != null
+          ? IstDateTimeHelper.formatCurrency(month.paidAmount!)
+          : formattedTotal;
+      settlementDetail = dateStr.isNotEmpty
+          ? 'Paid $amountStr on $dateStr'
+          : 'Paid $amountStr';
+    } else {
+      final pendingStr = month.pendingAmount != null
+          ? IstDateTimeHelper.formatCurrency(month.pendingAmount!)
+          : formattedTotal;
+      settlementDetail = 'Pending amount: $pendingStr';
+    }
+
+    final tripsAndExpenseSubtitle =
+        '${month.tripCount} trips • Expenses: ${IstDateTimeHelper.formatCurrency(month.totalExpense)}';
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(14),
+          onTap: () {
+            context.push(
+              RouteNames.tripHistory,
+              extra: {
+                'year': month.monthDate.year,
+                'month': month.monthDate.month,
+              },
+            );
+          },
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            decoration: BoxDecoration(
+              color: themeColors.cardBackground,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: themeColors.border, width: 1),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.03),
+                  blurRadius: 6,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        month.month,
+                        style: TextStyle(
+                          color: themeColors.textPrimary,
+                          fontSize: 14.5,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: -0.2,
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        tripsAndExpenseSubtitle,
+                        style: TextStyle(
+                          color: themeColors.textMuted,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        settlementDetail,
+                        style: TextStyle(
+                          color: isPaid
+                              ? themeColors.textMuted
+                              : (isDark ? const Color(0xFFFBBF24) : const Color(0xFFD97706)),
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      formattedTotal,
+                      style: TextStyle(
+                        color: themeColors.textPrimary,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    // Settlement status chip: Paid or Pending
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: isPaid
+                            ? (isDark ? const Color(0xFF064E3B) : const Color(0xFFD1FAE5))
+                            : (isDark ? const Color(0xFF78350F) : const Color(0xFFFEF3C7)),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        month.status.label.toUpperCase(),
+                        style: TextStyle(
+                          color: isPaid
+                              ? (isDark ? const Color(0xFF34D399) : const Color(0xFF047857))
+                              : (isDark ? const Color(0xFFFBBF24) : const Color(0xFFB45309)),
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}

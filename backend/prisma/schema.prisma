@@ -1,0 +1,486 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------------------------------------------------------
+// Group 1: Offices and Partner Companies
+// ---------------------------------------------------------
+
+model Office {
+  officeId       Int      @id @default(autoincrement()) @map("office_id")
+  officeName     String   @map("office_name") @db.VarChar(150)
+  officeLocation String?  @map("office_location") @db.VarChar(300)
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  companies Company[]
+  admins    Admin[]
+
+  @@map("offices")
+}
+
+model Company {
+  companyId           Int       @id @default(autoincrement()) @map("company_id")
+  name                String    @map("name") @db.VarChar(150)
+  address             String?   @map("address") @db.VarChar(300)
+  contactPerson       String?   @map("contact_person") @db.VarChar(150)
+  phoneNo             String?   @map("phone_no") @db.VarChar(20)
+  emailId             String    @unique @map("email_id") @db.VarChar(254)
+  passwordHash        String    @map("password_hash") @db.VarChar(255)
+  status              String    @default("ACTIVE") @map("status") @db.VarChar(20)
+  failedLoginAttempts Int       @default(0) @map("failed_login_attempts")
+  lockedUntil         DateTime? @map("locked_until") @db.Timestamptz
+  officeId            Int       @map("office_id")
+  companyLocation     String?   @map("company_location") @db.VarChar(300)
+  hiredSplit          Decimal   @map("hired_split") @db.Decimal(5, 2)
+  driverSplit         Decimal   @map("driver_split") @db.Decimal(5, 2)
+  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt           DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  office   Office    @relation(fields: [officeId], references: [officeId], onUpdate: Cascade, onDelete: Restrict)
+  orders   Order[]
+  invoices Invoice[]
+
+  @@map("companies")
+}
+
+// ---------------------------------------------------------
+// Group 2: Orders
+// ---------------------------------------------------------
+
+model Order {
+  orderId          Int       @id @default(autoincrement()) @map("order_id")
+  companyId        Int       @map("company_id")
+  pickupSpot       String    @map("pickup_spot") @db.VarChar(300)
+  dropoffSpot      String    @map("dropoff_spot") @db.VarChar(300)
+  pickupLatitude   Decimal?  @map("pickup_latitude") @db.Decimal(10, 7)
+  pickupLongitude  Decimal?  @map("pickup_longitude") @db.Decimal(10, 7)
+  dropLatitude     Decimal?  @map("drop_latitude") @db.Decimal(10, 7)
+  dropLongitude    Decimal?  @map("drop_longitude") @db.Decimal(10, 7)
+  pickupTime       DateTime  @map("pickup_time") @db.Timestamptz
+  contactName      String    @map("contact_name") @db.VarChar(150)
+  contactPhone     String    @map("contact_phone") @db.VarChar(20)
+  notes            String?   @map("notes") @db.VarChar(1000)
+  status           String    @default("RECEIVED") @map("status") @db.VarChar(20)
+  source           String    @map("source") @db.VarChar(10)
+  rejectReason     String?   @map("reject_reason") @db.VarChar(500)
+  createdByAdminId Int?      @map("created_by_admin_id")
+  decidedByAdminId Int?      @map("decided_by_admin_id")
+  decidedAt        DateTime? @map("decided_at") @db.Timestamptz
+  version          Int       @default(0) @map("version")
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt        DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  company        Company        @relation(fields: [companyId], references: [companyId], onUpdate: Cascade, onDelete: Restrict)
+  createdByAdmin Admin?         @relation("OrdersCreatedByAdmin", fields: [createdByAdminId], references: [adminId], onUpdate: Cascade, onDelete: Restrict)
+  decidedByAdmin Admin?         @relation("OrdersDecidedByAdmin", fields: [decidedByAdminId], references: [adminId], onUpdate: Cascade, onDelete: Restrict)
+  trip           Trip?
+  sosAlerts      TripSosAlert[]
+
+  @@index([companyId, createdAt(sort: Desc)])
+  @@index([status])
+  @@map("orders")
+}
+
+// ---------------------------------------------------------
+// Group 3: Trips and Expenses
+// ---------------------------------------------------------
+
+model Trip {
+  tripId                Int       @id @default(autoincrement()) @map("trip_id")
+  orderId               Int       @unique @map("order_id")
+  driverId              Int?      @map("driver_id")
+  amount                Decimal   @map("amount") @db.Decimal(12, 2)
+  eta                   DateTime? @map("eta") @db.Timestamptz
+  pickupLatitude        Decimal?  @map("pickup_latitude") @db.Decimal(10, 7)
+  pickupLongitude       Decimal?  @map("pickup_longitude") @db.Decimal(10, 7)
+  dropLatitude          Decimal?  @map("drop_latitude") @db.Decimal(10, 7)
+  dropLongitude         Decimal?  @map("drop_longitude") @db.Decimal(10, 7)
+  selfieURL             String?   @map("selfie_url") @db.VarChar(500)
+  startSelfieUrl        String?   @map("start_selfie_url") @db.VarChar(500)
+  startSelfiePublicId   String?   @map("start_selfie_public_id") @db.VarChar(255)
+  startSelfieUploadedAt DateTime? @map("start_selfie_uploaded_at") @db.Timestamptz
+  startSelfieExpiresAt  DateTime? @map("start_selfie_expires_at") @db.Timestamptz
+  startSelfieDeletedAt  DateTime? @map("start_selfie_deleted_at") @db.Timestamptz
+  otp                   String    @map("otp") @db.VarChar(6)
+  otpAttempts           Int       @default(0) @map("otp_attempts")
+  expensesConfirmed     Boolean   @default(false) @map("expenses_confirmed")
+  tripStatus            String    @default("UNASSIGNED") @map("trip_status") @db.VarChar(20)
+  version               Int       @default(0) @map("version")
+  assignedAt            DateTime? @map("assigned_at") @db.Timestamptz
+  startedAt             DateTime? @map("started_at") @db.Timestamptz
+  closedAt              DateTime? @map("closed_at") @db.Timestamptz
+  createdAt             DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt             DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  order                 Order                    @relation(fields: [orderId], references: [orderId], onUpdate: Cascade, onDelete: Restrict)
+  driver                Driver?                  @relation(fields: [driverId], references: [driverId], onUpdate: Cascade, onDelete: Restrict)
+  expenses              Expense[]
+  tripPayroll           TripPayroll?
+  walletTransaction     DriverWalletTransaction?
+  driverLocations       DriverLocation[]
+  driverLocationHistory DriverLocationHistory[]
+  sosAlerts             TripSosAlert[]
+
+  @@index([driverId, tripStatus])
+  @@index([tripStatus])
+  @@index([closedAt])
+  @@map("trips")
+}
+
+model Expense {
+  expenseId   Int      @id @default(autoincrement()) @map("expense_id")
+  tripId      Int      @map("trip_id")
+  driverId    Int      @map("driver_id")
+  description String   @map("description") @db.VarChar(500)
+  amount      Decimal  @map("amount") @db.Decimal(12, 2)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  trip   Trip   @relation(fields: [tripId], references: [tripId], onUpdate: Cascade, onDelete: Restrict)
+  driver Driver @relation(fields: [driverId], references: [driverId], onUpdate: Cascade, onDelete: Restrict)
+
+  @@index([tripId])
+  @@map("expenses")
+}
+
+model TripSosAlert {
+  alertId          Int       @id @default(autoincrement()) @map("alert_id")
+  tripId           Int       @map("trip_id")
+  driverId         Int       @map("driver_id")
+  orderId          Int       @map("order_id")
+  reason           String    @map("reason") @db.VarChar(50)
+  notes            String?   @map("notes") @db.VarChar(1000)
+  latitude         Decimal   @map("latitude") @db.Decimal(10, 7)
+  longitude        Decimal   @map("longitude") @db.Decimal(10, 7)
+  status           String    @default("OPEN") @map("status") @db.VarChar(20)
+  primaryAdminId   Int?      @map("primary_admin_id")
+  claimedByAdminId Int?      @map("claimed_by_admin_id")
+  claimedAt        DateTime? @map("claimed_at") @db.Timestamptz
+  resolvedAt       DateTime? @map("resolved_at") @db.Timestamptz
+  resolutionNotes  String?   @map("resolution_notes") @db.VarChar(1000)
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt        DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  trip           Trip   @relation(fields: [tripId], references: [tripId], onUpdate: Cascade, onDelete: Restrict)
+  driver         Driver @relation(fields: [driverId], references: [driverId], onUpdate: Cascade, onDelete: Restrict)
+  order          Order  @relation(fields: [orderId], references: [orderId], onUpdate: Cascade, onDelete: Restrict)
+  claimedByAdmin Admin? @relation(fields: [claimedByAdminId], references: [adminId], onUpdate: Cascade, onDelete: SetNull)
+
+  @@index([tripId])
+  @@index([driverId])
+  @@index([status])
+  @@map("trip_sos_alerts")
+}
+
+// ---------------------------------------------------------
+// Group 4: Money (Payrolls, Wallet, Invoices)
+// ---------------------------------------------------------
+
+model TripPayroll {
+  payrollId     Int      @id @default(autoincrement()) @map("payroll_id")
+  tripId        Int      @unique @map("trip_id")
+  driverId      Int      @map("driver_id")
+  invoiceId     Int?     @map("invoice_id")
+  driverPCT     Decimal  @map("driver_pct") @db.Decimal(5, 2)
+  companyPCT    Decimal  @map("company_pct") @db.Decimal(5, 2)
+  tripAmount    Decimal  @map("trip_amount") @db.Decimal(12, 2)
+  driverShare   Decimal  @map("driver_share") @db.Decimal(12, 2)
+  companyShare  Decimal  @map("company_share") @db.Decimal(12, 2)
+  payoutStatus  String   @default("CREDITED") @map("payout_status") @db.VarChar(20)
+  paymentStatus String   @default("UNPAID") @map("payment_status") @db.VarChar(20)
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt     DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  trip    Trip     @relation(fields: [tripId], references: [tripId], onUpdate: Cascade, onDelete: Restrict)
+  driver  Driver   @relation(fields: [driverId], references: [driverId], onUpdate: Cascade, onDelete: Restrict)
+  invoice Invoice? @relation(fields: [invoiceId], references: [invoiceId], onUpdate: Cascade, onDelete: Restrict)
+
+  @@index([driverId, createdAt])
+  @@index([invoiceId])
+  @@index([paymentStatus])
+  @@map("trip_payrolls")
+}
+
+model DriverWalletTransaction {
+  transactionId Int      @id @default(autoincrement()) @map("transaction_id")
+  tripId        Int?     @unique @map("trip_id")
+  driverId      Int      @map("driver_id")
+  credit        Decimal? @map("credit") @db.Decimal(12, 2)
+  debit         Decimal? @map("debit") @db.Decimal(12, 2)
+  note          String?  @map("note") @db.VarChar(300)
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  trip   Trip?  @relation(fields: [tripId], references: [tripId], onUpdate: Cascade, onDelete: Restrict)
+  driver Driver @relation(fields: [driverId], references: [driverId], onUpdate: Cascade, onDelete: Restrict)
+
+  @@index([driverId, createdAt])
+  @@map("driver_wallet_transactions")
+}
+
+model Invoice {
+  invoiceId         Int       @id @default(autoincrement()) @map("invoice_id")
+  companyId         Int       @map("company_id")
+  periodMonth       String    @map("period_month") @db.Char(7)
+  status            String    @default("DRAFT") @map("status") @db.VarChar(30)
+  createdAdmin      Int       @map("created_admin")
+  verifiedAdmin1    Int?      @map("verified_admin1")
+  verifiedAdmin2    Int?      @map("verified_admin2")
+  verifiedAt1       DateTime? @map("verified_at1") @db.Timestamptz
+  verifiedAt2       DateTime? @map("verified_at2") @db.Timestamptz
+  publishedAt       DateTime? @map("published_at") @db.Timestamptz
+  cancelledAt       DateTime? @map("cancelled_at") @db.Timestamptz
+  totalAmount       Decimal   @map("total_amount") @db.Decimal(12, 2)
+  totalDriverShare  Decimal   @map("total_driver_share") @db.Decimal(12, 2)
+  totalCompanyShare Decimal   @map("total_company_share") @db.Decimal(12, 2)
+  version           Int       @default(0) @map("version")
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt         DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  company        Company       @relation(fields: [companyId], references: [companyId], onUpdate: Cascade, onDelete: Restrict)
+  creatorAdmin   Admin         @relation("InvoicesCreatedByAdmin", fields: [createdAdmin], references: [adminId], onUpdate: Cascade, onDelete: Restrict)
+  verifierAdmin1 Admin?        @relation("InvoicesVerifiedByAdmin1", fields: [verifiedAdmin1], references: [adminId], onUpdate: Cascade, onDelete: Restrict)
+  verifierAdmin2 Admin?        @relation("InvoicesVerifiedByAdmin2", fields: [verifiedAdmin2], references: [adminId], onUpdate: Cascade, onDelete: Restrict)
+  tripPayrolls   TripPayroll[]
+
+  @@index([status])
+  @@map("invoices")
+}
+
+// ---------------------------------------------------------
+// Group 5: Drivers, Documents, Leaves
+// ---------------------------------------------------------
+
+model Driver {
+  driverId            Int       @id @default(autoincrement()) @map("driver_id")
+  name                String    @map("name") @db.VarChar(150)
+  phoneNo             String    @unique @map("phone_no") @db.VarChar(20)
+  passwordHash        String    @map("password_hash") @db.VarChar(255)
+  photoURL            String?   @map("photo_url") @db.VarChar(500)
+  isOnline            Boolean   @default(false) @map("is_online")
+  status              String    @default("PENDING") @map("status") @db.VarChar(20)
+  failedLoginAttempts Int       @default(0) @map("failed_login_attempts")
+  lockedUntil         DateTime? @map("locked_until") @db.Timestamptz
+  currentLocation     String?   @map("current_location") @db.VarChar(300)
+  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt           DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  trips              Trip[]
+  expenses           Expense[]
+  tripPayrolls       TripPayroll[]
+  walletTransactions DriverWalletTransaction[]
+  documents          DriverDocument[]
+  leaves             DriverLeave[]
+  location           DriverLocation?
+  locationHistory    DriverLocationHistory[]
+  sosAlerts          TripSosAlert[]
+
+  @@map("drivers")
+}
+
+model DriverLocation {
+  driverId       Int      @id @map("driver_id")
+  lat            Float    @map("lat")
+  lng            Float    @map("lng")
+  speed          Float?   @map("speed")
+  heading        Float?   @map("heading")
+  accuracy       Float?   @map("accuracy")
+  batteryPercent Int?     @map("battery_percent")
+  tripId         Int?     @map("trip_id")
+  updatedAt      DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  driver Driver @relation(fields: [driverId], references: [driverId], onUpdate: Cascade, onDelete: Restrict)
+  trip   Trip?  @relation(fields: [tripId], references: [tripId], onUpdate: Cascade, onDelete: SetNull)
+
+  @@map("driver_locations")
+}
+
+model DriverLocationHistory {
+  id         BigInt   @id @default(autoincrement()) @map("id")
+  driverId   Int      @map("driver_id")
+  tripId     Int?     @map("trip_id")
+  lat        Float    @map("lat")
+  lng        Float    @map("lng")
+  speed      Float?   @map("speed")
+  recordedAt DateTime @default(now()) @map("recorded_at") @db.Timestamptz
+
+  driver Driver @relation(fields: [driverId], references: [driverId], onUpdate: Cascade, onDelete: Restrict)
+  trip   Trip?  @relation(fields: [tripId], references: [tripId], onUpdate: Cascade, onDelete: SetNull)
+
+  @@index([driverId, recordedAt])
+  @@map("driver_location_history")
+}
+
+model DriverDocument {
+  documentId       Int      @id @default(autoincrement()) @map("document_id")
+  driverId         Int      @map("driver_id")
+  documentType     String   @map("document_type") @db.VarChar(30)
+  fileURL          String   @map("file_url") @db.VarChar(500)
+  originalFileName String   @map("original_file_name") @db.VarChar(255)
+  mimeType         String   @map("mime_type") @db.VarChar(100)
+  sizeBytes        Int      @map("size_bytes")
+  uploadedAt       DateTime @default(now()) @map("uploaded_at") @db.Timestamptz
+
+  driver Driver @relation(fields: [driverId], references: [driverId], onUpdate: Cascade, onDelete: Restrict)
+
+  @@index([driverId, documentType, uploadedAt])
+  @@map("driver_documents")
+}
+
+model DriverLeave {
+  leaveId   Int      @id @default(autoincrement()) @map("leave_id")
+  driverId  Int      @map("driver_id")
+  startDate DateTime @map("start_date") @db.Date
+  endDate   DateTime @map("end_date") @db.Date
+  status    String   @default("PENDING") @map("status") @db.VarChar(20)
+  reason    String?  @map("reason") @db.VarChar(500)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  driver Driver @relation(fields: [driverId], references: [driverId], onUpdate: Cascade, onDelete: Restrict)
+
+  @@index([driverId, startDate])
+  @@map("driver_leaves")
+}
+
+// ---------------------------------------------------------
+// Group 6: Admins
+// ---------------------------------------------------------
+
+model Admin {
+  adminId             Int       @id @default(autoincrement()) @map("admin_id")
+  officeId            Int       @map("office_id")
+  adminName           String    @map("admin_name") @db.VarChar(150)
+  phoneNo             String?   @map("phone_no") @db.VarChar(20)
+  emailId             String    @unique @map("email_id") @db.VarChar(254)
+  passwordHash        String    @map("password_hash") @db.VarChar(255)
+  status              String    @default("ACTIVE") @map("status") @db.VarChar(20)
+  failedLoginAttempts Int       @default(0) @map("failed_login_attempts")
+  lockedUntil         DateTime? @map("locked_until") @db.Timestamptz
+  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt           DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  office                Office                       @relation(fields: [officeId], references: [officeId], onUpdate: Cascade, onDelete: Restrict)
+  ordersCreated         Order[]                      @relation("OrdersCreatedByAdmin")
+  ordersDecided         Order[]                      @relation("OrdersDecidedByAdmin")
+  invoicesCreated       Invoice[]                    @relation("InvoicesCreatedByAdmin")
+  invoicesVerified1     Invoice[]                    @relation("InvoicesVerifiedByAdmin1")
+  invoicesVerified2     Invoice[]                    @relation("InvoicesVerifiedByAdmin2")
+  registrationsReviewed CompanyRegistrationRequest[] @relation("RegistrationsReviewedByAdmin")
+  sosAlertsClaimed      TripSosAlert[]
+
+  @@map("admins")
+}
+
+// ---------------------------------------------------------
+// Group 7: System (Audit Logs, Sessions, Notifications)
+// ---------------------------------------------------------
+
+model AuditLog {
+  auditId    BigInt   @id @default(autoincrement()) @map("audit_id")
+  actorId    Int?     @map("actor_id")
+  actorType  String   @map("actor_type") @db.VarChar(10)
+  action     String   @map("action") @db.VarChar(50)
+  entityType String   @map("entity_type") @db.VarChar(30)
+  entityId   Int      @map("entity_id")
+  oldValue   Json?    @map("old_value") @db.JsonB
+  newValue   Json?    @map("new_value") @db.JsonB
+  ipAddress  String?  @map("ip_address") @db.Inet
+  reason     String?  @map("reason") @db.VarChar(500)
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  @@index([entityType, entityId])
+  @@index([actorType, actorId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+model Session {
+  sessionId        Int       @id @default(autoincrement()) @map("session_id")
+  userType         String    @map("user_type") @db.VarChar(10)
+  userId           Int       @map("user_id")
+  refreshTokenHash String    @unique @map("refresh_token_hash") @db.VarChar(64)
+  expiresAt        DateTime  @map("expires_at") @db.Timestamptz
+  revokedAt        DateTime? @map("revoked_at") @db.Timestamptz
+  ipAddress        String?   @map("ip_address") @db.Inet
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  @@index([userType, userId])
+  @@index([expiresAt])
+  @@map("sessions")
+}
+
+model Notification {
+  notificationId Int       @id @default(autoincrement()) @map("notification_id")
+  recipientType  String    @map("recipient_type") @db.VarChar(10)
+  recipientId    Int       @map("recipient_id")
+  recipientEmail String    @map("recipient_email") @db.VarChar(254)
+  type           String    @map("type") @db.VarChar(30)
+  entityType     String    @map("entity_type") @db.VarChar(30)
+  entityId       Int       @map("entity_id")
+  status         String    @default("PENDING") @map("status") @db.VarChar(10)
+  attempts       Int       @default(0) @map("attempts")
+  lastError      String?   @map("last_error") @db.VarChar(500)
+  sentAt         DateTime? @map("sent_at") @db.Timestamptz
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  @@index([status, createdAt])
+  @@map("notifications")
+}
+
+// ---------------------------------------------------------
+// Onboarding & Password Setup Support
+// ---------------------------------------------------------
+
+model CompanyRegistrationRequest {
+  requestId         Int       @id @default(autoincrement()) @map("request_id")
+  companyName       String    @map("company_name") @db.VarChar(150)
+  address           String?   @map("address") @db.VarChar(300)
+  contactPerson     String    @map("contact_person") @db.VarChar(150)
+  phoneNo           String    @map("phone_no") @db.VarChar(20)
+  emailId           String    @map("email_id") @db.VarChar(254)
+  companyLocation   String?   @map("company_location") @db.VarChar(300)
+  notes             String?   @map("notes") @db.VarChar(1000)
+  status            String    @default("PENDING") @map("status") @db.VarChar(20)
+  reviewedByAdminId Int?      @map("reviewed_by_admin_id")
+  reviewedAt        DateTime? @map("reviewed_at") @db.Timestamptz
+  rejectionReason   String?   @map("rejection_reason") @db.VarChar(500)
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt         DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  reviewedByAdmin Admin? @relation("RegistrationsReviewedByAdmin", fields: [reviewedByAdminId], references: [adminId], onUpdate: Cascade, onDelete: Restrict)
+
+  @@index([status, createdAt])
+  @@map("company_registration_requests")
+}
+
+model PasswordSetupToken {
+  tokenId   Int       @id @default(autoincrement()) @map("token_id")
+  userType  String    @map("user_type") @db.VarChar(10)
+  userId    Int       @map("user_id")
+  tokenHash String    @unique @map("token_hash") @db.VarChar(64)
+  expiresAt DateTime  @map("expires_at") @db.Timestamptz
+  usedAt    DateTime? @map("used_at") @db.Timestamptz
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  @@index([userType, userId])
+  @@index([expiresAt])
+  @@map("password_setup_tokens")
+}
+
+model EmailOtp {
+  otpId     Int       @id @default(autoincrement()) @map("otp_id")
+  email     String    @map("email") @db.VarChar(254)
+  otpHash   String    @map("otp_hash") @db.VarChar(64)
+  purpose   String    @map("purpose") @db.VarChar(30) // 'PASSWORD_RESET', 'EMAIL_VERIFY'
+  attempts  Int       @default(0) @map("attempts") // Burns after 3 attempts
+  expiresAt DateTime  @map("expires_at") @db.Timestamptz // 10 minutes
+  usedAt    DateTime? @map("used_at") @db.Timestamptz
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  @@index([email, purpose])
+  @@index([expiresAt])
+  @@map("email_otps")
+}

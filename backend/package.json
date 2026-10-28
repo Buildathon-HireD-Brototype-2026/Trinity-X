@@ -1,0 +1,42 @@
+{
+  "name": "backend",
+  "version": "1.0.0",
+  "description": "",
+  "main": "src/server.js",
+  "scripts": {
+    "dev": "nodemon src/server.js",
+    "start": "node src/server.js",
+    "test": "node tests/auth_and_onboarding.test.js && node tests/admin_company_driver.test.js && node tests/admin_account_management.test.js && node tests/driver_app_endpoints.test.js && node tests/email_otp_security.test.js",
+    "test:auth": "node tests/auth_and_onboarding.test.js",
+    "test:management": "node tests/admin_company_driver.test.js",
+    "test:admin": "node tests/admin_account_management.test.js",
+    "test:driver": "node tests/driver_app_endpoints.test.js",
+    "test:otp": "node tests/email_otp_security.test.js",
+    "test:selfie": "node tests/verify_selfie_cloudinary.js && node tests/verify_cloudinary_unit.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "dependencies": {
+    "@prisma/adapter-pg": "^7.10.0",
+    "@prisma/client": "^7.10.0",
+    "bcryptjs": "^3.0.3",
+    "cloudinary": "^2.11.0",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.6",
+    "dotenv": "^18.0.6",
+    "express": "^5.3.0",
+    "express-rate-limit": "^8.7.1",
+    "helmet": "^8.3.0",
+    "jsonwebtoken": "^9.0.3",
+    "multer": "^2.4.0",
+    "node-cron": "^4.6.0",
+    "nodemailer": "^10.2.1",
+    "pg": "^8.23.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.14",
+    "prisma": "^7.10.0"
+  }
+}

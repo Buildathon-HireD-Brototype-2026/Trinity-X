@@ -176,6 +176,30 @@ export default function CreateOrderModal({ isOpen, onClose, onSubmit }) {
       const rawDigits = form.contactPhone.replace(/\D/g, '');
       const formattedPhone = `+91 ${rawDigits.slice(-10, -5)} ${rawDigits.slice(-5)}`;
 
+      // Geocode address text to real coordinates if available
+      let pickupCoords = { lat: null, lng: null };
+      let dropCoords = { lat: null, lng: null };
+      try {
+        const [pRes, dRes] = await Promise.allSettled([
+          fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(form.pickupSpot.trim())}&limit=1`, { signal: AbortSignal.timeout(2500) }).then(r => r.ok ? r.json() : null),
+          fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(form.dropoffSpot.trim())}&limit=1`, { signal: AbortSignal.timeout(2500) }).then(r => r.ok ? r.json() : null)
+        ]);
+        if (pRes.status === 'fulfilled' && pRes.value?.features?.[0]?.geometry?.coordinates) {
+          const [lon, lat] = pRes.value.features[0].geometry.coordinates;
+          if (typeof lat === 'number' && typeof lon === 'number') {
+            pickupCoords = { lat: Number(lat.toFixed(7)), lng: Number(lon.toFixed(7)) };
+          }
+        }
+        if (dRes.status === 'fulfilled' && dRes.value?.features?.[0]?.geometry?.coordinates) {
+          const [lon, lat] = dRes.value.features[0].geometry.coordinates;
+          if (typeof lat === 'number' && typeof lon === 'number') {
+            dropCoords = { lat: Number(lat.toFixed(7)), lng: Number(lon.toFixed(7)) };
+          }
+        }
+      } catch {
+        // Fallback to null coordinates on timeout/error
+      }
+
       await onSubmit({
         companyId: Number(form.companyId),
         source: form.source,
@@ -183,6 +207,10 @@ export default function CreateOrderModal({ isOpen, onClose, onSubmit }) {
         contactPhone: formattedPhone,
         pickupSpot: form.pickupSpot.trim(),
         dropoffSpot: form.dropoffSpot.trim(),
+        pickupLatitude: pickupCoords.lat,
+        pickupLongitude: pickupCoords.lng,
+        dropLatitude: dropCoords.lat,
+        dropLongitude: dropCoords.lng,
         pickupTime: new Date(form.pickupTime).toISOString(),
         vehicleType: form.vehicleType,
         estimatedFare: Number(Number(form.estimatedFare).toFixed(2)),

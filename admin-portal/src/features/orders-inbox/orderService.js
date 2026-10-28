@@ -392,6 +392,10 @@ export async function createManualOrder(orderData) {
     },
     pickupSpot: orderData.pickupSpot.trim(),
     dropoffSpot: orderData.dropoffSpot.trim(),
+    pickupLatitude: orderData.pickupLatitude !== undefined ? orderData.pickupLatitude : null,
+    pickupLongitude: orderData.pickupLongitude !== undefined ? orderData.pickupLongitude : null,
+    dropLatitude: orderData.dropLatitude !== undefined ? orderData.dropLatitude : null,
+    dropLongitude: orderData.dropLongitude !== undefined ? orderData.dropLongitude : null,
     pickupTime: orderData.pickupTime || new Date(Date.now() + 2 * 3600 * 1000).toISOString(),
     contactName: orderData.contactName.trim(),
     contactPhone: orderData.contactPhone.trim(),
@@ -421,11 +425,16 @@ export async function createManualOrder(orderData) {
 /**
  * Accept an incoming order (PRD A-05).
  * Validates driver name, updates status to ACCEPTED, and dispatches the reviewed email.
+ * Supports both signatures:
+ *   acceptOrder(orderId, options)
+ *   acceptOrder(orderId, tripAmount, options)
  *
  * @param {number|string} orderId
- * @param {Object|number} options
+ * @param {number|string|Object} tripAmountOrOptions
+ * @param {Object} [maybeOptions]
+ * @returns {Promise<Object>}
  */
-export async function acceptOrder(orderId, options = {}) {
+export async function acceptOrder(orderId, tripAmountOrOptions = {}, maybeOptions = {}) {
   const numericId = Number(orderId);
   const idx = _orders.findIndex((o) => o.orderId === numericId);
   if (idx === -1) throw new Error('Order not found.');
@@ -435,25 +444,27 @@ export async function acceptOrder(orderId, options = {}) {
     throw new Error(`Order #ORD-${numericId} is already in a terminal state (${_orders[idx].status}) and cannot be modified.`);
   }
 
-  // Handle options format
-  let driver = '';
+  // Handle overloaded options / tripAmount arguments
+  let options = {};
   let fare = _orders[idx].tripAmount || _orders[idx].estimatedFare || 1200;
-  let emailSubject = `Order #${numericId} Accepted`;
-  let emailBody = '';
-  let adminEmail = 'admin@hired.com';
-  let companyEmail = _orders[idx].company?.email || _orders[idx].companyEmail || '';
-  let simulateFailure = false;
 
-  if (typeof options === 'object' && options !== null) {
-    driver = (options.driverName || _orders[idx].driverName || '').trim();
+  if (typeof tripAmountOrOptions === 'object' && tripAmountOrOptions !== null) {
+    options = tripAmountOrOptions;
     if (options.tripAmount) fare = Number(Number(options.tripAmount).toFixed(2));
-    if (options.subject) emailSubject = options.subject.trim();
-    if (options.body) emailBody = options.body.trim();
-    if (options.from) adminEmail = options.from.trim();
-    if (options.to) companyEmail = options.to.trim();
-    simulateFailure = options.simulateFailure === true;
-  } else if (typeof options === 'number' || typeof options === 'string') {
-    fare = Number(Number(options).toFixed(2));
+  } else if (typeof tripAmountOrOptions === 'number' || typeof tripAmountOrOptions === 'string') {
+    fare = Number(Number(tripAmountOrOptions).toFixed(2));
+    options = typeof maybeOptions === 'object' && maybeOptions !== null ? maybeOptions : {};
+  }
+
+  let driver = (options.driverName || _orders[idx].driverName || '').trim();
+  let emailSubject = (options.subject || `Order #${numericId} Accepted`).trim();
+  let emailBody = (options.body || '').trim();
+  let adminEmail = (options.from || 'admin@hired.com').trim();
+  let companyEmail = (options.to || _orders[idx].company?.email || _orders[idx].companyEmail || '').trim();
+  let simulateFailure = options.simulateFailure === true;
+
+  // Fallback driver name if not specified in options
+  if (!driver && (typeof tripAmountOrOptions === 'number' || typeof tripAmountOrOptions === 'string')) {
     driver = _orders[idx].driverName || 'Assigned Driver';
   }
 
@@ -466,13 +477,17 @@ export async function acceptOrder(orderId, options = {}) {
     throw new Error('Trip amount must be a positive number between ₹1.00 and ₹5,00,000.00.');
   }
 
-  // 1. UPDATE ORDER STATUS AND SAVE DRIVER
+  // 1. UPDATE ORDER STATUS AND SAVE DRIVER & COORDINATES
   const decidedAt = new Date().toISOString();
   _orders[idx] = {
     ..._orders[idx],
     status: 'ACCEPTED',
     driverName: driver,
     tripAmount: fare,
+    pickupLatitude: options.pickupLatitude !== undefined ? options.pickupLatitude : (_orders[idx].pickupLatitude ?? null),
+    pickupLongitude: options.pickupLongitude !== undefined ? options.pickupLongitude : (_orders[idx].pickupLongitude ?? null),
+    dropLatitude: options.dropLatitude !== undefined ? options.dropLatitude : (_orders[idx].dropLatitude ?? null),
+    dropLongitude: options.dropLongitude !== undefined ? options.dropLongitude ?? null : (_orders[idx].dropLongitude ?? null),
     decidedAt,
     emailSentTo: companyEmail,
     emailSentFrom: adminEmail,
@@ -497,10 +512,18 @@ export async function acceptOrder(orderId, options = {}) {
       body: JSON.stringify({
         orderId: numericId,
         type: 'accepted',
+        tripAmount: fare,
+        amount: fare,
         to: companyEmail,
         from: adminEmail,
         subject: emailSubject,
         body: emailBody,
+        driverName: driver,
+        pickupLatitude: options.pickupLatitude !== undefined ? options.pickupLatitude : (_orders[idx].pickupLatitude ?? null),
+        pickupLongitude: options.pickupLongitude !== undefined ? options.pickupLongitude : (_orders[idx].pickupLongitude ?? null),
+        dropLatitude: options.dropLatitude !== undefined ? options.dropLatitude : (_orders[idx].dropLatitude ?? null),
+        dropLongitude: options.dropLongitude !== undefined ? options.dropLongitude ?? null : (_orders[idx].dropLongitude ?? null),
+        ...options,
         simulateFailure
       })
     });
