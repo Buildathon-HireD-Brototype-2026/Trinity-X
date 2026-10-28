@@ -213,7 +213,7 @@ export default function CompanyReviewModal({
           >
             <ShieldCheck size={16} style={{ flexShrink: 0, marginTop: '2px' }} />
             <span>
-              <strong>PRD Rule (A-08 / A-10):</strong> Approving this corporate registration request immediately provisions an active client account in the directory, assigns default payout splits, and authorizes the enterprise for transport dispatch.
+              Approving this corporate registration request immediately provisions an active client account in the directory, assigns default payout splits, and authorizes the enterprise for transport dispatch.
             </span>
           </div>
 

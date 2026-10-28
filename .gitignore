@@ -3,16 +3,24 @@
 .env.*
 !.env.example
 
+
 # Dependencies
 node_modules/
 venv/
 .venv/
 __pycache__/
 
-# Build outputs
+# Build outputs & caches
 dist/
 build/
 .next/
+.vite/
+
+# User uploads & media
+uploads/
+backend/uploads/
+uploads/*
+!uploads/.gitkeep
 
 # Flutter / Mobile
 .dart_tool/

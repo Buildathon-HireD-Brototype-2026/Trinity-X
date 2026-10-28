@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useIdleTimer } from '../../hooks/useIdleTimer';
+import apiClient from '../../services/apiClient';
 
 const AuthContext = createContext(null);
 
@@ -105,8 +106,6 @@ export function AuthProvider({ children }) {
       throw new Error('Unable to connect to server. Please check your connection.');
     }
 
-    await new Promise((resolve) => setTimeout(resolve, 350));
-
     // Check account lockout rate-limiting
     if (failedAttempts >= 5) {
       setLoading(false);
@@ -114,6 +113,40 @@ export function AuthProvider({ children }) {
     }
 
     const normalizedEmail = (email || '').trim().toLowerCase();
+
+    // 1. Attempt live backend login
+    try {
+      const res = await apiClient.post('/auth/admin/login', {
+        email: normalizedEmail,
+        password
+      });
+
+      if (res?.data?.access_token || res?.access_token) {
+        const token = res?.data?.access_token || res?.access_token;
+        const backendUser = res?.data?.user || res?.user || {};
+        const sessionUser = {
+          id: backendUser.admin_id ? `ADM-${backendUser.admin_id}` : backendUser.id || 'ADM-001',
+          adminId: backendUser.adminId || backendUser.admin_id || 1,
+          name: backendUser.admin_name || backendUser.name || 'Administrator',
+          email: backendUser.email_id || backendUser.email || normalizedEmail,
+          role: backendUser.role || 'Admin',
+          token,
+          expiresAt: Date.now() + MAX_SESSION_DURATION_MS,
+        };
+
+        setFailedAttempts(0);
+        sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(sessionUser));
+        localStorage.setItem('hired_admin_user', JSON.stringify(sessionUser));
+        setUser(sessionUser);
+        setLoading(false);
+        return sessionUser;
+      }
+    } catch (apiErr) {
+      console.warn('[AuthContext] Backend login attempt skipped/failed, evaluating local credentials:', apiErr.message);
+    }
+
+    // 2. Fallback to local admin credentials
+    await new Promise((resolve) => setTimeout(resolve, 200));
     const adminByEmail = DEFAULT_ADMINS.find((a) => a.email.toLowerCase() === normalizedEmail);
 
     if (!adminByEmail || adminByEmail.password !== password) {

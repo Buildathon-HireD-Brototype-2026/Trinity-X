@@ -351,7 +351,7 @@ export default function CompanyDetailsModal({
                 </div>
                 <div>
                   <h4 style={{ margin: 0, fontSize: '0.875rem', fontWeight: 700, color: 'var(--text-main)' }}>
-                    Revenue Payout Split Configuration (PRD A-11)
+                    Revenue Payout Split Configuration
                   </h4>
                   <p style={{ margin: '0.1rem 0 0', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
                     Determines automatic fare split upon trip billing completion.

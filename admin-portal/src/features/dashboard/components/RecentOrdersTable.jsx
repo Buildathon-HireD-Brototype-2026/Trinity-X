@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import {
   ArrowUpDown,
   ArrowUp,
@@ -16,8 +16,15 @@ import {
   MapPin,
   Calendar,
   AlertCircle,
+  RefreshCw,
   Send
 } from 'lucide-react';
+import {
+  getDashboardOrders,
+  acceptOrder,
+  rejectOrder,
+  FALLBACK_ORDERS
+} from '../dashboardService';
 import OrderDecisionEmailModal from '../../orders-inbox/OrderDecisionEmailModal';
 import { useAuth } from '../../auth/AuthContext';
 
@@ -168,11 +175,32 @@ export default function RecentOrdersTable({ onNavigate }) {
   const { user } = useAuth ? useAuth() : {};
   const adminEmail = user?.email || 'admin@hired.com';
 
-  const [orders, setOrders] = useState(MOCK_ORDERS);
+  const [orders, setOrders] = useState(FALLBACK_ORDERS || MOCK_ORDERS);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isActionLoading, setIsActionLoading] = useState(false);
+  const [fetchError, setFetchError] = useState(null);
   const [statusFilter, setStatusFilter] = useState('PENDING'); // Default to Pending Orders filter per request
   const [sortDirection, setSortDirection] = useState('desc'); // 'desc' = Newest first, 'asc' = Oldest first
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedOrder, setSelectedOrder] = useState(null);
+
+  const fetchOrders = useCallback(async () => {
+    setIsLoading(true);
+    setFetchError(null);
+    try {
+      const data = await getDashboardOrders();
+      setOrders(data);
+    } catch (err) {
+      setOrders(FALLBACK_ORDERS || MOCK_ORDERS);
+      setFetchError(err.message || 'Unable to connect to live server. Displaying cached operational records.');
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchOrders();
+  }, [fetchOrders]);
 
   // Decision & Email review dialog state
   const [decisionModal, setDecisionModal] = useState({
@@ -293,12 +321,24 @@ export default function RecentOrdersTable({ onNavigate }) {
     setSortDirection((prev) => (prev === 'desc' ? 'asc' : 'desc'));
   };
 
-  const handleDecision = (orderId, newStatus) => {
-    setOrders((prev) =>
-      prev.map((o) => (o.id === orderId ? { ...o, status: newStatus } : o))
-    );
-    if (selectedOrder && selectedOrder.id === orderId) {
-      setSelectedOrder((prev) => ({ ...prev, status: newStatus }));
+  const handleDecision = async (orderId, newStatus) => {
+    setIsActionLoading(true);
+    try {
+      if (newStatus === 'REJECTED') {
+        await rejectOrder(orderId, 'Rejected by operations administrator');
+      } else {
+        await acceptOrder(orderId);
+      }
+      setOrders((prev) =>
+        prev.map((o) => (o.id === orderId ? { ...o, status: newStatus } : o))
+      );
+      if (selectedOrder && selectedOrder.id === orderId) {
+        setSelectedOrder((prev) => ({ ...prev, status: newStatus }));
+      }
+    } catch (err) {
+      console.error('[RecentOrdersTable] Decision error:', err);
+    } finally {
+      setIsActionLoading(false);
     }
   };
 
@@ -317,15 +357,40 @@ export default function RecentOrdersTable({ onNavigate }) {
           </p>
         </div>
 
-        <button
-          type="button"
-          className="recent-orders-view-all-btn"
-          onClick={() => onNavigate && onNavigate('orders')}
-          title="Open full Orders Inbox"
-        >
-          <span>View All</span>
-          <ArrowRight size={16} />
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem' }}>
+          <button
+            type="button"
+            className="btn-ghost"
+            onClick={fetchOrders}
+            disabled={isLoading}
+            title="Refresh Orders"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.375rem',
+              padding: '0.45rem 0.75rem',
+              borderRadius: 'var(--radius-sm)',
+              border: '1px solid var(--border)',
+              background: 'var(--surface)',
+              color: 'var(--text-main)',
+              fontSize: '0.8125rem',
+              cursor: 'pointer'
+            }}
+          >
+            <RefreshCw size={14} className={isLoading ? 'spin-icon' : ''} />
+            <span>{isLoading ? 'Updating...' : 'Refresh'}</span>
+          </button>
+
+          <button
+            type="button"
+            className="recent-orders-view-all-btn"
+            onClick={() => onNavigate && onNavigate('orders')}
+            title="Open full Orders Inbox"
+          >
+            <span>View All</span>
+            <ArrowRight size={16} />
+          </button>
+        </div>
       </div>
 
       {/* Filter and Sorting Toolbar */}
@@ -407,6 +472,42 @@ export default function RecentOrdersTable({ onNavigate }) {
         </div>
       </div>
 
+      {/* Network Error / Offline Alert Banner */}
+      {fetchError && (
+        <div
+          className="orders-network-banner"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+            padding: '0.625rem 1rem',
+            background: 'rgba(239, 68, 68, 0.08)',
+            borderBottom: '1px solid rgba(239, 68, 68, 0.2)',
+            color: '#dc2626',
+            fontSize: '0.8125rem'
+          }}
+        >
+          <AlertCircle size={15} style={{ flexShrink: 0 }} />
+          <span>{fetchError}</span>
+          <button
+            type="button"
+            onClick={fetchOrders}
+            style={{
+              marginLeft: 'auto',
+              background: 'transparent',
+              border: 'none',
+              color: '#dc2626',
+              textDecoration: 'underline',
+              cursor: 'pointer',
+              fontWeight: 600,
+              fontSize: '0.78125rem'
+            }}
+          >
+            Retry Connection
+          </button>
+        </div>
+      )}
+
       {/* Orders Data Table */}
       <div className="orders-table-wrapper">
         <table className="orders-table">
@@ -427,7 +528,23 @@ export default function RecentOrdersTable({ onNavigate }) {
             </tr>
           </thead>
           <tbody>
-            {filteredOrders.length === 0 ? (
+            {isLoading ? (
+              Array.from({ length: 4 }).map((_, idx) => (
+                <tr key={`skeleton-${idx}`} className="orders-table-row">
+                  <td colSpan={7} style={{ padding: '1.25rem 1rem' }}>
+                    <div
+                      style={{
+                        height: '1.25rem',
+                        borderRadius: '4px',
+                        background: 'var(--border)',
+                        opacity: 0.5,
+                        animation: 'pulse 1.5s infinite ease-in-out'
+                      }}
+                    />
+                  </td>
+                </tr>
+              ))
+            ) : filteredOrders.length === 0 ? (
               <tr>
                 <td colSpan={7} className="orders-empty-state">
                   <AlertCircle size={28} className="empty-state-icon" />

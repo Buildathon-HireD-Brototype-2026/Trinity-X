@@ -1,10 +1,12 @@
 # Dependencies
 node_modules/
+.vite/
 .pnpm-store/
 
 # Production build outputs
 dist/
 dist-ssr/
+.vite/
 
 # Environment files
 .env

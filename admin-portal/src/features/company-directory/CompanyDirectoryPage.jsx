@@ -8,7 +8,6 @@ import {
   RefreshCw,
   AlertCircle,
   CheckCircle2,
-  Building,
   PlusCircle,
   Eye,
   ShieldAlert,
@@ -290,14 +289,6 @@ export default function CompanyDirectoryPage() {
           <span className="stat-value" style={{ color: 'var(--text-muted)' }}>{stats.inactive}</span>
           <span className="stat-label">Inactive Accounts</span>
         </div>
-      </div>
-
-      {/* ── PRD Guidelines Info Banner ── */}
-      <div className="prd-info-banner">
-        <Building size={14} />
-        <span>
-          <strong>PRD Rule (A-08 & A-10):</strong> Corporate client companies can submit transport booking orders once active. Payout splits default to <strong>20.00% HireD / 80.00% Driver</strong> and can be individually configured per enterprise contract.
-        </span>
       </div>
 
       {/* ── View-Only Access Banner for Non-Admin Roles (RBAC) ── */}
