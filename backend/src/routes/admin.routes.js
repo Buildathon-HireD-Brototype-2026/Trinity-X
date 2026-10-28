@@ -44,7 +44,8 @@ import {
   getAdminOrderHandler,
   acceptOrderHandler,
   rejectOrderHandler,
-  assignDriverHandler
+  assignDriverHandler,
+  getEligibleDriversHandler
 } from '../modules/order/order.controller.js';
 
 // Invoice & Month-End Verification controllers
@@ -96,6 +97,7 @@ router.post('/drivers/:driver_id/wallet-debits', validateIdParam('driver_id'), c
 // ============================================================================
 router.get('/orders', listAdminOrdersHandler);
 router.get('/orders/:order_id', validateIdParam('order_id'), getAdminOrderHandler);
+router.get('/orders/:order_id/eligible-drivers', validateIdParam('order_id'), getEligibleDriversHandler);
 router.post('/orders/:order_id/accept', validateIdParam('order_id'), acceptOrderHandler);
 router.post('/orders/:order_id/reject', validateIdParam('order_id'), rejectOrderHandler);
 router.post('/trips/:trip_id/assign-driver', validateIdParam('trip_id'), assignDriverHandler);

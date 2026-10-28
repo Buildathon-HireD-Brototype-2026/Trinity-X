@@ -77,7 +77,9 @@ export async function sendOrderDecisionEmail({
   fare,
   rejectReason,
   passengerName,
-  passengerPhone
+  passengerPhone,
+  driverName,
+  driverPhone
 }) {
   const transporter = await getTransporter();
   const isAccepted = status === 'ACCEPTED';
@@ -131,13 +133,14 @@ export async function sendOrderDecisionEmail({
             <div class="status-banner status-accepted">
               <strong style="font-size: 15px;">✓ Booking Request Accepted & Live Trip Scheduled</strong>
               <div style="font-size: 13px; margin-top: 4px;">
-                Your transport inquiry <strong>#ORD-${orderId}</strong> has been verified by the dispatch operations team and converted into an active trip. Driver allocation is in progress.
+                Your transport inquiry <strong>#ORD-${orderId}</strong> has been verified by the dispatch operations team and converted into an active trip. ${driverName ? `Assigned driver: <strong>${driverName}</strong>.` : 'Driver allocation is in progress.'}
               </div>
             </div>
 
             <table class="detail-table">
               <tr><td class="detail-label">Order Ref:</td><td class="detail-val">#ORD-${orderId}</td></tr>
               <tr><td class="detail-label">Passenger:</td><td class="detail-val">${passengerName || 'Corporate Traveler'} (${passengerPhone || '—'})</td></tr>
+              ${driverName ? `<tr><td class="detail-label">Allocated Driver:</td><td class="detail-val"><strong>${driverName}</strong> ${driverPhone ? `(${driverPhone})` : ''}</td></tr>` : ''}
               <tr><td class="detail-label">Pickup Spot:</td><td class="detail-val">${pickupSpot}</td></tr>
               <tr><td class="detail-label">Destination:</td><td class="detail-val">${dropoffSpot}</td></tr>
               <tr><td class="detail-label">Scheduled Time:</td><td class="detail-val">${formattedDate}</td></tr>

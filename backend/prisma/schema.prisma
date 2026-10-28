@@ -253,6 +253,8 @@ model DriverLeave {
   driverId  Int      @map("driver_id")
   startDate DateTime @db.Date @map("start_date")
   endDate   DateTime @db.Date @map("end_date")
+  status    String   @default("PENDING") @db.VarChar(20) @map("status")
+  reason    String?  @db.VarChar(500) @map("reason")
   createdAt DateTime @default(now()) @db.Timestamptz @map("created_at")
 
   driver    Driver   @relation(fields: [driverId], references: [driverId], onUpdate: Cascade, onDelete: Restrict)

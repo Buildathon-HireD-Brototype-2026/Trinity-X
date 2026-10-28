@@ -6,6 +6,7 @@ import {
   acceptOrder,
   rejectOrder,
   assignDriverToTrip,
+  getEligibleDriversForOrder,
   formatOrderResponse
 } from './order.service.js';
 import prisma from '../../config/db.js';
@@ -181,6 +182,25 @@ export async function assignDriverHandler(req, res, next) {
       success: true,
       data: result,
       message: 'Driver assigned.'
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * GET /admin/orders/:order_id/eligible-drivers
+ */
+export async function getEligibleDriversHandler(req, res, next) {
+  try {
+    const orderId = Number(req.params.order_id || req.params.orderId);
+    const dateOverride = req.query.date || null;
+    const eligibleDrivers = await getEligibleDriversForOrder(orderId, dateOverride);
+
+    return res.status(200).json({
+      success: true,
+      data: eligibleDrivers,
+      message: 'Eligible drivers retrieved successfully.'
     });
   } catch (err) {
     next(err);
