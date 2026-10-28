@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import Sidebar from './Sidebar';
 import Navbar from './Navbar';
 import DashboardPage from '../../features/dashboard/DashboardPage';
@@ -11,9 +11,12 @@ import OrdersInboxPage from '../../features/orders-inbox/OrdersInboxPage';
 import TripsAssignmentPage from '../../features/trips-assignment/TripsAssignmentPage';
 import TripReportsPage from '../../features/reports/TripReportsPage';
 import InvoiceVerificationPage from '../../features/invoices/InvoiceVerificationPage';
+import SosEmergencyPage from '../../features/sos/SosEmergencyPage';
+import { fetchActiveSosAlerts } from '../../features/sos/sosService';
 
 const VIEW_TITLES = {
   dashboard: 'Dashboard Overview',
+  sos: 'Emergency SOS Response',
   company: 'Company Directory',
   orders: 'Orders Inbox',
   trips: 'Trips & Driver Assignment',
@@ -36,6 +39,23 @@ export default function AdminShell() {
     return 'dashboard';
   });
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [activeSosCount, setActiveSosCount] = useState(0);
+
+  // Background active SOS alerts counter
+  const checkActiveSos = useCallback(async () => {
+    try {
+      const active = await fetchActiveSosAlerts();
+      setActiveSosCount(active.length);
+    } catch {
+      // fail gracefully
+    }
+  }, []);
+
+  useEffect(() => {
+    checkActiveSos();
+    const interval = setInterval(checkActiveSos, 15000);
+    return () => clearInterval(interval);
+  }, [checkActiveSos]);
 
   useEffect(() => {
     const handlePopState = () => {
@@ -76,15 +96,23 @@ export default function AdminShell() {
         isCollapsed={isCollapsed}
         onToggleCollapse={handleToggleCollapse}
         onOpenProfile={handleOpenProfile}
+        activeSosCount={activeSosCount}
       />
 
       <div className="admin-main-wrapper">
-        <Navbar onOpenProfile={handleOpenProfile} currentView={currentView} />
+        <Navbar
+          onOpenProfile={handleOpenProfile}
+          currentView={currentView}
+          activeSosCount={activeSosCount}
+          onNavigate={handleSelectView}
+        />
 
         {/* Page Content */}
         <main className="admin-page-content">
           {currentView === 'dashboard' ? (
             <DashboardPage onNavigate={handleSelectView} />
+          ) : currentView === 'sos' ? (
+            <SosEmergencyPage onActiveCountChange={setActiveSosCount} />
           ) : currentView === 'profile' ? (
             <AdminProfilePage onNavigate={handleSelectView} />
           ) : currentView === 'admins' ? (
@@ -109,3 +137,4 @@ export default function AdminShell() {
     </div>
   );
 }
+

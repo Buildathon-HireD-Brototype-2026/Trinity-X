@@ -100,7 +100,7 @@ app.use('/api/admin', adminRouter);
 app.use('/admin', adminRouter);
 app.use('/api/v1', adminRouter);
 
-
+ 
 // 404 Handler for undefined routes
 app.use((req, res) => {
   if (req.originalUrl?.startsWith('/api/v1') || req.path?.startsWith('/api/v1')) {

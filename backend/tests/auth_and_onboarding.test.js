@@ -75,8 +75,10 @@ async function runTests() {
         await prisma.driverWalletTransaction.deleteMany({ where: { tripId: { in: priorTripIds } } });
         await prisma.driverLocationHistory.deleteMany({ where: { tripId: { in: priorTripIds } } });
         await prisma.tripPayroll.deleteMany({ where: { tripId: { in: priorTripIds } } });
+        await prisma.tripSosAlert.deleteMany({ where: { tripId: { in: priorTripIds } } });
         await prisma.expense.deleteMany({ where: { tripId: { in: priorTripIds } } });
       }
+      await prisma.tripSosAlert.deleteMany({ where: { orderId: { in: priorOrderIds } } });
       await prisma.trip.deleteMany({ where: { orderId: { in: priorOrderIds } } });
       await prisma.order.deleteMany({ where: { orderId: { in: priorOrderIds } } });
     }

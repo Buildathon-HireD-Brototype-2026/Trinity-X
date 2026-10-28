@@ -5,6 +5,8 @@ import {
   updateDriverSosLocation,
   cancelDriverSosAlert,
   getActiveSosAlertsForAdmin,
+  getAllSosAlertsForAdmin,
+  createSimulatedSosAlert,
   claimSosAlertByAdmin,
   resolveSosAlertByAdmin,
   getSosAlertDetails
@@ -169,6 +171,44 @@ export async function getSosAlertDetailsHandler(req, res, next) {
 
     const alert = await getSosAlertDetails(alertId);
     return successResponse(res, 200, alert);
+  } catch (error) {
+    if (error.statusCode) {
+      return errorResponse(res, error.statusCode, error.code, error.message, error.details || []);
+    }
+    next(error);
+  }
+}
+
+export async function getAllSosAlertsForAdminHandler(req, res, next) {
+  try {
+    const { status, search } = req.query;
+    const alerts = await getAllSosAlertsForAdmin({ status, search });
+    return successResponse(res, 200, alerts);
+  } catch (error) {
+    if (error.statusCode) {
+      return errorResponse(res, error.statusCode, error.code, error.message, error.details || []);
+    }
+    next(error);
+  }
+}
+
+export async function createSimulatedSosAlertHandler(req, res, next) {
+  try {
+    const { tripId, reason, notes, latitude, longitude } = req.body || {};
+    const { alert, isExisting } = await createSimulatedSosAlert({
+      tripId,
+      reason,
+      notes,
+      latitude,
+      longitude
+    });
+
+    return successResponse(
+      res,
+      isExisting ? 200 : 201,
+      alert,
+      isExisting ? 'Active SOS alert already exists for this trip.' : 'Emergency SOS incident recorded successfully.'
+    );
   } catch (error) {
     if (error.statusCode) {
       return errorResponse(res, error.statusCode, error.code, error.message, error.details || []);

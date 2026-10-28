@@ -387,3 +387,98 @@ export async function getSosAlertDetails(alertId) {
 
   return formatSosAlert(alert);
 }
+
+/**
+ * Admin: get all SOS alerts with optional status filter & search
+ */
+export async function getAllSosAlertsForAdmin({ status, search } = {}) {
+  const where = {};
+  if (status && status !== 'ALL') {
+    where.status = status;
+  }
+
+  if (search && search.trim()) {
+    const q = search.trim();
+    const num = parseInt(q, 10);
+    where.OR = [
+      { driver: { name: { contains: q, mode: 'insensitive' } } },
+      { order: { company: { name: { contains: q, mode: 'insensitive' } } } },
+      { notes: { contains: q, mode: 'insensitive' } },
+      ...(isNaN(num) ? [] : [{ tripId: num }, { orderId: num }, { alertId: num }])
+    ];
+  }
+
+  const alerts = await prisma.tripSosAlert.findMany({
+    where,
+    include: ALERT_INCLUDES,
+    orderBy: { createdAt: 'desc' }
+  });
+
+  return alerts.map(formatSosAlert);
+}
+
+/**
+ * Admin: simulate / create test SOS alert on an ongoing trip for demonstration & testing
+ */
+export async function createSimulatedSosAlert({ tripId, reason = 'VEHICLE_DAMAGE', notes = 'Test emergency alert triggered from admin console.', latitude = 9.9816, longitude = 76.2999 } = {}) {
+  let targetTrip;
+  if (tripId) {
+    targetTrip = await prisma.trip.findUnique({
+      where: { tripId: parseInt(tripId, 10) },
+      include: { order: true, driver: true }
+    });
+  }
+
+  if (!targetTrip) {
+    // Find first ongoing or in-progress trip, or fallback to any trip
+    targetTrip = await prisma.trip.findFirst({
+      where: { tripStatus: { in: ['ONGOING', 'IN_PROGRESS'] } },
+      include: { order: true, driver: true }
+    }) || await prisma.trip.findFirst({
+      include: { order: true, driver: true }
+    });
+  }
+
+  if (!targetTrip) {
+    const error = new Error('No trips found in database to attach SOS incident.');
+    error.statusCode = 404;
+    error.code = 'NO_TRIPS_FOUND';
+    throw error;
+  }
+
+  // Check if there is already an active alert for this trip
+  const existing = await prisma.tripSosAlert.findFirst({
+    where: {
+      tripId: targetTrip.tripId,
+      status: { in: ['OPEN', 'IN_PROGRESS'] }
+    },
+    include: ALERT_INCLUDES
+  });
+
+  if (existing) {
+    return {
+      alert: formatSosAlert(existing),
+      isExisting: true
+    };
+  }
+
+  const newAlert = await prisma.tripSosAlert.create({
+    data: {
+      tripId: targetTrip.tripId,
+      driverId: targetTrip.driverId,
+      orderId: targetTrip.orderId,
+      reason: ['VEHICLE_DAMAGE', 'MEDICAL_EMERGENCY'].includes(reason) ? reason : 'VEHICLE_DAMAGE',
+      notes: String(notes || 'Test emergency incident').trim(),
+      latitude: Number(latitude) || 9.9816,
+      longitude: Number(longitude) || 76.2999,
+      status: 'OPEN',
+      primaryAdminId: targetTrip.order?.decidedByAdminId || null
+    },
+    include: ALERT_INCLUDES
+  });
+
+  return {
+    alert: formatSosAlert(newAlert),
+    isExisting: false
+  };
+}

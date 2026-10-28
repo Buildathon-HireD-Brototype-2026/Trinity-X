@@ -51,6 +51,8 @@ import {
 // Trip SOS Emergency controllers
 import {
   getActiveSosAlertsForAdminHandler,
+  getAllSosAlertsForAdminHandler,
+  createSimulatedSosAlertHandler,
   claimSosAlertHandler,
   resolveSosAlertHandler,
   getSosAlertDetailsHandler
@@ -115,7 +117,9 @@ router.patch('/partner-registrations/:requestId/reject', rejectRegistration);
 // ============================================================================
 // Emergency SOS Incident Management Endpoints
 // ============================================================================
+router.get('/sos', getAllSosAlertsForAdminHandler);
 router.get('/sos/active', getActiveSosAlertsForAdminHandler);
+router.post('/sos/simulate', createSimulatedSosAlertHandler);
 router.patch('/sos/:id/claim', validateIdParam('id'), claimSosAlertHandler);
 router.patch('/sos/:id/resolve', validateIdParam('id'), resolveSosAlertHandler);
 router.get('/sos/:id', validateIdParam('id'), getSosAlertDetailsHandler);

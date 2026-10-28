@@ -10,7 +10,8 @@ import {
   LayoutDashboard,
   PanelLeftClose,
   PanelLeftOpen,
-  ShieldCheck
+  ShieldCheck,
+  Siren
 } from 'lucide-react';
 import { useAuth } from '../../features/auth/AuthContext';
 import logoSvg from '../../assets/logo.svg';
@@ -20,6 +21,12 @@ const NAV_ITEMS = [
     id: 'dashboard',
     label: 'Dashboard Overview',
     icon: LayoutDashboard,
+  },
+  {
+    id: 'sos',
+    label: 'Emergency SOS',
+    icon: Siren,
+    isEmergency: true,
   },
   {
     id: 'company',
@@ -64,6 +71,7 @@ export default function Sidebar({
   isCollapsed = false,
   onToggleCollapse,
   onOpenProfile,
+  activeSosCount = 0,
 }) {
   const { user, logout } = useAuth();
 
@@ -113,20 +121,59 @@ export default function Sidebar({
         {NAV_ITEMS.map((item) => {
           const Icon = item.icon;
           const isActive = currentView === item.id;
+          const isSos = item.id === 'sos';
+          const hasActiveSos = isSos && activeSosCount > 0;
+
           return (
             <button
               key={item.id}
               id={`nav-${item.id}`}
               type="button"
-              className={`sidebar-nav-item ${isActive ? 'active' : ''}`}
+              className={`sidebar-nav-item ${isActive ? 'active' : ''} ${hasActiveSos ? 'has-sos-alert' : ''}`}
               onClick={() => onSelectView(item.id)}
-              title={item.label}
+              title={hasActiveSos ? `${item.label} (${activeSosCount} active alerts)` : item.label}
               aria-label={item.label}
+              style={
+                hasActiveSos
+                  ? {
+                      borderColor: 'rgba(239, 68, 68, 0.4)',
+                      background: isActive ? undefined : 'rgba(239, 68, 68, 0.08)'
+                    }
+                  : undefined
+              }
             >
-              <div className="nav-item-left">
-                <Icon size={18} className="nav-item-icon" />
-                {!isCollapsed && (
-                  <span className="nav-item-label">{item.label}</span>
+              <div className="nav-item-left" style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem' }}>
+                  <Icon
+                    size={18}
+                    className="nav-item-icon"
+                    style={hasActiveSos ? { color: '#ef4444' } : undefined}
+                  />
+                  {!isCollapsed && (
+                    <span
+                      className="nav-item-label"
+                      style={hasActiveSos ? { color: '#ef4444', fontWeight: 700 } : undefined}
+                    >
+                      {item.label}
+                    </span>
+                  )}
+                </div>
+
+                {/* Pulsing Active Count Badge */}
+                {hasActiveSos && (
+                  <span
+                    style={{
+                      background: '#ef4444',
+                      color: '#ffffff',
+                      fontSize: '0.65rem',
+                      fontWeight: 800,
+                      padding: isCollapsed ? '2px 5px' : '2px 7px',
+                      borderRadius: '999px',
+                      boxShadow: '0 0 10px rgba(239, 68, 68, 0.6)'
+                    }}
+                  >
+                    {activeSosCount}
+                  </span>
                 )}
               </div>
             </button>

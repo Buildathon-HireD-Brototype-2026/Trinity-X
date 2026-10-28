@@ -3,12 +3,13 @@ import {
   Bell,
   Moon,
   Sun,
-  LogOut
+  LogOut,
+  Siren
 } from 'lucide-react';
 import { useAuth } from '../../features/auth/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
 
-export default function Navbar({ onOpenProfile, currentView }) {
+export default function Navbar({ onOpenProfile, currentView, activeSosCount = 0, onNavigate }) {
   const { user, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
 
@@ -31,7 +32,34 @@ export default function Navbar({ onOpenProfile, currentView }) {
         </div>
       </div>
 
-      <div className="topbar-right">
+      <div className="topbar-right" style={{ display: 'flex', alignItems: 'center', gap: '0.625rem' }}>
+        {/* Emergency SOS Quick-Bar Indicator */}
+        {activeSosCount > 0 && (
+          <button
+            type="button"
+            onClick={() => onNavigate && onNavigate('sos')}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.4rem',
+              padding: '0.35rem 0.75rem',
+              borderRadius: '999px',
+              border: 'none',
+              background: '#ef4444',
+              color: '#ffffff',
+              fontSize: '0.75rem',
+              fontWeight: 800,
+              cursor: 'pointer',
+              boxShadow: '0 0 12px rgba(239, 68, 68, 0.6)',
+              animation: 'pulseGlow 2s infinite'
+            }}
+            title={`${activeSosCount} Active Emergency SOS Incidents! Click to open dispatch.`}
+          >
+            <Siren size={15} />
+            <span>{activeSosCount} SOS ALERT{activeSosCount > 1 ? 'S' : ''}</span>
+          </button>
+        )}
+
         {/* Dark / Light Mode Toggle */}
         <button
           type="button"
@@ -49,10 +77,21 @@ export default function Navbar({ onOpenProfile, currentView }) {
           className="topbar-icon-btn"
           aria-label="Notifications"
           title="Notifications"
-          onClick={() => alert('No new notifications')}
+          onClick={() => {
+            if (activeSosCount > 0 && onNavigate) {
+              onNavigate('sos');
+            } else {
+              alert('All operational systems normal. No critical alerts.');
+            }
+          }}
         >
           <Bell size={18} />
-          <span className="notification-dot" />
+          {activeSosCount > 0 && (
+            <span
+              className="notification-dot"
+              style={{ background: '#ef4444', boxShadow: '0 0 8px #ef4444' }}
+            />
+          )}
         </button>
 
         {/* Admin Badge */}

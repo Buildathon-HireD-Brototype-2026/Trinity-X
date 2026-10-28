@@ -123,6 +123,7 @@ async function runTests() {
   await prisma.driverLeave.deleteMany({ where: { driverId: testDriver1.driverId } });
   await prisma.driverLocation.deleteMany({ where: { driverId: testDriver1.driverId } });
   await prisma.driverLocationHistory.deleteMany({ where: { driverId: testDriver1.driverId } });
+  await prisma.tripSosAlert.deleteMany({ where: { driverId: testDriver1.driverId } });
   await prisma.trip.deleteMany({ where: { driverId: testDriver1.driverId } });
   await prisma.order.deleteMany({ where: { companyId: testCompany.companyId } });
 
@@ -588,6 +589,7 @@ async function runTests() {
       await prisma.driverLeave.deleteMany({ where: { driver: { phoneNo: { in: [testPhone1, testPhone2] } } } });
       await prisma.driverLocation.deleteMany({ where: { driver: { phoneNo: { in: [testPhone1, testPhone2] } } } });
       await prisma.driverLocationHistory.deleteMany({ where: { driver: { phoneNo: { in: [testPhone1, testPhone2] } } } });
+      await prisma.tripSosAlert.deleteMany({ where: { driver: { phoneNo: { in: [testPhone1, testPhone2] } } } });
       await prisma.trip.deleteMany({ where: { driver: { phoneNo: { in: [testPhone1, testPhone2] } } } });
       await prisma.driver.deleteMany({ where: { phoneNo: { in: [testPhone1, testPhone2] } } });
       await prisma.order.deleteMany({ where: { company: { emailId: testCompanyEmail } } });
