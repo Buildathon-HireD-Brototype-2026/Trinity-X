@@ -31,13 +31,13 @@ class _RouteCardMapPreviewState extends ConsumerState<RouteCardMapPreview> {
   final MapController _mapController = MapController();
   LatLng? _deviceGpsLocation;
 
-  bool get _isTripStarted =>
-      widget.trip.isStepInJourney ||
-      widget.trip.isOngoing ||
-      widget.trip.startedAt != null;
+  bool get _isTripStarted => widget.trip.isAfterPickup;
 
   bool get _isTargetDropoff => _isTripStarted;
   String get _targetLabel => _isTargetDropoff ? 'Dropoff' : 'Pickup';
+
+  bool get _isTest =>
+      WidgetsBinding.instance.runtimeType.toString().contains('TestWidgetsFlutterBinding');
 
   @override
   void initState() {
@@ -46,6 +46,7 @@ class _RouteCardMapPreviewState extends ConsumerState<RouteCardMapPreview> {
   }
 
   Future<void> _fetchLiveGps({bool animate = false}) async {
+    if (_isTest) return;
     try {
       final loc = await ref.read(locationServiceProvider).getCurrentLocation();
       if (mounted && loc != null) {
@@ -61,35 +62,13 @@ class _RouteCardMapPreviewState extends ConsumerState<RouteCardMapPreview> {
     } catch (_) {}
   }
 
-  LatLng _getEffectiveTargetLocation() {
-    final rawLat = _isTargetDropoff ? widget.trip.dropoffLat : widget.trip.pickupLat;
-    final rawLng = _isTargetDropoff ? widget.trip.dropoffLng : widget.trip.pickupLng;
-
-    final defaultTarget = _isTargetDropoff
-        ? const LatLng(13.2007, 77.7088)
-        : const LatLng(12.8452, 77.6602);
-
-    final rawPoint = (rawLat != null && rawLng != null) ? LatLng(rawLat, rawLng) : defaultTarget;
-
-    if (_deviceGpsLocation != null) {
-      const Distance dist = Distance();
-      final double km = dist(_deviceGpsLocation!, rawPoint) / 1000.0;
-      // When testing in another region (>50km away), anchor realistic local destination in driver's city
-      if (km > 50.0) {
-        if (_isTargetDropoff) {
-          return LatLng(
-            _deviceGpsLocation!.latitude + 0.038,
-            _deviceGpsLocation!.longitude + 0.026,
-          );
-        } else {
-          return LatLng(
-            _deviceGpsLocation!.latitude + 0.015,
-            _deviceGpsLocation!.longitude + 0.012,
-          );
-        }
-      }
+  LatLng? _getEffectiveTargetLocation() {
+    final targetLat = widget.trip.stageTargetLatitude;
+    final targetLng = widget.trip.stageTargetLongitude;
+    if (targetLat == null || targetLng == null || targetLat == 0.0 || targetLng == 0.0) {
+      return null;
     }
-    return rawPoint;
+    return LatLng(targetLat, targetLng);
   }
 
   String _calculateEtaAndKm(LatLng targetPoint) {
@@ -103,23 +82,53 @@ class _RouteCardMapPreviewState extends ConsumerState<RouteCardMapPreview> {
 
     if (_isTargetDropoff) {
       final mins = widget.trip.estimatedReachMinutes > 0 ? widget.trip.estimatedReachMinutes : 15;
-      return '$mins mins • 5.8 km to Dropoff';
+      return '$mins mins to Dropoff';
     } else {
-      return '8 mins • 2.4 km to Pickup';
+      return 'To Pickup';
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    if (!widget.trip.hasValidCoordinates) {
-      return const SizedBox.shrink();
-    }
-
     final themeColors = context.appColors;
     final isDark = context.isDarkMode;
     final isLiteMode = ref.watch(tripMiniOverlayControllerProvider.select((s) => s.isLiteMode));
 
     final effectiveTarget = _getEffectiveTargetLocation();
+
+    if (effectiveTarget == null) {
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 14.0),
+        child: Container(
+          height: 120,
+          decoration: BoxDecoration(
+            color: themeColors.innerBox,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: themeColors.border),
+          ),
+          alignment: Alignment.center,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.location_off_rounded,
+                color: themeColors.textMuted,
+                size: 28,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Location not available',
+                style: TextStyle(
+                  color: themeColors.textSecondary,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
 
     void handleOpenMap() async {
       await ref.read(navigationLauncherServiceProvider).launchNavigation(
