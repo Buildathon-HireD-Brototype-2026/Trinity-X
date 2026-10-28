@@ -45,8 +45,18 @@ import {
   acceptOrderHandler,
   rejectOrderHandler,
   assignDriverHandler,
+  getEligibleDriversHandler,
   updateTripHandler
 } from '../modules/order/order.controller.js';
+
+// Invoice & Month-End Verification controllers
+import {
+  listAdminInvoicesHandler,
+  getAdminInvoiceHandler,
+  verifyFirstInvoiceHandler,
+  verifySecondInvoiceHandler,
+  dispatchInvoiceEmailHandler
+} from '../modules/invoice/invoice.controller.js';
 
 // Trip SOS Emergency controllers
 import {
@@ -98,10 +108,20 @@ router.post('/drivers/:driver_id/wallet-debits', validateIdParam('driver_id'), c
 // ============================================================================
 router.get('/orders', listAdminOrdersHandler);
 router.get('/orders/:order_id', validateIdParam('order_id'), getAdminOrderHandler);
+router.get('/orders/:order_id/eligible-drivers', validateIdParam('order_id'), getEligibleDriversHandler);
 router.post('/orders/:order_id/accept', validateIdParam('order_id'), acceptOrderHandler);
 router.post('/orders/:order_id/reject', validateIdParam('order_id'), rejectOrderHandler);
 router.post('/trips/:trip_id/assign-driver', validateIdParam('trip_id'), assignDriverHandler);
 router.patch('/trips/:trip_id', validateIdParam('trip_id'), updateTripHandler);
+
+// ============================================================================
+// Month-End Invoice Verification Endpoints
+// ============================================================================
+router.get('/invoices', listAdminInvoicesHandler);
+router.get('/invoices/:invoice_id', getAdminInvoiceHandler);
+router.post('/invoices/:invoice_id/verify-first', verifyFirstInvoiceHandler);
+router.post('/invoices/:invoice_id/verify-second', verifySecondInvoiceHandler);
+router.post('/invoices/:invoice_id/dispatch-email', dispatchInvoiceEmailHandler);
 
 // ============================================================================
 // Preserved Baseline Onboarding Endpoints

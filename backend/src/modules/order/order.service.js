@@ -2,6 +2,7 @@ import crypto from 'crypto';
 import prisma from '../../config/db.js';
 import { AppError } from '../../shared/response.js';
 import { recordAuditLog } from '../../shared/audit.js';
+import { sendOrderDecisionEmail } from '../../shared/email.service.js';
 
 /**
  * Validate and parse coordinate within [min, max].
@@ -296,12 +297,130 @@ export async function listAdminOrders({ status, source, company_id, page = 1, li
 }
 
 /**
- * Admin accepts an order and generates unassigned trip with 6-digit OTP.
+ * Compute calendar day bounds in a specific timezone (Asia/Kolkata by default).
+ * Returns:
+ * - dateStr: 'YYYY-MM-DD'
+ * - calendarDateUtc: Date object at 00:00:00.000 UTC for the date (matches Prisma @db.Date)
+ * - startOfDayUtc: UTC Date for 00:00:00.000 local time
+ * - endOfDayUtc: UTC Date for 23:59:59.999 local time
+ */
+export function getCalendarDayBounds(dateInput, timeZone = 'Asia/Kolkata') {
+  const d = dateInput instanceof Date ? dateInput : new Date(dateInput);
+  if (isNaN(d.getTime())) {
+    throw new AppError(422, 'VALIDATION_ERROR', 'Invalid date format provided.');
+  }
+
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  });
+  const dateStr = formatter.format(d); // 'YYYY-MM-DD'
+  const [yearStr, monthStr, dayStr] = dateStr.split('-');
+  const year = parseInt(yearStr, 10);
+  const month = parseInt(monthStr, 10) - 1;
+  const day = parseInt(dayStr, 10);
+
+  // UTC midnight date for @db.Date matching in Prisma
+  const calendarDateUtc = new Date(Date.UTC(year, month, day, 0, 0, 0, 0));
+
+  // Asia/Kolkata is UTC+05:30 (no DST)
+  const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
+  const startOfDayUtc = new Date(Date.UTC(year, month, day, 0, 0, 0, 0) - IST_OFFSET_MS);
+  const endOfDayUtc = new Date(Date.UTC(year, month, day, 23, 59, 59, 999) - IST_OFFSET_MS);
+
+  return {
+    dateStr,
+    calendarDateUtc,
+    startOfDayUtc,
+    endOfDayUtc
+  };
+}
+
+/**
+ * Retrieve drivers eligible for an order on its scheduled pickup date.
+ * Enforces:
+ * 1. driver.status === 'ACTIVE'
+ * 2. No approved leave on the order calendar day
+ * 3. No other assigned/ongoing trip on the same calendar day (excluding this order's trip)
+ * Executes as a SINGLE query with Prisma relation filters.
+ */
+export async function getEligibleDriversForOrder(orderId, dateOverride) {
+  const numericOrderId = Number(orderId);
+  if (!numericOrderId || isNaN(numericOrderId)) {
+    throw new AppError(400, 'INVALID_PARAM', 'Invalid order_id.');
+  }
+
+  let order = null;
+  if (numericOrderId > 0) {
+    order = await prisma.order.findUnique({
+      where: { orderId: numericOrderId }
+    });
+  }
+
+  const targetDate = dateOverride || (order ? order.pickupTime : null);
+  if (!targetDate) {
+    throw new AppError(404, 'NOT_FOUND', 'Order or valid date not found to determine driver availability.');
+  }
+
+  const { calendarDateUtc, startOfDayUtc, endOfDayUtc, dateStr } = getCalendarDayBounds(targetDate, 'Asia/Kolkata');
+
+  const eligibleDrivers = await prisma.driver.findMany({
+    where: {
+      status: 'ACTIVE',
+      // Condition 2: No approved leave covering the order date
+      leaves: {
+        none: {
+          status: { in: ['APPROVED', 'approved'] },
+          startDate: { lte: calendarDateUtc },
+          endDate: { gte: calendarDateUtc }
+        }
+      },
+      // Condition 3: No other assigned/ongoing trip on the same calendar day
+      trips: {
+        none: {
+          orderId: { not: numericOrderId },
+          tripStatus: { in: ['ASSIGNED', 'ONGOING'] },
+          order: {
+            pickupTime: {
+              gte: startOfDayUtc,
+              lte: endOfDayUtc
+            }
+          }
+        }
+      }
+    },
+    select: {
+      driverId: true,
+      name: true,
+      phoneNo: true,
+      status: true,
+      currentLocation: true,
+      isOnline: true
+    },
+    orderBy: { name: 'asc' }
+  });
+
+  return eligibleDrivers.map(d => ({
+    id: `DRV-${d.driverId}`,
+    driver_id: d.driverId,
+    name: d.name,
+    phone_no: d.phoneNo,
+    phone: d.phoneNo,
+    status: d.status,
+    current_location: d.currentLocation || null,
+    is_online: Boolean(d.isOnline),
+    checked_date: dateStr
+  }));
+}
+
+/**
+ * Admin accepts an order and generates trip with 6-digit OTP, optionally assigning an eligible driver.
  */
 export async function acceptOrder(orderId, adminId, payload = {}, ipAddress) {
-  const { amount, eta, version } = payload;
+  const { amount, eta, version, driver_id, driverId, driverName } = payload;
   const coordsFromPayload = extractCoordinates(payload);
-
   return prisma.$transaction(async (tx) => {
     const order = await tx.order.findUnique({
       where: { orderId: Number(orderId) },
@@ -348,6 +467,65 @@ export async function acceptOrder(orderId, adminId, payload = {}, ipAddress) {
       ? coordsFromPayload.dropLongitude
       : (order.dropLongitude !== null && order.dropLongitude !== undefined ? Number(order.dropLongitude) : null);
 
+    // Resolve driver if specified during accept
+    let assignedDriver = null;
+    let targetDriverId = driver_id || driverId;
+    if (typeof targetDriverId === 'string' && targetDriverId.startsWith('DRV-')) {
+      targetDriverId = parseInt(targetDriverId.replace('DRV-', ''), 10);
+    } else if (targetDriverId) {
+      targetDriverId = Number(targetDriverId);
+    }
+
+    if (!targetDriverId && driverName) {
+      const foundDriver = await tx.driver.findFirst({
+        where: { name: driverName.trim() }
+      });
+      if (foundDriver) targetDriverId = foundDriver.driverId;
+    }
+
+    if (targetDriverId) {
+      assignedDriver = await tx.driver.findUnique({
+        where: { driverId: targetDriverId }
+      });
+
+      if (!assignedDriver || assignedDriver.status !== 'ACTIVE') {
+        throw new AppError(400, 'DRIVER_NOT_ACTIVE', 'Only ACTIVE drivers can be assigned to trips.');
+      }
+
+      const { calendarDateUtc, startOfDayUtc, endOfDayUtc } = getCalendarDayBounds(order.pickupTime, 'Asia/Kolkata');
+
+      // Rule 2: Check approved leave conflict
+      const leaveConflict = await tx.driverLeave.findFirst({
+        where: {
+          driverId: targetDriverId,
+          status: { in: ['APPROVED', 'approved'] },
+          startDate: { lte: calendarDateUtc },
+          endDate: { gte: calendarDateUtc }
+        }
+      });
+      if (leaveConflict) {
+        throw new AppError(409, 'DRIVER_CONFLICT', 'Driver is on approved leave on this date. Please pick another driver.');
+      }
+
+      // Rule 3: Check conflicting trip on same day
+      const tripConflict = await tx.trip.findFirst({
+        where: {
+          driverId: targetDriverId,
+          orderId: { not: order.orderId },
+          tripStatus: { in: ['ASSIGNED', 'ONGOING'] },
+          order: {
+            pickupTime: {
+              gte: startOfDayUtc,
+              lte: endOfDayUtc
+            }
+          }
+        }
+      });
+      if (tripConflict) {
+        throw new AppError(409, 'DRIVER_CONFLICT', 'Driver is already assigned to another trip on this date. Please pick another driver.');
+      }
+    }
+
     // Atomic conditional update preventing race conditions
     const updateResult = await tx.order.updateMany({
       where: { orderId: order.orderId, status: 'RECEIVED' },
@@ -368,18 +546,23 @@ export async function acceptOrder(orderId, adminId, payload = {}, ipAddress) {
       include: { company: true }
     });
 
-    // Create unassigned trip
+    // Create trip (ASSIGNED if driver allocated, else UNASSIGNED)
     const trip = await tx.trip.create({
       data: {
         orderId: order.orderId,
+        driverId: assignedDriver ? assignedDriver.driverId : null,
         amount: tripAmount,
         eta: tripEta,
         otp: generatedOtp,
-        tripStatus: 'UNASSIGNED',
+        tripStatus: assignedDriver ? 'ASSIGNED' : 'UNASSIGNED',
+        assignedAt: assignedDriver ? new Date() : null,
         pickupLatitude,
         pickupLongitude,
         dropLatitude,
         dropLongitude
+      },
+      include: {
+        driver: true
       }
     });
 
@@ -397,6 +580,26 @@ export async function acceptOrder(orderId, adminId, payload = {}, ipAddress) {
       }
     });
 
+    // Transmit real email notification to B2B corporate client
+    try {
+      await sendOrderDecisionEmail({
+        to: order.company.emailId,
+        companyName: order.company.name,
+        orderId: order.orderId,
+        status: 'ACCEPTED',
+        pickupSpot: order.pickupSpot,
+        dropoffSpot: order.dropoffSpot,
+        pickupTime: order.pickupTime,
+        fare: tripAmount,
+        passengerName: order.contactName,
+        passengerPhone: order.contactPhone,
+        driverName: assignedDriver ? assignedDriver.name : undefined,
+        driverPhone: assignedDriver ? assignedDriver.phoneNo : undefined
+      });
+    } catch (mailErr) {
+      console.error('[order-accept] Email dispatch warning:', mailErr.message);
+    }
+
     // Record audit log
     await recordAuditLog(tx, {
       actorId: adminId,
@@ -409,6 +612,7 @@ export async function acceptOrder(orderId, adminId, payload = {}, ipAddress) {
         status: 'ACCEPTED',
         tripId: trip.tripId,
         amount: tripAmount,
+        driverId: assignedDriver ? assignedDriver.driverId : null,
         pickupLatitude,
         pickupLongitude,
         dropLatitude,
@@ -423,6 +627,9 @@ export async function acceptOrder(orderId, adminId, payload = {}, ipAddress) {
       trip: {
         trip_id: trip.tripId,
         order_id: trip.orderId,
+        driver_id: trip.driverId || null,
+        driver_name: trip.driver ? trip.driver.name : null,
+        driver_phone: trip.driver ? trip.driver.phoneNo : null,
         status: trip.tripStatus,
         trip_status: trip.tripStatus,
         amount: Number(trip.amount).toFixed(2),
@@ -510,6 +717,24 @@ export async function rejectOrder(orderId, adminId, { reason, reject_reason, ver
       }
     });
 
+    // Transmit real decline notification email to B2B corporate client
+    try {
+      await sendOrderDecisionEmail({
+        to: order.company.emailId,
+        companyName: order.company.name,
+        orderId: order.orderId,
+        status: 'REJECTED',
+        pickupSpot: order.pickupSpot,
+        dropoffSpot: order.dropoffSpot,
+        pickupTime: order.pickupTime,
+        rejectReason: rejectionReason,
+        passengerName: order.contactName,
+        passengerPhone: order.contactPhone
+      });
+    } catch (mailErr) {
+      console.error('[order-reject] Email dispatch warning:', mailErr.message);
+    }
+
     await recordAuditLog(tx, {
       actorId: adminId,
       actorType: 'ADMIN',
@@ -531,7 +756,12 @@ export async function rejectOrder(orderId, adminId, { reason, reject_reason, ver
  */
 export async function assignDriverToTrip(tripId, adminId, payload = {}, ipAddress) {
   const { driver_id, driverId, version } = payload;
-  const targetDriverId = Number(driver_id || driverId);
+  let targetDriverId = driver_id || driverId;
+  if (typeof targetDriverId === 'string' && targetDriverId.startsWith('DRV-')) {
+    targetDriverId = parseInt(targetDriverId.replace('DRV-', ''), 10);
+  } else {
+    targetDriverId = Number(targetDriverId);
+  }
   if (!targetDriverId || isNaN(targetDriverId)) {
     throw new AppError(422, 'VALIDATION_ERROR', 'Valid driver_id is required.');
   }
@@ -561,23 +791,45 @@ export async function assignDriverToTrip(tripId, adminId, payload = {}, ipAddres
       throw new AppError(409, 'VERSION_CONFLICT', 'Trip version mismatch. Please reload.');
     }
 
+    // Rule 1: Driver must be active
     if (!driver || driver.status !== 'ACTIVE') {
-      throw new AppError(422, 'DRIVER_NOT_ACTIVE', 'Only ACTIVE drivers can be assigned to trips.');
+      throw new AppError(400, 'DRIVER_NOT_ACTIVE', 'Only ACTIVE drivers can be assigned to trips.');
     }
 
-    // Check if driver is on leave on pickup date
-    const pickupDate = trip.order.pickupTime;
-    const warnings = [];
-    const onLeave = await tx.driverLeave.findFirst({
+    const { calendarDateUtc, startOfDayUtc, endOfDayUtc } = getCalendarDayBounds(trip.order.pickupTime, 'Asia/Kolkata');
+
+    // Rule 2: Check approved leave on pickup date
+    const leaveConflict = await tx.driverLeave.findFirst({
       where: {
         driverId: targetDriverId,
-        startDate: { lte: pickupDate },
-        endDate: { gte: pickupDate }
+        status: { in: ['APPROVED', 'approved'] },
+        startDate: { lte: calendarDateUtc },
+        endDate: { gte: calendarDateUtc }
       }
     });
 
-    if (onLeave) {
-      warnings.push('DRIVER_ON_LEAVE');
+    if (leaveConflict) {
+      throw new AppError(409, 'DRIVER_CONFLICT', 'Driver is on approved leave on this date. Please pick another driver.');
+    }
+
+    // Rule 3: Check conflicting trip on same calendar day
+    const tripConflict = await tx.trip.findFirst({
+      where: {
+        driverId: targetDriverId,
+        tripId: { not: trip.tripId },
+        orderId: { not: trip.orderId },
+        tripStatus: { in: ['ASSIGNED', 'ONGOING'] },
+        order: {
+          pickupTime: {
+            gte: startOfDayUtc,
+            lte: endOfDayUtc
+          }
+        }
+      }
+    });
+
+    if (tripConflict) {
+      throw new AppError(409, 'DRIVER_CONFLICT', 'Driver is already assigned to another trip on this date. Please pick another driver.');
     }
 
     const updateData = {
@@ -626,8 +878,8 @@ export async function assignDriverToTrip(tripId, adminId, payload = {}, ipAddres
         trip_id: updatedTrip.tripId,
         order_id: updatedTrip.orderId,
         driver_id: updatedTrip.driverId,
-        driver_name: updatedTrip.driver.name,
-        driver_phone: updatedTrip.driver.phoneNo,
+        driver_name: updatedTrip.driver ? updatedTrip.driver.name : null,
+        driver_phone: updatedTrip.driver ? updatedTrip.driver.phoneNo : null,
         status: updatedTrip.tripStatus,
         trip_status: updatedTrip.tripStatus,
         amount: Number(updatedTrip.amount).toFixed(2),
@@ -642,7 +894,7 @@ export async function assignDriverToTrip(tripId, adminId, payload = {}, ipAddres
         dropLatitude: dLat,
         dropLongitude: dLng
       },
-      warnings
+      warnings: []
     };
   });
 }

@@ -26,3 +26,7 @@ build/
 coverage/
 
 /src/generated/prisma
+
+# User uploads & media
+uploads/*
+!uploads/.gitkeep
