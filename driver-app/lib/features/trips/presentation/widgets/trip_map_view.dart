@@ -1,10 +1,10 @@
-import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:driver_app/core/theme/app_theme_colors.dart';
-
 import 'package:driver_app/core/services/location_service.dart';
+import '../../application/road_route_service.dart';
 
 enum TripMapMode {
   route,
@@ -33,8 +33,14 @@ class MapInstanceTracker {
 }
 
 /// Free, live OpenStreetMap view utilizing `flutter_map` + `latlong2`.
-/// 100% Free, requires zero API keys, no Google Play Services dependencies,
-/// and draws live raster street tiles for route preview and driver tracking.
+/// Features:
+/// - Real GPS location of driver as blue dot
+/// - Accurate destination marker (Pickup when assigned, Dropoff when ongoing)
+/// - Road-following polyline via Google Directions / OSRM (never a straight line)
+/// - Auto-fits bounds to both driver location and destination with padding
+/// - My Location button with smooth camera recentering
+/// - Clean loading state while waiting for GPS; "Location not available" when coordinates missing
+/// - Location permission handling with "Open Settings" button
 class TripMapView extends StatefulWidget {
   final double? pickupLat;
   final double? pickupLng;
@@ -80,10 +86,37 @@ class TripMapView extends StatefulWidget {
 }
 
 class _TripMapViewState extends State<TripMapView> {
-  final MapController _internalController = MapController();
+  late final MapController _internalController;
   MapController get _mapController => widget.mapController ?? _internalController;
+
   LatLng? _liveGps;
-  bool _isLocating = false;
+  bool _isLoadingGps = true;
+  bool _hasPermissionError = false;
+  String? _permissionErrorMessage;
+
+  List<LatLng>? _roadRoutePoints;
+  bool _isFetchingRoute = false;
+  bool _routeUnavailable = false;
+  LatLng? _lastRouteOrigin;
+  LatLng? _lastRouteDestination;
+  bool _initialBoundsFitted = false;
+  bool _destMissingToastShown = false;
+
+  void _checkMissingDestinationToast(LatLng? dest, LatLng? driver) {
+    if (dest == null && driver != null && !_destMissingToastShown && widget.mode == TripMapMode.route) {
+      _destMissingToastShown = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+          const SnackBar(
+            content: Text('Destination coordinates not available'),
+            duration: Duration(seconds: 3),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      });
+    }
+  }
 
   bool get _isTest =>
       WidgetsBinding.instance.runtimeType.toString().contains('TestWidgetsFlutterBinding');
@@ -91,29 +124,246 @@ class _TripMapViewState extends State<TripMapView> {
   @override
   void initState() {
     super.initState();
-    _fetchLiveGps(animate: false);
+    _internalController = MapController();
+    _initLocationAndRoute();
   }
 
-  Future<void> _fetchLiveGps({bool animate = true}) async {
-    if (_isTest) return;
-    setState(() => _isLocating = true);
-    try {
-      final loc = await LocationService().getCurrentLocation();
-      if (mounted && loc != null) {
-        setState(() {
-          _liveGps = loc;
-          _isLocating = false;
-        });
-        if (animate) {
-          try {
-            _mapController.move(loc, 16.0);
-          } catch (_) {}
+  @override
+  void dispose() {
+    if (widget.mapController == null) {
+      _internalController.dispose();
+    }
+    super.dispose();
+  }
+
+  Future<void> _initLocationAndRoute() async {
+    if (widget.driverLat != null && widget.driverLng != null &&
+        widget.driverLat != 0.0 && widget.driverLng != 0.0) {
+      _liveGps = LatLng(widget.driverLat!, widget.driverLng!);
+    }
+    await _fetchLiveGps(animate: false);
+  }
+
+  LatLng? _getEffectiveDestination() {
+    if (widget.singleTargetMode) {
+      final lat = widget.isTargetDropoff ? widget.dropoffLat : widget.pickupLat;
+      final lng = widget.isTargetDropoff ? widget.dropoffLng : widget.pickupLng;
+      if (lat == null || lng == null || lat == 0.0 || lng == 0.0) return null;
+      return LatLng(lat, lng);
+    }
+
+    if (widget.mode == TripMapMode.route) {
+      if (widget.isTargetDropoff) {
+        if (widget.dropoffLat != null && widget.dropoffLng != null &&
+            widget.dropoffLat != 0.0 && widget.dropoffLng != 0.0) {
+          return LatLng(widget.dropoffLat!, widget.dropoffLng!);
         }
       } else {
-        if (mounted) setState(() => _isLocating = false);
+        if (widget.pickupLat != null && widget.pickupLng != null &&
+            widget.pickupLat != 0.0 && widget.pickupLng != 0.0) {
+          return LatLng(widget.pickupLat!, widget.pickupLng!);
+        }
       }
-    } catch (_) {
-      if (mounted) setState(() => _isLocating = false);
+    }
+    return null;
+  }
+
+  Future<void> _fetchLiveGps({bool animate = false}) async {
+    if (_isTest) {
+      if (mounted) {
+        setState(() {
+          _liveGps = LocationService.defaultFallback;
+          _isLoadingGps = false;
+        });
+        _fetchRoadRouteIfNeeded();
+      }
+      return;
+    }
+
+    setState(() {
+      _isLoadingGps = _liveGps == null;
+      _hasPermissionError = false;
+    });
+
+    try {
+      final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        if (mounted) {
+          setState(() {
+            _isLoadingGps = false;
+            _hasPermissionError = true;
+            _permissionErrorMessage = 'Location services are disabled.';
+          });
+        }
+        return;
+      }
+
+      var permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied) {
+          if (mounted) {
+            setState(() {
+              _isLoadingGps = false;
+              _hasPermissionError = true;
+              _permissionErrorMessage = 'Location permission is denied.';
+            });
+          }
+          return;
+        }
+      }
+
+      if (permission == LocationPermission.deniedForever) {
+        if (mounted) {
+          setState(() {
+            _isLoadingGps = false;
+            _hasPermissionError = true;
+            _permissionErrorMessage = 'Location permission is permanently denied.';
+          });
+        }
+        return;
+      }
+
+      // Fast check: last known position
+      Position? position = await Geolocator.getLastKnownPosition();
+      if (position != null && mounted && _liveGps == null) {
+        final posLatLng = LatLng(position.latitude, position.longitude);
+        setState(() {
+          _liveGps = posLatLng;
+          _isLoadingGps = false;
+        });
+        _fitCameraToBounds();
+        _fetchRoadRouteIfNeeded();
+      }
+
+      // Fresh position with 5-second timeout
+      try {
+        position = await Geolocator.getCurrentPosition(
+          locationSettings: const LocationSettings(
+            accuracy: LocationAccuracy.high,
+            timeLimit: Duration(seconds: 5),
+          ),
+        );
+      } catch (e) {
+        debugPrint('[TripMapView] Fresh GPS timeout: $e');
+      }
+
+      if (position != null && mounted) {
+        final posLatLng = LatLng(position.latitude, position.longitude);
+        setState(() {
+          _liveGps = posLatLng;
+          _isLoadingGps = false;
+        });
+
+        if (animate) {
+          _recenterOnDriver();
+        } else if (!_initialBoundsFitted) {
+          _fitCameraToBounds();
+        }
+        _fetchRoadRouteIfNeeded();
+      } else if (_liveGps == null && mounted) {
+        setState(() => _isLoadingGps = false);
+      }
+    } catch (e) {
+      debugPrint('[TripMapView] GPS error: $e');
+      if (mounted) setState(() => _isLoadingGps = false);
+    }
+  }
+
+  void _recenterOnDriver() {
+    if (_liveGps == null) return;
+    try {
+      _mapController.move(_liveGps!, 16.0);
+    } catch (e) {
+      debugPrint('[TripMapView] recenter error: $e');
+    }
+  }
+
+  void _fitCameraToBounds() {
+    if (_isTest || !mounted) return;
+    final dest = _getEffectiveDestination();
+    final driver = _liveGps ??
+        (widget.driverLat != null && widget.driverLng != null
+            ? LatLng(widget.driverLat!, widget.driverLng!)
+            : null);
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      try {
+        if (driver != null && dest != null) {
+          final bounds = LatLngBounds.fromPoints([driver, dest]);
+          _mapController.fitCamera(
+            CameraFit.bounds(
+              bounds: bounds,
+              padding: const EdgeInsets.symmetric(horizontal: 48, vertical: 48),
+              maxZoom: 16.0,
+              minZoom: 10.0,
+            ),
+          );
+          _initialBoundsFitted = true;
+        } else if (driver != null) {
+          _mapController.move(driver, 16.0);
+          _initialBoundsFitted = true;
+        } else if (dest != null) {
+          _mapController.move(dest, 15.0);
+          _initialBoundsFitted = true;
+        }
+      } catch (e) {
+        debugPrint('[TripMapView] fitCamera error: $e');
+      }
+    });
+  }
+
+  Future<void> _fetchRoadRouteIfNeeded() async {
+    if (_isTest || _isFetchingRoute) return;
+    final dest = _getEffectiveDestination();
+    final driver = _liveGps ??
+        (widget.driverLat != null && widget.driverLng != null
+            ? LatLng(widget.driverLat!, widget.driverLng!)
+            : null);
+
+    if (dest == null || driver == null) return;
+
+    // Skip redundant calls if movement is under 100 meters
+    if (_lastRouteOrigin != null && _lastRouteDestination != null && _roadRoutePoints != null) {
+      const distCalc = Distance();
+      final moved = distCalc(driver, _lastRouteOrigin!);
+      final destSame = (_lastRouteDestination!.latitude - dest.latitude).abs() < 0.0001 &&
+          (_lastRouteDestination!.longitude - dest.longitude).abs() < 0.0001;
+      if (moved < 100.0 && destSame) {
+        return;
+      }
+    }
+
+    _isFetchingRoute = true;
+    try {
+      final routeService = RoadRouteService();
+      final points = await routeService.getRoadRoute(origin: driver, destination: dest);
+
+      if (mounted) {
+        setState(() {
+          if (points != null && points.isNotEmpty) {
+            _roadRoutePoints = points;
+            _routeUnavailable = false;
+            _lastRouteOrigin = driver;
+            _lastRouteDestination = dest;
+          } else {
+            // Requirement 4: If route fails, do NOT fall back to a straight line
+            _roadRoutePoints = null;
+            _routeUnavailable = true;
+          }
+        });
+      }
+    } catch (e) {
+      debugPrint('[TripMapView] Route fetch error: $e');
+      if (mounted) {
+        setState(() {
+          _roadRoutePoints = null;
+          _routeUnavailable = true;
+        });
+      }
+    } finally {
+      _isFetchingRoute = false;
     }
   }
 
@@ -121,122 +371,17 @@ class _TripMapViewState extends State<TripMapView> {
   void didUpdateWidget(covariant TripMapView oldWidget) {
     super.didUpdateWidget(oldWidget);
 
-    if (widget.mode == TripMapMode.driverLocation) {
-      final lat = widget.driverLat;
-      final lng = widget.driverLng;
-      if (lat != null && lng != null) {
-        try {
-          _mapController.move(LatLng(lat, lng), 15.5);
-        } catch (_) {}
-      }
+    final destChanged = oldWidget.isTargetDropoff != widget.isTargetDropoff ||
+        oldWidget.pickupLat != widget.pickupLat ||
+        oldWidget.dropoffLat != widget.dropoffLat;
+
+    if (destChanged) {
+      _initialBoundsFitted = false;
+      _roadRoutePoints = null;
+      _routeUnavailable = false;
+      _fetchRoadRouteIfNeeded();
+      _fitCameraToBounds();
     }
-  }
-
-  LatLng? _calculateCenter() {
-    if (widget.singleTargetMode) {
-      final targetLat = widget.isTargetDropoff ? widget.dropoffLat : widget.pickupLat;
-      final targetLng = widget.isTargetDropoff ? widget.dropoffLng : widget.pickupLng;
-
-      if (targetLat != null && targetLng != null && targetLat != 0.0 && targetLng != 0.0) {
-        return LatLng(targetLat, targetLng);
-      }
-      final driver = _liveGps ??
-          (widget.driverLat != null && widget.driverLng != null
-              ? LatLng(widget.driverLat!, widget.driverLng!)
-              : null);
-      if (driver != null) {
-        return driver;
-      }
-      return null;
-    }
-
-    if (_liveGps != null && widget.mode == TripMapMode.driverLocation) {
-      return _liveGps!;
-    }
-
-    if (widget.mode == TripMapMode.driverLocation) {
-      if (widget.driverLat != null && widget.driverLng != null) {
-        return LatLng(widget.driverLat!, widget.driverLng!);
-      }
-      return _liveGps;
-    }
-
-    final pLat = widget.pickupLat;
-    final pLng = widget.pickupLng;
-    final dLat = widget.dropoffLat;
-    final dLng = widget.dropoffLng;
-
-    if (pLat != null && pLng != null && dLat != null && dLng != null) {
-      return LatLng((pLat + dLat) / 2, (pLng + dLng) / 2);
-    } else if (pLat != null && pLng != null) {
-      return LatLng(pLat, pLng);
-    } else if (dLat != null && dLng != null) {
-      return LatLng(dLat, dLng);
-    } else if (_liveGps != null) {
-      return _liveGps;
-    } else if (widget.driverLat != null && widget.driverLng != null) {
-      return LatLng(widget.driverLat!, widget.driverLng!);
-    }
-    return null;
-  }
-
-  double _calculateZoom() {
-    if (widget.singleTargetMode) {
-      return 15.2;
-    }
-
-    if (widget.mode == TripMapMode.driverLocation) {
-      return 15.5;
-    }
-    if (widget.pickupLat == null || widget.dropoffLat == null) {
-      return 14.0;
-    }
-
-    // Rough zoom based on distance
-    final pLat = widget.pickupLat!;
-    final pLng = widget.pickupLng!;
-    final dLat = widget.dropoffLat!;
-    final dLng = widget.dropoffLng!;
-
-    final latDiff = (pLat - dLat).abs();
-    final lngDiff = (pLng - dLng).abs();
-    final maxDiff = max(latDiff, lngDiff);
-
-    if (maxDiff > 0.3) return 10.5;
-    if (maxDiff > 0.15) return 11.5;
-    if (maxDiff > 0.08) return 12.5;
-    if (maxDiff > 0.03) return 13.5;
-    return 14.5;
-  }
-
-  List<LatLng> _decodePolyline(String encoded) {
-    final poly = <LatLng>[];
-    int index = 0, len = encoded.length;
-    int lat = 0, lng = 0;
-
-    while (index < len) {
-      int b, shift = 0, result = 0;
-      do {
-        b = encoded.codeUnitAt(index++) - 63;
-        result |= (b & 0x1f) << shift;
-        shift += 5;
-      } while (b >= 0x20);
-      int dlat = ((result & 1) != 0 ? ~(result >> 1) : (result >> 1));
-      lat += dlat;
-
-      shift = 0;
-      result = 0;
-      do {
-        b = encoded.codeUnitAt(index++) - 63;
-        result |= (b & 0x1f) << shift;
-        shift += 5;
-      } while (b >= 0x20);
-      int dlng = ((result & 1) != 0 ? ~(result >> 1) : (result >> 1));
-      lng += dlng;
-
-      poly.add(LatLng(lat / 1E5, lng / 1E5));
-    }
-    return poly;
   }
 
   @override
@@ -248,30 +393,15 @@ class _TripMapViewState extends State<TripMapView> {
       return Container(
         height: widget.height,
         color: themeColors.innerBox,
-        child: Stack(
-          children: [
-            Center(
-              child: Text(
-                'OpenStreetMap (${widget.mode.name})',
-                style: TextStyle(color: themeColors.textSecondary, fontSize: 11),
-              ),
-            ),
-            if (widget.onTap != null)
-              Positioned.fill(
-                child: Material(
-                  color: Colors.transparent,
-                  child: InkWell(onTap: widget.onTap),
-                ),
-              ),
-          ],
-        ),
+        child: const Center(child: Text('Map View Test')),
       );
     }
 
-    final center = _calculateCenter();
-    if (center == null) {
+    // 1. Permission Denied State with "Open Settings" button
+    if (_hasPermissionError) {
       return Container(
         height: widget.height,
+        padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: themeColors.innerBox,
           borderRadius: BorderRadius.circular(16),
@@ -281,249 +411,178 @@ class _TripMapViewState extends State<TripMapView> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.location_off_rounded, color: themeColors.textMuted, size: 28),
+            const Icon(Icons.location_disabled_rounded, color: Colors.orange, size: 28),
             const SizedBox(height: 8),
             Text(
-              'Location not available',
-              style: TextStyle(
-                color: themeColors.textSecondary,
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
+              _permissionErrorMessage ?? 'Location access is required.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: themeColors.textSecondary, fontSize: 12),
+            ),
+            const SizedBox(height: 10),
+            ElevatedButton(
+              onPressed: () => Geolocator.openAppSettings(),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: themeColors.purpleAccent,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
               ),
+              child: const Text('Open Settings', style: TextStyle(fontSize: 12)),
             ),
           ],
         ),
       );
     }
 
-    final zoom = _calculateZoom();
-
-    // Prepare Route Polylines
-    final polylines = <Polyline>[];
-    if (widget.singleTargetMode) {
-      final targetLat = widget.isTargetDropoff ? widget.dropoffLat : widget.pickupLat;
-      final targetLng = widget.isTargetDropoff ? widget.dropoffLng : widget.pickupLng;
-      final driver = _liveGps ??
-          (widget.driverLat != null && widget.driverLng != null
-              ? LatLng(widget.driverLat!, widget.driverLng!)
-              : null);
-
-      if (driver != null && targetLat != null && targetLng != null) {
-        polylines.add(
-          Polyline(
-            points: [driver, LatLng(targetLat, targetLng)],
-            color: const Color(0xFF7C3AED),
-            strokeWidth: 4.5,
+    // 2. Loading GPS State (Show clean loading instead of random map jump)
+    if (_isLoadingGps && _liveGps == null) {
+      return Container(
+        height: widget.height,
+        decoration: BoxDecoration(
+          color: themeColors.innerBox,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: themeColors.border),
+        ),
+        child: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox(
+                width: 26,
+                height: 26,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2.5,
+                  color: themeColors.purpleAccent,
+                ),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                'Locating driver...',
+                style: TextStyle(color: themeColors.textSecondary, fontSize: 13),
+              ),
+            ],
           ),
-        );
-      }
-    } else if (widget.mode == TripMapMode.route &&
-        widget.pickupLat != null &&
-        widget.pickupLng != null &&
-        widget.dropoffLat != null &&
-        widget.dropoffLng != null) {
-      List<LatLng> points = [];
-      if (widget.routePolyline != null && widget.routePolyline!.trim().isNotEmpty) {
-        points = _decodePolyline(widget.routePolyline!);
-      }
-      if (points.isEmpty) {
-        // Direct route line fallback
-        points = [
-          LatLng(widget.pickupLat!, widget.pickupLng!),
-          LatLng(widget.dropoffLat!, widget.dropoffLng!),
-        ];
-      }
-      polylines.add(
-        Polyline(
-          points: points,
-          color: const Color(0xFF7C3AED),
-          strokeWidth: 4.5,
         ),
       );
     }
 
-    // Prepare Markers
-    final markers = <Marker>[];
-    if (widget.singleTargetMode) {
-      // 1. Driver current location pin
-      final driverPt = _liveGps ??
-          (widget.driverLat != null && widget.driverLng != null
-              ? LatLng(widget.driverLat!, widget.driverLng!)
-              : null);
-      if (driverPt != null) {
-        markers.add(
-          Marker(
-            point: driverPt,
-            width: 44,
-            height: 44,
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF7C3AED).withValues(alpha: 0.25),
-                    shape: BoxShape.circle,
-                  ),
-                ),
-                Container(
-                  width: 24,
-                  height: 24,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF7C3AED),
-                    shape: BoxShape.circle,
-                    border: Border.all(color: Colors.white, width: 2.5),
-                    boxShadow: const [
-                      BoxShadow(color: Colors.black26, blurRadius: 4, offset: Offset(0, 2)),
-                    ],
-                  ),
-                  child: const Icon(Icons.navigation_rounded, color: Colors.white, size: 13),
-                ),
-              ],
-            ),
-          ),
-        );
-      }
+    final dest = _getEffectiveDestination();
+    final driver = _liveGps ??
+        (widget.driverLat != null && widget.driverLng != null
+            ? LatLng(widget.driverLat!, widget.driverLng!)
+            : null);
 
-      // 2. Only the target pin (Pickup or Dropoff, not other places)
-      final targetLat = widget.isTargetDropoff ? widget.dropoffLat : widget.pickupLat;
-      final targetLng = widget.isTargetDropoff ? widget.dropoffLng : widget.pickupLng;
-      if (targetLat != null && targetLng != null) {
-        final isDropoff = widget.isTargetDropoff;
-        markers.add(
-          Marker(
-            point: LatLng(targetLat, targetLng),
-            width: 38,
-            height: 38,
-            child: Container(
-              decoration: BoxDecoration(
-                color: isDropoff ? const Color(0xFFEF4444) : const Color(0xFF10B981),
-                shape: BoxShape.circle,
-                boxShadow: const [
-                  BoxShadow(color: Colors.black26, blurRadius: 4, offset: Offset(0, 2)),
-                ],
-              ),
-              child: Icon(
-                isDropoff ? Icons.flag_rounded : Icons.location_on_rounded,
-                color: Colors.white,
-                size: 22,
-              ),
-            ),
-          ),
-        );
-      }
-    } else if (widget.mode == TripMapMode.route) {
-      if (widget.pickupLat != null && widget.pickupLng != null) {
-        markers.add(
-          Marker(
-            point: LatLng(widget.pickupLat!, widget.pickupLng!),
-            width: 36,
-            height: 36,
-            child: Container(
-              decoration: const BoxDecoration(
-                color: Color(0xFF10B981),
-                shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(color: Colors.black26, blurRadius: 4, offset: Offset(0, 2)),
-                ],
-              ),
-              child: const Icon(Icons.location_on_rounded, color: Colors.white, size: 22),
-            ),
-          ),
-        );
-      }
-      if (widget.dropoffLat != null && widget.dropoffLng != null) {
-        markers.add(
-          Marker(
-            point: LatLng(widget.dropoffLat!, widget.dropoffLng!),
-            width: 36,
-            height: 36,
-            child: Container(
-              decoration: const BoxDecoration(
-                color: Color(0xFFEF4444),
-                shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(color: Colors.black26, blurRadius: 4, offset: Offset(0, 2)),
-                ],
-              ),
-              child: const Icon(Icons.flag_rounded, color: Colors.white, size: 20),
-            ),
-          ),
-        );
-      }
-      final driverPt = _liveGps ??
-          (widget.driverLat != null && widget.driverLng != null
-              ? LatLng(widget.driverLat!, widget.driverLng!)
-              : null);
-      if (driverPt != null) {
-        markers.add(
-          Marker(
-            point: driverPt,
-            width: 40,
-            height: 40,
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                Container(
-                  width: 36,
-                  height: 36,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF7C3AED).withValues(alpha: 0.25),
-                    shape: BoxShape.circle,
-                  ),
-                ),
-                Container(
-                  width: 22,
-                  height: 22,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF7C3AED),
-                    shape: BoxShape.circle,
-                    border: Border.all(color: Colors.white, width: 2),
-                    boxShadow: const [
-                      BoxShadow(color: Colors.black26, blurRadius: 4, offset: Offset(0, 2)),
-                    ],
-                  ),
-                  child: const Icon(Icons.navigation_rounded, color: Colors.white, size: 12),
-                ),
-              ],
-            ),
-          ),
-        );
-      }
-    } else {
-      // Driver live position mode
-      markers.add(
-        Marker(
-          point: center,
-          width: 44,
-          height: 44,
-          child: Stack(
-            alignment: Alignment.center,
+    // 3. Destination is null handling:
+    // If driver location is available, center on driver with zoom 16.0 and notify user
+    if (dest == null && widget.mode == TripMapMode.route) {
+      _checkMissingDestinationToast(dest, driver);
+    }
+
+    final center = driver ?? dest;
+    if (center == null) {
+      return Container(
+        height: widget.height,
+        decoration: BoxDecoration(
+          color: themeColors.innerBox,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: themeColors.border),
+        ),
+        child: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: const Color(0xFF7C3AED).withValues(alpha: 0.22),
-                  shape: BoxShape.circle,
+              Icon(Icons.location_off_rounded, color: themeColors.textMuted, size: 28),
+              const SizedBox(height: 8),
+              Text(
+                'Location not available',
+                style: TextStyle(
+                  color: themeColors.textSecondary,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
                 ),
-              ),
-              Container(
-                width: 24,
-                height: 24,
-                decoration: BoxDecoration(
-                  color: const Color(0xFF7C3AED),
-                  shape: BoxShape.circle,
-                  border: Border.all(color: Colors.white, width: 2.5),
-                  boxShadow: const [
-                    BoxShadow(color: Colors.black26, blurRadius: 4, offset: Offset(0, 2)),
-                  ],
-                ),
-                child: const Icon(Icons.navigation_rounded, color: Colors.white, size: 14),
               ),
             ],
           ),
+        ),
+      );
+    }
+
+    // Build Markers
+    final markers = <Marker>[];
+
+    // Marker A: Driver location (Modern blue dot)
+    if (driver != null) {
+      markers.add(
+        Marker(
+          point: driver,
+          width: 38,
+          height: 38,
+          child: Center(
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                Container(
+                  width: 34,
+                  height: 34,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: const Color(0xFF3B82F6).withValues(alpha: 0.28),
+                  ),
+                ),
+                Container(
+                  width: 18,
+                  height: 18,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: const Color(0xFF2563EB),
+                    border: Border.all(color: Colors.white, width: 2.8),
+                    boxShadow: const [
+                      BoxShadow(color: Colors.black26, blurRadius: 4, offset: Offset(0, 1)),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    // Marker B: Destination Pin (Green for pickup, Red for dropoff)
+    if (dest != null) {
+      final isDropoff = widget.isTargetDropoff;
+      markers.add(
+        Marker(
+          point: dest,
+          width: 38,
+          height: 38,
+          child: Container(
+            decoration: BoxDecoration(
+              color: isDropoff ? const Color(0xFFEF4444) : const Color(0xFF10B981),
+              shape: BoxShape.circle,
+              border: Border.all(color: Colors.white, width: 2.0),
+              boxShadow: const [
+                BoxShadow(color: Colors.black26, blurRadius: 4, offset: Offset(0, 2)),
+              ],
+            ),
+            child: Icon(
+              isDropoff ? Icons.flag_rounded : Icons.location_on_rounded,
+              color: Colors.white,
+              size: 20,
+            ),
+          ),
+        ),
+      );
+    }
+
+    // Build Polylines (Real road route, never a straight line)
+    final polylines = <Polyline>[];
+    if (_roadRoutePoints != null && _roadRoutePoints!.isNotEmpty) {
+      polylines.add(
+        Polyline(
+          points: _roadRoutePoints!,
+          color: themeColors.purpleAccent,
+          strokeWidth: 5.0,
         ),
       );
     }
@@ -540,7 +599,7 @@ class _TripMapViewState extends State<TripMapView> {
             mapController: _mapController,
             options: MapOptions(
               initialCenter: center,
-              initialZoom: zoom,
+              initialZoom: 14.5,
               interactionOptions: InteractionOptions(
                 flags: widget.interactive
                     ? InteractiveFlag.all
@@ -558,6 +617,8 @@ class _TripMapViewState extends State<TripMapView> {
               MarkerLayer(markers: markers),
             ],
           ),
+
+          // Tap gesture overlay for non-interactive mode
           if (widget.onTap != null && !widget.interactive)
             Positioned.fill(
               child: Material(
@@ -565,6 +626,58 @@ class _TripMapViewState extends State<TripMapView> {
                 child: InkWell(onTap: widget.onTap),
               ),
             ),
+
+          // Destination missing warning pill (when destination coordinates are not provided)
+          if (dest == null && widget.mode == TripMapMode.route)
+            Positioned(
+              bottom: 12,
+              left: 12,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: 0.75),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.info_outline, color: Colors.orangeAccent, size: 14),
+                    SizedBox(width: 4),
+                    Text(
+                      'Destination coordinates not available',
+                      style: TextStyle(color: Colors.white, fontSize: 11),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+          // Route unavailable warning pill (when road polyline could not be fetched)
+          if (dest != null && _routeUnavailable)
+            Positioned(
+              bottom: 12,
+              left: 12,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: 0.75),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.info_outline, color: Colors.white70, size: 14),
+                    SizedBox(width: 4),
+                    Text(
+                      'Route preview unavailable',
+                      style: TextStyle(color: Colors.white, fontSize: 11),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+          // My Location Button
           if (widget.showMyLocationButton && !_isTest)
             Positioned(
               top: 10,
@@ -579,22 +692,17 @@ class _TripMapViewState extends State<TripMapView> {
                   onTap: () {
                     if (widget.onMyLocationPressed != null) {
                       widget.onMyLocationPressed!();
+                    } else {
+                      _fetchLiveGps(animate: true);
                     }
-                    _fetchLiveGps(animate: true);
                   },
                   child: Padding(
                     padding: const EdgeInsets.all(8.0),
-                    child: _isLocating
-                        ? const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(
-                            Icons.my_location_rounded,
-                            color: Color(0xFF7C3AED),
-                            size: 19,
-                          ),
+                    child: Icon(
+                      Icons.my_location_rounded,
+                      size: 20,
+                      color: themeColors.purpleAccent,
+                    ),
                   ),
                 ),
               ),

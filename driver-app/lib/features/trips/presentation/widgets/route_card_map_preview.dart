@@ -71,7 +71,10 @@ class _RouteCardMapPreviewState extends ConsumerState<RouteCardMapPreview> {
     return LatLng(targetLat, targetLng);
   }
 
-  String _calculateEtaAndKm(LatLng targetPoint) {
+  String _calculateEtaAndKm(LatLng? targetPoint) {
+    if (targetPoint == null) {
+      return 'Destination not set';
+    }
     if (_deviceGpsLocation != null) {
       const Distance distanceCalc = Distance();
       final meters = distanceCalc(_deviceGpsLocation!, targetPoint);
@@ -96,45 +99,21 @@ class _RouteCardMapPreviewState extends ConsumerState<RouteCardMapPreview> {
 
     final effectiveTarget = _getEffectiveTargetLocation();
 
-    if (effectiveTarget == null) {
-      return Padding(
-        padding: const EdgeInsets.only(bottom: 14.0),
-        child: Container(
-          height: 120,
-          decoration: BoxDecoration(
-            color: themeColors.innerBox,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: themeColors.border),
-          ),
-          alignment: Alignment.center,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                Icons.location_off_rounded,
-                color: themeColors.textMuted,
-                size: 28,
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Location not available',
-                style: TextStyle(
-                  color: themeColors.textSecondary,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
     void handleOpenMap() async {
-      await ref.read(navigationLauncherServiceProvider).launchNavigation(
-        lat: effectiveTarget.latitude,
-        lng: effectiveTarget.longitude,
-      );
+      if (effectiveTarget != null) {
+        await ref.read(navigationLauncherServiceProvider).launchNavigation(
+          lat: effectiveTarget.latitude,
+          lng: effectiveTarget.longitude,
+        );
+      } else {
+        ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+          const SnackBar(
+            content: Text('Destination coordinates not available'),
+            duration: Duration(seconds: 3),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
     }
 
     return Padding(
@@ -157,10 +136,10 @@ class _RouteCardMapPreviewState extends ConsumerState<RouteCardMapPreview> {
                 mode: TripMapMode.route,
                 singleTargetMode: true,
                 isTargetDropoff: _isTargetDropoff,
-                pickupLat: !_isTargetDropoff ? effectiveTarget.latitude : null,
-                pickupLng: !_isTargetDropoff ? effectiveTarget.longitude : null,
-                dropoffLat: _isTargetDropoff ? effectiveTarget.latitude : null,
-                dropoffLng: _isTargetDropoff ? effectiveTarget.longitude : null,
+                pickupLat: (effectiveTarget != null && !_isTargetDropoff) ? effectiveTarget.latitude : null,
+                pickupLng: (effectiveTarget != null && !_isTargetDropoff) ? effectiveTarget.longitude : null,
+                dropoffLat: (effectiveTarget != null && _isTargetDropoff) ? effectiveTarget.latitude : null,
+                dropoffLng: (effectiveTarget != null && _isTargetDropoff) ? effectiveTarget.longitude : null,
                 driverLat: _deviceGpsLocation?.latitude,
                 driverLng: _deviceGpsLocation?.longitude,
                 height: 190,
@@ -178,106 +157,109 @@ class _RouteCardMapPreviewState extends ConsumerState<RouteCardMapPreview> {
                 ),
               ),
 
-              // 3. Top-Left: Clean Active Destination Status Pill
-              Positioned(
-                top: 10,
-                left: 10,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                  decoration: BoxDecoration(
-                    color: themeColors.cardBackground.withValues(alpha: 0.94),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: themeColors.border),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.08),
-                        blurRadius: 6,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        _isTargetDropoff ? Icons.flag_rounded : Icons.location_on_rounded,
-                        size: 13,
-                        color: _isTargetDropoff ? const Color(0xFFEF4444) : const Color(0xFF10B981),
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        _isTargetDropoff ? 'To Dropoff' : 'To Pickup',
-                        style: TextStyle(
-                          color: themeColors.textPrimary,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
+              // 3. Top-Left: Clean Active Destination Status Pill (when target is valid)
+              if (effectiveTarget != null)
+                Positioned(
+                  top: 10,
+                  left: 10,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: themeColors.cardBackground.withValues(alpha: 0.94),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: themeColors.border),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.08),
+                          blurRadius: 6,
+                          offset: const Offset(0, 2),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          _isTargetDropoff ? Icons.flag_rounded : Icons.location_on_rounded,
+                          size: 13,
+                          color: _isTargetDropoff ? const Color(0xFFEF4444) : const Color(0xFF10B981),
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          _isTargetDropoff ? 'To Dropoff' : 'To Pickup',
+                          style: TextStyle(
+                            color: themeColors.textPrimary,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-              ),
 
               // 4. Bottom-Left: Clear ETA and Total KM to active target
-              Positioned(
-                left: 10,
-                bottom: 10,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: themeColors.cardBackground.withValues(alpha: 0.94),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: themeColors.border),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.08),
-                        blurRadius: 6,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        Icons.schedule_rounded,
-                        size: 13,
-                        color: themeColors.purpleAccent,
-                      ),
-                      const SizedBox(width: 5),
-                      Text(
-                        _calculateEtaAndKm(effectiveTarget),
-                        style: TextStyle(
-                          color: themeColors.textPrimary,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 0.2,
+              if (effectiveTarget != null)
+                Positioned(
+                  left: 10,
+                  bottom: 10,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: themeColors.cardBackground.withValues(alpha: 0.94),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: themeColors.border),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.08),
+                          blurRadius: 6,
+                          offset: const Offset(0, 2),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.schedule_rounded,
+                          size: 13,
+                          color: themeColors.purpleAccent,
+                        ),
+                        const SizedBox(width: 5),
+                        Text(
+                          _calculateEtaAndKm(effectiveTarget),
+                          style: TextStyle(
+                            color: themeColors.textPrimary,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 0.2,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-              ),
 
               // 5. Bottom-Right: "Open map" Pill for Google Maps navigation
-              Positioned(
-                right: 10,
-                bottom: 10,
-                child: Material(
-                  color: Colors.transparent,
-                  child: InkWell(
-                    key: const Key('route_card_open_in_maps_pill'),
-                    borderRadius: BorderRadius.circular(20),
-                    onTap: handleOpenMap,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: themeColors.purpleAccent,
-                        borderRadius: BorderRadius.circular(20),
-                        boxShadow: [
-                          BoxShadow(
-                            color: themeColors.purpleAccent.withValues(alpha: 0.35),
-                            blurRadius: 6,
+              if (effectiveTarget != null)
+                Positioned(
+                  right: 10,
+                  bottom: 10,
+                  child: Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      key: const Key('route_card_open_in_maps_pill'),
+                      borderRadius: BorderRadius.circular(20),
+                      onTap: handleOpenMap,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: themeColors.purpleAccent,
+                          borderRadius: BorderRadius.circular(20),
+                          boxShadow: [
+                            BoxShadow(
+                              color: themeColors.purpleAccent.withValues(alpha: 0.35),
+                              blurRadius: 6,
                             offset: const Offset(0, 2),
                           ),
                         ],
