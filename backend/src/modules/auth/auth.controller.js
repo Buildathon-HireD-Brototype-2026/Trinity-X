@@ -218,7 +218,7 @@ export async function refreshToken(req, res, next) {
 
 export async function logout(req, res, next) {
   try {
-    const token = req.body.refresh_token || req.body.refreshToken || req.cookies?.refreshToken;
+    const token = req.body?.refresh_token || req.body?.refreshToken || req.cookies?.refreshToken;
     let sessionId = req.user?.sessionId;
 
     if (!sessionId && req.headers.authorization?.startsWith('Bearer ')) {

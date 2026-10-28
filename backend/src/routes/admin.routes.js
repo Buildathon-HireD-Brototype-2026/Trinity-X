@@ -44,7 +44,8 @@ import {
   getAdminOrderHandler,
   acceptOrderHandler,
   rejectOrderHandler,
-  assignDriverHandler
+  assignDriverHandler,
+  updateTripHandler
 } from '../modules/order/order.controller.js';
 
 // Trip SOS Emergency controllers
@@ -98,6 +99,7 @@ router.get('/orders/:order_id', validateIdParam('order_id'), getAdminOrderHandle
 router.post('/orders/:order_id/accept', validateIdParam('order_id'), acceptOrderHandler);
 router.post('/orders/:order_id/reject', validateIdParam('order_id'), rejectOrderHandler);
 router.post('/trips/:trip_id/assign-driver', validateIdParam('trip_id'), assignDriverHandler);
+router.patch('/trips/:trip_id', validateIdParam('trip_id'), updateTripHandler);
 
 // ============================================================================
 // Preserved Baseline Onboarding Endpoints

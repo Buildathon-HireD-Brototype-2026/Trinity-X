@@ -3,6 +3,7 @@ import { AppError } from '../../shared/response.js';
 import { recordAuditLog } from '../../shared/audit.js';
 import { generateSignedFileToken } from '../../shared/security.js';
 import storage from '../../shared/storage.js';
+import { isCloudinaryConfigured, uploadSelfie, deleteSelfie } from '../../services/cloudinary.service.js';
 
 /**
  * Format a Driver model to OpenAPI-compliant Driver schema.
@@ -518,6 +519,12 @@ export async function uploadDriverDocument(driverId, file, documentType) {
  */
 export function formatDriverTripResponse(trip) {
   if (!trip) return null;
+
+  const pickupLat = trip.pickupLatitude !== null && trip.pickupLatitude !== undefined ? Number(trip.pickupLatitude) : (trip.order?.pickupLatitude !== null && trip.order?.pickupLatitude !== undefined ? Number(trip.order.pickupLatitude) : null);
+  const pickupLng = trip.pickupLongitude !== null && trip.pickupLongitude !== undefined ? Number(trip.pickupLongitude) : (trip.order?.pickupLongitude !== null && trip.order?.pickupLongitude !== undefined ? Number(trip.order.pickupLongitude) : null);
+  const dropLat = trip.dropLatitude !== null && trip.dropLatitude !== undefined ? Number(trip.dropLatitude) : (trip.order?.dropLatitude !== null && trip.order?.dropLatitude !== undefined ? Number(trip.order.dropLatitude) : null);
+  const dropLng = trip.dropLongitude !== null && trip.dropLongitude !== undefined ? Number(trip.dropLongitude) : (trip.order?.dropLongitude !== null && trip.order?.dropLongitude !== undefined ? Number(trip.order.dropLongitude) : null);
+
   return {
     trip_id: String(trip.tripId),
     order_id: trip.orderId,
@@ -528,12 +535,25 @@ export function formatDriverTripResponse(trip) {
     eta: trip.eta ? trip.eta.toISOString() : null,
     pickup_spot: trip.order ? trip.order.pickupSpot : 'N/A',
     dropoff_spot: trip.order ? trip.order.dropoffSpot : 'N/A',
+    pickup_latitude: pickupLat,
+    pickup_longitude: pickupLng,
+    drop_latitude: dropLat,
+    drop_longitude: dropLng,
+    pickupLatitude: pickupLat,
+    pickupLongitude: pickupLng,
+    dropLatitude: dropLat,
+    dropLongitude: dropLng,
     pickup_time: trip.order?.pickupTime ? trip.order.pickupTime.toISOString() : null,
     contact_name: trip.order ? trip.order.contactName : 'N/A',
     contact_phone: trip.order ? trip.order.contactPhone : 'N/A',
     notes: trip.order?.notes || null,
-    selfie_url: trip.selfieURL || null,
-    has_selfie: Boolean(trip.selfieURL),
+    selfie_url: trip.startSelfieUrl || trip.selfieURL || null,
+    has_selfie: Boolean(trip.startSelfieUrl || trip.selfieURL),
+    start_selfie_url: trip.startSelfieUrl || trip.selfieURL || null,
+    startSelfieUrl: trip.startSelfieUrl || trip.selfieURL || null,
+    startSelfieUploadedAt: trip.startSelfieUploadedAt ? trip.startSelfieUploadedAt.toISOString() : null,
+    startSelfieExpiresAt: trip.startSelfieExpiresAt ? trip.startSelfieExpiresAt.toISOString() : null,
+    startSelfieDeletedAt: trip.startSelfieDeletedAt ? trip.startSelfieDeletedAt.toISOString() : null,
     expenses_confirmed: Boolean(trip.expensesConfirmed),
     assigned_at: trip.assignedAt ? trip.assignedAt.toISOString() : null,
     started_at: trip.startedAt ? trip.startedAt.toISOString() : null,
@@ -634,19 +654,38 @@ export async function startDriverTrip(driverId, tripId, { selfie_url } = {}, ipA
     throw new AppError(404, 'NOT_FOUND', 'Trip not found.');
   }
 
-  if (trip.tripStatus !== 'ASSIGNED') {
+  if (trip.tripStatus !== 'ASSIGNED' && trip.tripStatus !== 'ACCEPTED') {
     throw new AppError(409, 'CONFLICT', `Cannot start trip in ${trip.tripStatus} status. Must be ASSIGNED.`);
   }
 
-  let finalSelfieUrl = selfie_url || null;
+  let finalSelfieUrl = trip.startSelfieUrl || trip.selfieURL || selfie_url || null;
+
   if (file) {
-    const saved = await storage.saveFile({
-      buffer: file.buffer,
-      originalname: file.originalname,
-      mimetype: file.mimetype,
-      folder: 'selfies'
+    if (!isCloudinaryConfigured()) {
+      throw new AppError(503, 'SERVICE_UNAVAILABLE', 'Selfie storage is not configured yet. Contact admin.');
+    }
+    if (trip.startSelfiePublicId) {
+      await deleteSelfie(trip.startSelfiePublicId).catch(() => {});
+    }
+    const uploaded = await uploadSelfie(file.buffer, trip.tripId);
+    finalSelfieUrl = uploaded.url;
+    const now = new Date();
+    await prisma.trip.update({
+      where: { tripId: trip.tripId },
+      data: {
+        startSelfieUrl: uploaded.url,
+        startSelfiePublicId: uploaded.publicId,
+        startSelfieUploadedAt: now,
+        startSelfieExpiresAt: new Date(now.getTime() + 24 * 60 * 60 * 1000),
+        startSelfieDeletedAt: null,
+        selfieURL: uploaded.url
+      }
     });
-    finalSelfieUrl = saved.fileUrl;
+  }
+
+  // Validate that a selfie was uploaded before starting the trip
+  if (!finalSelfieUrl && !trip.startSelfieUrl && !trip.selfieURL) {
+    throw new AppError(400, 'SELFIE_REQUIRED', 'Selfie required.');
   }
 
   const updatedTrip = await prisma.trip.update({
@@ -669,7 +708,7 @@ export async function startDriverTrip(driverId, tripId, { selfie_url } = {}, ipA
     action: 'TRIP_STARTED',
     entityType: 'TRIP',
     entityId: trip.tripId,
-    oldValue: { tripStatus: 'ASSIGNED' },
+    oldValue: { tripStatus: trip.tripStatus },
     newValue: { tripStatus: 'ONGOING', selfieURL: finalSelfieUrl },
     ipAddress
   });
@@ -678,11 +717,15 @@ export async function startDriverTrip(driverId, tripId, { selfie_url } = {}, ipA
 }
 
 /**
- * Upload trip-start selfie independently (PRD D-07)
+ * Upload trip-start selfie to Cloudinary (PRD D-07)
  */
-export async function uploadTripSelfie(driverId, tripId, file) {
-  if (!file) {
-    throw new AppError(422, 'VALIDATION_ERROR', 'Selfie file is required.');
+export async function uploadStartSelfie(driverId, tripId, file) {
+  if (!isCloudinaryConfigured()) {
+    throw new AppError(503, 'SERVICE_UNAVAILABLE', 'Selfie storage is not configured yet. Contact admin.');
+  }
+
+  if (!file || !file.buffer) {
+    throw new AppError(400, 'FILE_REQUIRED', 'Selfie image is required.');
   }
 
   const trip = await prisma.trip.findFirst({
@@ -696,23 +739,53 @@ export async function uploadTripSelfie(driverId, tripId, file) {
     throw new AppError(404, 'NOT_FOUND', 'Trip not found or does not belong to you.');
   }
 
-  const saved = await storage.saveFile({
-    buffer: file.buffer,
-    originalname: file.originalname,
-    mimetype: file.mimetype,
-    folder: 'selfies'
-  });
+  const allowedPreStartStatuses = ['ASSIGNED', 'ACCEPTED'];
+  if (!allowedPreStartStatuses.includes(trip.tripStatus)) {
+    throw new AppError(
+      400,
+      'INVALID_TRIP_STATUS',
+      `Cannot upload start selfie for trip with status ${trip.tripStatus}. Must be ASSIGNED or ACCEPTED.`
+    );
+  }
+
+  // If the trip already has a selfie, delete the old one from Cloudinary first
+  if (trip.startSelfiePublicId) {
+    try {
+      await deleteSelfie(trip.startSelfiePublicId);
+    } catch (delErr) {
+      console.warn('[cloudinary] Failed to delete previous selfie:', delErr.message);
+    }
+  }
+
+  // Upload to Cloudinary
+  const { url, publicId } = await uploadSelfie(file.buffer, trip.tripId);
+  const now = new Date();
+  const expiresAt = new Date(now.getTime() + 24 * 60 * 60 * 1000); // 24 hours
 
   await prisma.trip.update({
     where: { tripId: trip.tripId },
-    data: { selfieURL: saved.fileUrl }
+    data: {
+      startSelfieUrl: url,
+      startSelfiePublicId: publicId,
+      startSelfieUploadedAt: now,
+      startSelfieExpiresAt: expiresAt,
+      startSelfieDeletedAt: null,
+      selfieURL: url
+    }
   });
 
   return {
-    trip_id: trip.tripId,
-    selfie_url: saved.fileUrl,
-    message: 'Selfie uploaded successfully.'
+    success: true,
+    selfieUrl: url,
+    expiresAt: expiresAt.toISOString()
   };
+}
+
+/**
+ * Upload trip-start selfie independently (PRD D-07 legacy wrapper)
+ */
+export async function uploadTripSelfie(driverId, tripId, file) {
+  return uploadStartSelfie(driverId, tripId, file);
 }
 
 /**

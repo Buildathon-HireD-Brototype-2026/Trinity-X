@@ -6,6 +6,7 @@ import {
   acceptOrder,
   rejectOrder,
   assignDriverToTrip,
+  updateTrip,
   formatOrderResponse
 } from './order.service.js';
 import prisma from '../../config/db.js';
@@ -186,3 +187,23 @@ export async function assignDriverHandler(req, res, next) {
     next(err);
   }
 }
+
+/**
+ * PATCH /admin/trips/:trip_id
+ */
+export async function updateTripHandler(req, res, next) {
+  try {
+    const tripId = Number(req.params.trip_id || req.params.tripId);
+    const adminId = req.user.userId;
+    const result = await updateTrip(tripId, adminId, req.body, req.ip);
+
+    return res.status(200).json({
+      success: true,
+      data: result,
+      message: 'Trip updated successfully.'
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
