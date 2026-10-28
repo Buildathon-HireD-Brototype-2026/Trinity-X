@@ -264,6 +264,10 @@ export async function createManualOrder(orderData) {
     companyName: targetCompany.name,
     pickupSpot: orderData.pickupSpot.trim(),
     dropoffSpot: orderData.dropoffSpot.trim(),
+    pickupLatitude: orderData.pickupLatitude !== undefined ? orderData.pickupLatitude : null,
+    pickupLongitude: orderData.pickupLongitude !== undefined ? orderData.pickupLongitude : null,
+    dropLatitude: orderData.dropLatitude !== undefined ? orderData.dropLatitude : null,
+    dropLongitude: orderData.dropLongitude !== undefined ? orderData.dropLongitude : null,
     pickupTime: orderData.pickupTime || new Date(Date.now() + 2 * 3600 * 1000).toISOString(),
     contactName: orderData.contactName.trim(),
     contactPhone: orderData.contactPhone.trim(),
@@ -285,9 +289,10 @@ export async function createManualOrder(orderData) {
  * Accept an incoming order and convert it into a trip (PRD A-05)
  * @param {number|string} orderId
  * @param {number|string} tripAmount
+ * @param {Object} [options]
  * @returns {Promise<Object>}
  */
-export async function acceptOrder(orderId, tripAmount) {
+export async function acceptOrder(orderId, tripAmount, options = {}) {
   const numericId = Number(orderId);
   const fare = Number(Number(tripAmount).toFixed(2));
 
@@ -300,7 +305,7 @@ export async function acceptOrder(orderId, tripAmount) {
       method: 'POST',
       headers: getAuthHeaders(),
       credentials: 'include',
-      body: JSON.stringify({ tripAmount: fare })
+      body: JSON.stringify({ tripAmount: fare, amount: fare, ...options })
     });
     if (res.ok) {
       const json = await res.json();
@@ -324,6 +329,10 @@ export async function acceptOrder(orderId, tripAmount) {
     ..._orders[idx],
     status: 'ACCEPTED',
     tripAmount: fare,
+    pickupLatitude: options.pickupLatitude !== undefined ? options.pickupLatitude : (_orders[idx].pickupLatitude ?? null),
+    pickupLongitude: options.pickupLongitude !== undefined ? options.pickupLongitude : (_orders[idx].pickupLongitude ?? null),
+    dropLatitude: options.dropLatitude !== undefined ? options.dropLatitude : (_orders[idx].dropLatitude ?? null),
+    dropLongitude: options.dropLongitude !== undefined ? options.dropLongitude ?? null : (_orders[idx].dropLongitude ?? null),
     decidedAt: new Date().toISOString()
   };
 

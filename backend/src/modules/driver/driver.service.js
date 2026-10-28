@@ -519,6 +519,12 @@ export async function uploadDriverDocument(driverId, file, documentType) {
  */
 export function formatDriverTripResponse(trip) {
   if (!trip) return null;
+
+  const pickupLat = trip.pickupLatitude !== null && trip.pickupLatitude !== undefined ? Number(trip.pickupLatitude) : (trip.order?.pickupLatitude !== null && trip.order?.pickupLatitude !== undefined ? Number(trip.order.pickupLatitude) : null);
+  const pickupLng = trip.pickupLongitude !== null && trip.pickupLongitude !== undefined ? Number(trip.pickupLongitude) : (trip.order?.pickupLongitude !== null && trip.order?.pickupLongitude !== undefined ? Number(trip.order.pickupLongitude) : null);
+  const dropLat = trip.dropLatitude !== null && trip.dropLatitude !== undefined ? Number(trip.dropLatitude) : (trip.order?.dropLatitude !== null && trip.order?.dropLatitude !== undefined ? Number(trip.order.dropLatitude) : null);
+  const dropLng = trip.dropLongitude !== null && trip.dropLongitude !== undefined ? Number(trip.dropLongitude) : (trip.order?.dropLongitude !== null && trip.order?.dropLongitude !== undefined ? Number(trip.order.dropLongitude) : null);
+
   return {
     trip_id: String(trip.tripId),
     order_id: trip.orderId,
@@ -529,6 +535,14 @@ export function formatDriverTripResponse(trip) {
     eta: trip.eta ? trip.eta.toISOString() : null,
     pickup_spot: trip.order ? trip.order.pickupSpot : 'N/A',
     dropoff_spot: trip.order ? trip.order.dropoffSpot : 'N/A',
+    pickup_latitude: pickupLat,
+    pickup_longitude: pickupLng,
+    drop_latitude: dropLat,
+    drop_longitude: dropLng,
+    pickupLatitude: pickupLat,
+    pickupLongitude: pickupLng,
+    dropLatitude: dropLat,
+    dropLongitude: dropLng,
     pickup_time: trip.order?.pickupTime ? trip.order.pickupTime.toISOString() : null,
     contact_name: trip.order ? trip.order.contactName : 'N/A',
     contact_phone: trip.order ? trip.order.contactPhone : 'N/A',

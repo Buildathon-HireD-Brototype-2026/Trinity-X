@@ -56,6 +56,10 @@ model Order {
   companyId        Int       @map("company_id")
   pickupSpot       String    @map("pickup_spot") @db.VarChar(300)
   dropoffSpot      String    @map("dropoff_spot") @db.VarChar(300)
+  pickupLatitude   Decimal?  @map("pickup_latitude") @db.Decimal(10, 7)
+  pickupLongitude  Decimal?  @map("pickup_longitude") @db.Decimal(10, 7)
+  dropLatitude     Decimal?  @map("drop_latitude") @db.Decimal(10, 7)
+  dropLongitude    Decimal?  @map("drop_longitude") @db.Decimal(10, 7)
   pickupTime       DateTime  @map("pickup_time") @db.Timestamptz
   contactName      String    @map("contact_name") @db.VarChar(150)
   contactPhone     String    @map("contact_phone") @db.VarChar(20)
@@ -91,6 +95,10 @@ model Trip {
   driverId              Int?      @map("driver_id")
   amount                Decimal   @map("amount") @db.Decimal(12, 2)
   eta                   DateTime? @map("eta") @db.Timestamptz
+  pickupLatitude        Decimal?  @map("pickup_latitude") @db.Decimal(10, 7)
+  pickupLongitude       Decimal?  @map("pickup_longitude") @db.Decimal(10, 7)
+  dropLatitude          Decimal?  @map("drop_latitude") @db.Decimal(10, 7)
+  dropLongitude         Decimal?  @map("drop_longitude") @db.Decimal(10, 7)
   selfieURL             String?   @map("selfie_url") @db.VarChar(500)
   startSelfieUrl        String?   @map("start_selfie_url") @db.VarChar(500)
   startSelfiePublicId   String?   @map("start_selfie_public_id") @db.VarChar(255)
