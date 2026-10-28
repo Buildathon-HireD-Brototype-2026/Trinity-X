@@ -9,10 +9,15 @@ venv/
 .venv/
 __pycache__/
 
-# Build outputs
+# Build outputs & caches
 dist/
 build/
 .next/
+.vite/
+
+# User uploads & media
+uploads/*
+!uploads/.gitkeep
 
 # Flutter / Mobile
 .dart_tool/
