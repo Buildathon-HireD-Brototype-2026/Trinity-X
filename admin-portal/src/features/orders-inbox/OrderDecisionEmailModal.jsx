@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   X,
   Mail,
@@ -12,18 +12,20 @@ import {
   Building2,
   RotateCcw,
   Send,
-  Lock
+  Lock,
+  Loader2,
+  RefreshCw
 } from 'lucide-react';
-import { getDrivers } from '../driver-onboarding/driverService';
+import { getEligibleDrivers } from './orderService';
 
 /**
  * Format timestamp into readable localized date and time string
  */
 function formatTripDateTime(dateStr) {
-  if (!dateStr) return 'Scheduled';
+  if (!dateStr) return 'Scheduled Date';
   try {
     const d = new Date(dateStr);
-    if (isNaN(d.getTime())) return dateStr;
+    if (isNaN(d.getTime())) return String(dateStr);
     return d.toLocaleString('en-IN', {
       weekday: 'short',
       year: 'numeric',
@@ -33,7 +35,7 @@ function formatTripDateTime(dateStr) {
       minute: '2-digit'
     });
   } catch {
-    return dateStr;
+    return String(dateStr);
   }
 }
 
@@ -41,18 +43,18 @@ function formatTripDateTime(dateStr) {
  * Default Accept Email Body Template
  */
 function generateDefaultAcceptBody(order, driverName) {
-  const companyName = order?.company?.name || order?.companyName || 'Corporate Client';
-  const pickup = order?.pickupSpot || 'N/A';
-  const drop = order?.dropoffSpot || 'N/A';
-  const time = formatTripDateTime(order?.pickupTime);
+  const companyName = order?.company?.name || order?.companyName || (typeof order?.company === 'string' ? order.company : 'Corporate Client');
+  const pickup = order?.pickupSpot || order?.pickup || 'N/A';
+  const drop = order?.dropoffSpot || order?.dropoff || 'N/A';
+  const time = formatTripDateTime(order?.pickupTime || order?.scheduledDate);
   const driver = driverName ? driverName.trim() : '[Driver to be assigned]';
 
   return `Dear ${companyName},
 
-Your booking request for Order #${order?.orderId} has been accepted and confirmed.
+Your booking request for Order #${order?.orderId || order?.id} has been accepted and confirmed.
 
 Trip Details:
-• Order ID: #${order?.orderId}
+• Order ID: #${order?.orderId || order?.id}
 • Pickup Location: ${pickup}
 • Drop-off Location: ${drop}
 • Scheduled Date & Time: ${time}
@@ -68,18 +70,18 @@ HireD Operations Desk`;
  * Default Reject Email Body Template
  */
 function generateDefaultRejectBody(order, reason) {
-  const companyName = order?.company?.name || order?.companyName || 'Corporate Client';
-  const pickup = order?.pickupSpot || 'N/A';
-  const drop = order?.dropoffSpot || 'N/A';
-  const time = formatTripDateTime(order?.pickupTime);
+  const companyName = order?.company?.name || order?.companyName || (typeof order?.company === 'string' ? order.company : 'Corporate Client');
+  const pickup = order?.pickupSpot || order?.pickup || 'N/A';
+  const drop = order?.dropoffSpot || order?.dropoff || 'N/A';
+  const time = formatTripDateTime(order?.pickupTime || order?.scheduledDate);
   const rejectionReason = reason ? reason.trim() : '[No reason specified]';
 
   return `Dear ${companyName},
 
-We regret to inform you that your booking request for Order #${order?.orderId} could not be accepted.
+We regret to inform you that your booking request for Order #${order?.orderId || order?.id} could not be accepted.
 
 Trip Details:
-• Order ID: #${order?.orderId}
+• Order ID: #${order?.orderId || order?.id}
 • Pickup Location: ${pickup}
 • Drop-off Location: ${drop}
 • Scheduled Date & Time: ${time}
@@ -98,6 +100,7 @@ export default function OrderDecisionEmailModal({
   adminEmail = 'admin@hired.com',
   onClose,
   onSend,
+  onSwitchMode,
   isSubmitting = false
 }) {
   const isAccept = mode === 'ACCEPT';
@@ -109,6 +112,8 @@ export default function OrderDecisionEmailModal({
   }, [order]);
 
   const [availableDrivers, setAvailableDrivers] = useState([]);
+  const [isLoadingDrivers, setIsLoadingDrivers] = useState(false);
+  const [driverFetchError, setDriverFetchError] = useState('');
   const [driverName, setDriverName] = useState('');
   const [rejectReason, setRejectReason] = useState('');
   const [subject, setSubject] = useState('');
@@ -116,32 +121,43 @@ export default function OrderDecisionEmailModal({
   const [isBodyEdited, setIsBodyEdited] = useState(false);
   const [validationError, setValidationError] = useState('');
 
-  // Fetch available drivers when modal opens
+  const orderId = order?.orderId || order?.id;
+  const orderDate = order?.pickupTime || order?.scheduledDate;
+  const orderDateDisplay = useMemo(() => {
+    return formatTripDateTime(orderDate);
+  }, [orderDate]);
+
+  // Fetch eligible drivers available for this order's scheduled date
+  const loadEligibleDrivers = useCallback(() => {
+    if (!isOpen || !isAccept || !order) return;
+    setIsLoadingDrivers(true);
+    setDriverFetchError('');
+
+    getEligibleDrivers(orderId, orderDate)
+      .then((drivers) => {
+        setIsLoadingDrivers(false);
+        if (Array.isArray(drivers)) {
+          setAvailableDrivers(drivers);
+          // If previously chosen driver is not eligible, clear it
+          setDriverName((prev) => {
+            if (prev && !drivers.some((d) => d.name === prev)) {
+              return '';
+            }
+            return prev;
+          });
+        }
+      })
+      .catch((err) => {
+        setIsLoadingDrivers(false);
+        setDriverFetchError(err.message || 'Failed to fetch eligible drivers for this date.');
+      });
+  }, [isOpen, isAccept, order, orderId, orderDate]);
+
   useEffect(() => {
-    let isMounted = true;
     if (isOpen && isAccept) {
-      getDrivers({ status: 'ACTIVE', tab: 'directory' })
-        .then((drivers) => {
-          if (isMounted && Array.isArray(drivers)) {
-            // Also include pending verification drivers if active list is small
-            setAvailableDrivers(drivers);
-          }
-        })
-        .catch(() => {
-          // fallback default active drivers
-          if (isMounted) {
-            setAvailableDrivers([
-              { id: 'DRV-103', name: 'Vikram Singh' },
-              { id: 'DRV-101', name: 'Ramesh Kumar' },
-              { id: 'DRV-102', name: 'Suresh Patel' }
-            ]);
-          }
-        });
+      loadEligibleDrivers();
     }
-    return () => {
-      isMounted = false;
-    };
-  }, [isOpen, isAccept]);
+  }, [isOpen, isAccept, loadEligibleDrivers]);
 
   // Initialize or reset form state whenever order or mode changes
   useEffect(() => {
@@ -154,14 +170,14 @@ export default function OrderDecisionEmailModal({
       setIsBodyEdited(false);
 
       if (isAccept) {
-        setSubject(`Order #${order.orderId} Accepted`);
+        setSubject(`Order #${orderId} Accepted`);
         setBody(generateDefaultAcceptBody(order, initialDriver));
       } else {
-        setSubject(`Order #${order.orderId} Rejected`);
+        setSubject(`Order #${orderId} Rejected`);
         setBody(generateDefaultRejectBody(order, initialReason));
       }
     }
-  }, [isOpen, order, mode, isAccept]);
+  }, [isOpen, order, mode, isAccept, orderId]);
 
   // Handle ESC key to dismiss without mutating order
   useEffect(() => {
@@ -178,11 +194,13 @@ export default function OrderDecisionEmailModal({
   const canSend = useMemo(() => {
     if (!companyEmail) return false;
     if (isAccept) {
+      if (isLoadingDrivers) return false;
+      if (availableDrivers.length === 0) return false; // Block Accept if no drivers available!
       return Boolean(driverName && driverName.trim());
     } else {
       return Boolean(rejectReason && rejectReason.trim());
     }
-  }, [companyEmail, isAccept, driverName, rejectReason]);
+  }, [companyEmail, isAccept, isLoadingDrivers, availableDrivers.length, driverName, rejectReason]);
 
   if (!isOpen || !order) return null;
 
@@ -417,7 +435,7 @@ export default function OrderDecisionEmailModal({
                 padding: '0.875rem 1rem',
                 display: 'flex',
                 flexDirection: 'column',
-                gap: '0.5rem'
+                gap: '0.625rem'
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -433,60 +451,154 @@ export default function OrderDecisionEmailModal({
                   }}
                 >
                   <Car size={14} style={{ color: '#16a34a' }} />
-                  <span>Assigned Driver <span style={{ color: '#dc2626' }}>*</span></span>
+                  <span>Eligible Driver <span style={{ color: '#dc2626' }}>*</span></span>
                 </label>
-                <span style={{ fontSize: '0.72rem', color: 'var(--text-muted, #64748b)' }}>
-                  Mandatory for trip conversion
-                </span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                  <span style={{ fontSize: '0.72rem', color: 'var(--text-muted, #64748b)' }}>
+                    For {orderDateDisplay}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={loadEligibleDrivers}
+                    disabled={isLoadingDrivers || isSubmitting}
+                    className="btn-ghost"
+                    title="Refresh eligible drivers"
+                    style={{
+                      padding: '0.2rem',
+                      background: 'none',
+                      border: 'none',
+                      cursor: 'pointer',
+                      color: 'var(--primary, #6A379F)'
+                    }}
+                  >
+                    <RefreshCw size={12} className={isLoadingDrivers ? 'spin-animation' : ''} />
+                  </button>
+                </div>
               </div>
 
-              <div style={{ display: 'flex', gap: '0.5rem' }}>
-                <select
-                  id="decision-driver-select"
-                  className="admin-input"
-                  value={driverName}
-                  onChange={(e) => handleDriverChange(e.target.value)}
-                  disabled={isSubmitting}
+              {/* 1. Loading State */}
+              {isLoadingDrivers && (
+                <div
                   style={{
-                    flex: 1,
-                    height: '38px',
+                    padding: '0.75rem',
+                    borderRadius: '6px',
+                    background: '#f1f5f9',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem',
                     fontSize: '0.8125rem',
-                    fontWeight: 500,
-                    borderColor: !driverName.trim() && validationError ? '#dc2626' : undefined
+                    color: '#475569'
                   }}
                 >
-                  <option value="">-- Select Active Driver --</option>
-                  {availableDrivers.map((d) => (
-                    <option key={d.id} value={d.name}>
-                      {d.name} ({d.id}{d.phone_no ? ` • ${d.phone_no}` : ''})
-                    </option>
-                  ))}
-                  {/* If custom driver typed or prefilled not in list */}
-                  {driverName && !availableDrivers.some((d) => d.name === driverName) && (
-                    <option value={driverName}>{driverName} (Assigned)</option>
-                  )}
-                </select>
+                  <Loader2 size={16} className="spin-animation" style={{ color: 'var(--primary, #6A379F)' }} />
+                  <span>Checking driver availability for {orderDateDisplay}...</span>
+                </div>
+              )}
 
-                <input
-                  type="text"
-                  placeholder="Or enter name"
-                  value={driverName}
-                  onChange={(e) => handleDriverChange(e.target.value)}
-                  disabled={isSubmitting}
-                  className="admin-input"
+              {/* 2. Driver Fetch Error Banner */}
+              {!isLoadingDrivers && driverFetchError && (
+                <div
+                  role="alert"
                   style={{
-                    width: '180px',
-                    height: '38px',
-                    fontSize: '0.8125rem'
+                    padding: '0.625rem 0.875rem',
+                    borderRadius: '6px',
+                    background: '#fee2e2',
+                    border: '1px solid #fca5a5',
+                    color: '#991b1b',
+                    fontSize: '0.75rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between'
                   }}
-                  id="decision-driver-custom-input"
-                />
-              </div>
+                >
+                  <span>{driverFetchError}</span>
+                  <button
+                    type="button"
+                    onClick={loadEligibleDrivers}
+                    style={{ background: 'none', border: 'none', color: '#b91c1c', fontWeight: 700, cursor: 'pointer', textDecoration: 'underline' }}
+                  >
+                    Retry
+                  </button>
+                </div>
+              )}
 
-              {!driverName.trim() && (
-                <span style={{ fontSize: '0.72rem', color: '#b91c1c' }}>
-                  Please assign a driver before sending confirmation.
-                </span>
+              {/* 3. Empty State: No Drivers Available */}
+              {!isLoadingDrivers && !driverFetchError && availableDrivers.length === 0 && (
+                <div
+                  role="alert"
+                  className="orders-empty-state-banner"
+                  style={{
+                    padding: '0.875rem 1rem',
+                    borderRadius: '6px',
+                    background: '#fef2f2',
+                    border: '1px solid #fecaca',
+                    color: '#b91c1c',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '0.35rem'
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 700, fontSize: '0.8125rem' }}>
+                    <AlertCircle size={16} style={{ flexShrink: 0 }} />
+                    <span>No drivers available on {orderDateDisplay}</span>
+                  </div>
+                  <p style={{ margin: 0, fontSize: '0.75rem', color: '#7f1d1d', lineHeight: '1.4' }}>
+                    All active drivers have approved leave or scheduled trip commitments on this date. Assign/Accept is disabled.
+                  </p>
+                  {onSwitchMode && (
+                    <div style={{ marginTop: '0.25rem' }}>
+                      <button
+                        type="button"
+                        onClick={() => onSwitchMode('REJECT')}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          color: '#dc2626',
+                          fontSize: '0.75rem',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          padding: 0,
+                          textDecoration: 'underline'
+                        }}
+                      >
+                        The admin can still Reject this order →
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* 4. Eligible Drivers Dropdown */}
+              {!isLoadingDrivers && availableDrivers.length > 0 && (
+                <div>
+                  <select
+                    id="decision-driver-select"
+                    className="admin-input"
+                    value={driverName}
+                    onChange={(e) => handleDriverChange(e.target.value)}
+                    disabled={isSubmitting}
+                    style={{
+                      width: '100%',
+                      height: '38px',
+                      fontSize: '0.8125rem',
+                      fontWeight: 500,
+                      borderColor: !driverName.trim() && validationError ? '#dc2626' : undefined
+                    }}
+                  >
+                    <option value="">-- Select Available Eligible Driver ({availableDrivers.length} Available) --</option>
+                    {availableDrivers.map((d) => (
+                      <option key={d.id} value={d.name}>
+                        {d.name} ({d.id}{d.phone_no ? ` • ${d.phone_no}` : ''})
+                      </option>
+                    ))}
+                  </select>
+
+                  {!driverName.trim() && (
+                    <span style={{ fontSize: '0.72rem', color: '#b91c1c', marginTop: '0.25rem', display: 'block' }}>
+                      Please select an available driver before sending confirmation.
+                    </span>
+                  )}
+                </div>
               )}
             </div>
           )}

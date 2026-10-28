@@ -141,6 +141,106 @@ function serverEmailApiPlugin() {
           return res.end(JSON.stringify({ success: true, data: emailLogs }));
         }
 
+        // Endpoint: GET /api/v1/admin/orders/:id/eligible-drivers
+        if (req.method === 'GET' && req.url && req.url.includes('/api/v1/admin/orders/') && req.url.includes('/eligible-drivers')) {
+          try {
+            const urlObj = new URL(req.url, 'http://localhost:3000');
+            const pathParts = urlObj.pathname.split('/');
+            const orderIdIdx = pathParts.indexOf('orders') + 1;
+            const orderId = pathParts[orderIdIdx];
+            const dateParam = urlObj.searchParams.get('date');
+            const forceEmpty = urlObj.searchParams.get('empty') === 'true';
+
+            if (forceEmpty) {
+              res.statusCode = 200;
+              res.setHeader('Content-Type', 'application/json');
+              return res.end(JSON.stringify({ success: true, data: [] }));
+            }
+
+            // Reference database matching Prisma Schema
+            const driversDb = [
+              { id: 'DRV-101', driverId: 101, name: 'Ramesh Kumar', phone_no: '+91 98451 22334', status: 'PENDING' },
+              { id: 'DRV-102', driverId: 102, name: 'Suresh Patel', phone_no: '+91 98765 11223', status: 'PENDING' },
+              { id: 'DRV-103', driverId: 103, name: 'Vikram Singh', phone_no: '+91 98112 33445', status: 'ACTIVE' },
+              { id: 'DRV-104', driverId: 104, name: 'Rajesh Sharma', phone_no: '+91 98223 44556', status: 'ACTIVE' },
+              { id: 'DRV-105', driverId: 105, name: 'Manoj Verma', phone_no: '+91 98334 55667', status: 'ACTIVE' },
+              { id: 'DRV-106', driverId: 106, name: 'Amit Patel', phone_no: '+91 98445 66778', status: 'ACTIVE' }
+            ];
+
+            const leavesDb = [
+              // Rajesh Sharma has approved leave covering 12-14 Oct 2026
+              { leaveId: 1, driverId: 104, startDate: '2026-10-12', endDate: '2026-10-14', status: 'APPROVED' },
+              // Rejected leave for Vikram Singh (does NOT block)
+              { leaveId: 2, driverId: 103, startDate: '2026-10-12', endDate: '2026-10-12', status: 'REJECTED' }
+            ];
+
+            const tripsDb = [
+              // Manoj Verma has an assigned active trip on 12 Oct 2026
+              { tripId: 501, orderId: 501, driverId: 105, tripDate: '2026-10-12', tripStatus: 'ASSIGNED' },
+              // Closed trip for Vikram Singh on 10 Oct 2026 (does NOT block)
+              { tripId: 480, orderId: 480, driverId: 103, tripDate: '2026-10-10', tripStatus: 'CLOSED' }
+            ];
+
+            // Resolve target order date
+            let targetDateStr = '2026-10-12';
+            if (dateParam) {
+              const d = new Date(dateParam);
+              if (!isNaN(d.getTime())) {
+                targetDateStr = d.toISOString().split('T')[0];
+              }
+            }
+
+            // Check if specific order has special test date (e.g. empty check)
+            if (orderId === '1008' || orderId === 'ORD-621' || targetDateStr === '2026-10-31') {
+              // Simulates no drivers available for this date
+              res.statusCode = 200;
+              res.setHeader('Content-Type', 'application/json');
+              return res.end(JSON.stringify({ success: true, data: [] }));
+            }
+
+            // Execute Eligibility Filter Rules:
+            // 1. Driver status MUST be ACTIVE
+            const activeDrivers = driversDb.filter(d => d.status === 'ACTIVE');
+
+            // 2. No approved leave covering the order date
+            const withoutLeave = activeDrivers.filter(driver => {
+              const hasLeave = leavesDb.some(l => {
+                if (l.driverId !== driver.driverId || l.status !== 'APPROVED') return false;
+                return targetDateStr >= l.startDate && targetDateStr <= l.endDate;
+              });
+              return !hasLeave;
+            });
+
+            // 3. No active assigned trip on that date (excluding current order)
+            const eligible = withoutLeave.filter(driver => {
+              const hasTripConflict = tripsDb.some(t => {
+                if (t.driverId !== driver.driverId) return false;
+                if (String(t.orderId) === String(orderId)) return false; // exclude current order
+                const isBlockingStatus = t.tripStatus === 'ASSIGNED' || t.tripStatus === 'ONGOING';
+                return isBlockingStatus && t.tripDate === targetDateStr;
+              });
+              return !hasTripConflict;
+            });
+
+            // Return UI-friendly driver list
+            const formatted = eligible.map(d => ({
+              id: d.id,
+              driverId: d.driverId,
+              name: d.name,
+              phone_no: d.phone_no,
+              status: d.status
+            }));
+
+            res.statusCode = 200;
+            res.setHeader('Content-Type', 'application/json');
+            return res.end(JSON.stringify({ success: true, data: formatted }));
+          } catch (err) {
+            res.statusCode = 500;
+            res.setHeader('Content-Type', 'application/json');
+            return res.end(JSON.stringify({ success: false, error: err.message }));
+          }
+        }
+
         next();
       });
     }
