@@ -377,7 +377,7 @@ export default function CreateOrderModal({ isOpen, onClose, onSubmit }) {
                 </div>
                 {selectedCompanyObj && (
                   <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', display: 'block', marginTop: '0.25rem' }}>
-                    Agreed split: {selectedCompanyObj.driverSplit}% Driver / {selectedCompanyObj.hiredSplit}% Platform
+                    Notification Email: <strong style={{ color: 'var(--text-main)' }}>{selectedCompanyObj.emailId || 'corporate@client.com'}</strong> • Split: {selectedCompanyObj.driverSplit}% Driver / {selectedCompanyObj.hiredSplit}% Platform
                   </span>
                 )}
                 {errors.companyId && <span className="field-error-text">{errors.companyId}</span>}

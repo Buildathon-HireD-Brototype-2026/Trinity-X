@@ -17,17 +17,22 @@ import {
   AlertCircle,
   ShieldAlert,
   Building2,
-  Calendar
+  Calendar,
+  Send
 } from 'lucide-react';
-import { getOrders, acceptOrder, rejectOrder, createManualOrder } from './orderService';
+import { getOrders, acceptOrder, rejectOrder, createManualOrder, resendOrderEmail } from './orderService';
 import { useAuth } from '../auth/AuthContext';
 import OrderDetailModal from './OrderDetailModal';
 import CreateOrderModal from './CreateOrderModal';
+import OrderDecisionEmailModal from './OrderDecisionEmailModal';
 
 export default function OrdersInboxPage({ onOpenDetail, onOpenCreate }) {
   const { user } = useAuth();
   // Role-Based Access Control: fail-closed permission check
   const canManageOrders = Boolean(user && ['Admin', 'SuperAdmin', 'Operations'].includes(user.role));
+
+  // Sender email read from environment variable or logged-in admin email (do not hardcode)
+  const adminEmail = import.meta.env.VITE_ADMIN_EMAIL || user?.email || 'admin@hired.com';
 
   const [orders, setOrders] = useState([]);
   const [selectedOrderForDetail, setSelectedOrderForDetail] = useState(null);
@@ -37,6 +42,14 @@ export default function OrdersInboxPage({ onOpenDetail, onOpenCreate }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL'); // 'ALL' | 'RECEIVED' | 'ACCEPTED' | 'REJECTED'
   const [sourceFilter, setSourceFilter] = useState('ALL'); // 'ALL' | 'B2B_PORTAL' | 'PHONE' | 'WHATSAPP'
+
+  // Decision Modal State
+  const [decisionModal, setDecisionModal] = useState({
+    isOpen: false,
+    order: null,
+    mode: 'ACCEPT' // 'ACCEPT' | 'REJECT'
+  });
+  const [isSubmittingDecision, setIsSubmittingDecision] = useState(false);
 
   // Toast feedback state
   const [toast, setToast] = useState(null);
@@ -76,23 +89,76 @@ export default function OrdersInboxPage({ onOpenDetail, onOpenCreate }) {
     loadOrders();
   }, [loadOrders]);
 
-  // ── Action Handlers (PRD A-05) ─────────────────────────────────────────────
-  const handleAcceptOrder = async (orderId, tripAmount) => {
-    const updated = await acceptOrder(orderId, tripAmount);
-    setOrders((prev) =>
-      prev.map((o) => (o.orderId === Number(orderId) ? updated : o))
-    );
-    setSelectedOrderForDetail(null);
-    showToast(`Order #${orderId} accepted and converted to live trip for ₹${Number(tripAmount).toFixed(2)}!`);
+  // ── Decision Modal Open/Close Handlers ─────────────────────────────────────
+  const handleOpenDecisionModal = (order, mode) => {
+    setDecisionModal({
+      isOpen: true,
+      order,
+      mode
+    });
   };
 
-  const handleRejectOrder = async (orderId, rejectReason) => {
-    const updated = await rejectOrder(orderId, rejectReason);
-    setOrders((prev) =>
-      prev.map((o) => (o.orderId === Number(orderId) ? updated : o))
-    );
-    setSelectedOrderForDetail(null);
-    showToast(`Order #${orderId} has been declined. Client notified.`, 'error');
+  const handleCloseDecisionModal = () => {
+    if (!isSubmittingDecision) {
+      setDecisionModal({ isOpen: false, order: null, mode: 'ACCEPT' });
+    }
+  };
+
+  // ── Send Decision Email Flow ───────────────────────────────────────────────
+  const handleSendDecision = async ({ orderId, mode, driverName, rejectReason, subject, body, from, to }) => {
+    setIsSubmittingDecision(true);
+    try {
+      let result;
+      if (mode === 'ACCEPT') {
+        result = await acceptOrder(orderId, { driverName, subject, body, from, to });
+      } else {
+        result = await rejectOrder(orderId, { rejectReason, subject, body, from, to });
+      }
+
+      const updated = result.order;
+      setOrders((prev) => prev.map((o) => (o.orderId === Number(orderId) ? updated : o)));
+      if (selectedOrderForDetail && selectedOrderForDetail.orderId === Number(orderId)) {
+        setSelectedOrderForDetail(updated);
+      }
+
+      setDecisionModal({ isOpen: false, order: null, mode: 'ACCEPT' });
+
+      // Toast feedback per specifications
+      if (!result.emailSent) {
+        showToast('Status updated, but email failed to send', 'error');
+      } else {
+        showToast(
+          mode === 'ACCEPT'
+            ? `Order #${orderId} accepted and confirmation email sent to ${to}!`
+            : `Order #${orderId} rejected and decline email sent to ${to}!`,
+          'success'
+        );
+      }
+    } catch (err) {
+      showToast(err.message || 'Failed to process order decision', 'error');
+    } finally {
+      setIsSubmittingDecision(false);
+    }
+  };
+
+  // ── Resend Email Action ───────────────────────────────────────────────────
+  const handleResendEmail = async (orderId) => {
+    try {
+      const result = await resendOrderEmail(orderId);
+      const updated = result.order;
+      setOrders((prev) => prev.map((o) => (o.orderId === Number(orderId) ? updated : o)));
+      if (selectedOrderForDetail && selectedOrderForDetail.orderId === Number(orderId)) {
+        setSelectedOrderForDetail(updated);
+      }
+      const emailTarget = updated.emailSentTo || updated.companyEmail || updated.companyName;
+      if (result.emailSent) {
+        showToast(`Notification email successfully resent to ${emailTarget}!`);
+      } else {
+        showToast('Status updated, but email failed to send', 'error');
+      }
+    } catch (err) {
+      showToast(err.message || 'Failed to resend email', 'error');
+    }
   };
 
   const handleCreateOrder = async (orderData) => {
@@ -567,24 +633,98 @@ export default function OrdersInboxPage({ onOpenDetail, onOpenCreate }) {
 
                       {/* Actions */}
                       <td style={{ padding: '0.875rem 1rem', textAlign: 'right' }}>
-                        <button
-                          type="button"
-                          className="btn-secondary"
-                          onClick={() => setSelectedOrderForDetail(order)}
-                          style={{
-                            padding: '0.35rem 0.65rem',
-                            fontSize: '0.75rem',
-                            borderRadius: '4px',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '0.3rem',
-                            cursor: 'pointer'
-                          }}
-                          id={`review-order-btn-${order.orderId}`}
-                        >
-                          <Eye size={13} />
-                          <span>Review</span>
-                        </button>
+                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', justifyContent: 'flex-end' }}>
+                          {canManageOrders && order.status === 'RECEIVED' && (
+                            <>
+                              <button
+                                type="button"
+                                className="btn-primary"
+                                onClick={() => handleOpenDecisionModal(order, 'ACCEPT')}
+                                style={{
+                                  padding: '0.35rem 0.65rem',
+                                  fontSize: '0.75rem',
+                                  borderRadius: '4px',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '0.25rem',
+                                  cursor: 'pointer',
+                                  background: '#16a34a',
+                                  borderColor: '#16a34a'
+                                }}
+                                id={`accept-order-btn-${order.orderId}`}
+                              >
+                                <CheckCircle2 size={13} />
+                                <span>Accept</span>
+                              </button>
+
+                              <button
+                                type="button"
+                                className="btn-danger"
+                                onClick={() => handleOpenDecisionModal(order, 'REJECT')}
+                                style={{
+                                  padding: '0.35rem 0.65rem',
+                                  fontSize: '0.75rem',
+                                  borderRadius: '4px',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '0.25rem',
+                                  cursor: 'pointer',
+                                  background: 'transparent',
+                                  color: '#dc2626',
+                                  border: '1px solid #fca5a5'
+                                }}
+                                id={`reject-order-btn-${order.orderId}`}
+                              >
+                                <XCircle size={13} />
+                                <span>Reject</span>
+                              </button>
+                            </>
+                          )}
+
+                          {canManageOrders && order.emailStatus === 'failed' && (
+                            <button
+                              type="button"
+                              className="btn-ghost"
+                              onClick={() => handleResendEmail(order.orderId)}
+                              style={{
+                                padding: '0.35rem 0.65rem',
+                                fontSize: '0.75rem',
+                                borderRadius: '4px',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '0.25rem',
+                                cursor: 'pointer',
+                                color: '#b91c1c',
+                                border: '1px solid #fca5a5',
+                                background: '#fef2f2'
+                              }}
+                              id={`resend-order-btn-${order.orderId}`}
+                              title="Status was updated, but email failed to send. Click to retry transmission."
+                            >
+                              <Send size={12} />
+                              <span>Resend</span>
+                            </button>
+                          )}
+
+                          <button
+                            type="button"
+                            className="btn-secondary"
+                            onClick={() => setSelectedOrderForDetail(order)}
+                            style={{
+                              padding: '0.35rem 0.65rem',
+                              fontSize: '0.75rem',
+                              borderRadius: '4px',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '0.3rem',
+                              cursor: 'pointer'
+                            }}
+                            id={`review-order-btn-${order.orderId}`}
+                          >
+                            <Eye size={13} />
+                            <span>Review</span>
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -622,14 +762,29 @@ export default function OrdersInboxPage({ onOpenDetail, onOpenCreate }) {
           <span>{toast.message}</span>
         </div>
       )}
-      {/* ── Order Detail & Acceptance Modal (PRD A-04, A-05) ── */}
+
+      {/* ── Order Detail Modal ── */}
       <OrderDetailModal
         order={selectedOrderForDetail}
         isOpen={Boolean(selectedOrderForDetail)}
         onClose={() => setSelectedOrderForDetail(null)}
-        onAccept={handleAcceptOrder}
-        onReject={handleRejectOrder}
+        onAccept={handleSendDecision}
+        onReject={handleSendDecision}
+        onOpenAccept={(ord) => handleOpenDecisionModal(ord, 'ACCEPT')}
+        onOpenReject={(ord) => handleOpenDecisionModal(ord, 'REJECT')}
+        onResendEmail={handleResendEmail}
         canManageOrders={canManageOrders}
+      />
+
+      {/* ── Confirmation Email Review & Send Modal (PRD A-05 & Custom Email Flow) ── */}
+      <OrderDecisionEmailModal
+        isOpen={decisionModal.isOpen}
+        mode={decisionModal.mode}
+        order={decisionModal.order}
+        adminEmail={adminEmail}
+        onClose={handleCloseDecisionModal}
+        onSend={handleSendDecision}
+        isSubmitting={isSubmittingDecision}
       />
 
       {/* ── Manual Phone / WhatsApp Order Creation Modal (PRD A-03) ── */}
