@@ -623,7 +623,7 @@ class TripForegroundService : Service() {
         mapGraphics.addView(mapVehicleIcon)
 
         mapRouteLine = TextView(this).apply {
-            text = "••• ROUTE •••"
+            text = "ONGOING"
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 7f)
             typeface = Typeface.DEFAULT_BOLD
             letterSpacing = 0.08f
