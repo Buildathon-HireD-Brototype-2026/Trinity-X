@@ -132,23 +132,22 @@ class _TripMapViewState extends State<TripMapView> {
     }
   }
 
-  LatLng _calculateCenter() {
+  LatLng? _calculateCenter() {
     if (widget.singleTargetMode) {
       final targetLat = widget.isTargetDropoff ? widget.dropoffLat : widget.pickupLat;
       final targetLng = widget.isTargetDropoff ? widget.dropoffLng : widget.pickupLng;
+
+      if (targetLat != null && targetLng != null && targetLat != 0.0 && targetLng != 0.0) {
+        return LatLng(targetLat, targetLng);
+      }
       final driver = _liveGps ??
           (widget.driverLat != null && widget.driverLng != null
               ? LatLng(widget.driverLat!, widget.driverLng!)
               : null);
-
-      if (driver != null && targetLat != null && targetLng != null) {
-        return LatLng((driver.latitude + targetLat) / 2, (driver.longitude + targetLng) / 2);
-      } else if (driver != null) {
+      if (driver != null) {
         return driver;
-      } else if (targetLat != null && targetLng != null) {
-        return LatLng(targetLat, targetLng);
       }
-      return const LatLng(8.678465, 76.887690);
+      return null;
     }
 
     if (_liveGps != null && widget.mode == TripMapMode.driverLocation) {
@@ -159,39 +158,31 @@ class _TripMapViewState extends State<TripMapView> {
       if (widget.driverLat != null && widget.driverLng != null) {
         return LatLng(widget.driverLat!, widget.driverLng!);
       }
-      return const LatLng(8.678465, 76.887690);
+      return _liveGps;
     }
 
-    final pLat = widget.pickupLat ?? (widget.driverLat ?? 8.678465);
-    final pLng = widget.pickupLng ?? (widget.driverLng ?? 76.887690);
-    final dLat = widget.dropoffLat ?? pLat;
-    final dLng = widget.dropoffLng ?? pLng;
+    final pLat = widget.pickupLat;
+    final pLng = widget.pickupLng;
+    final dLat = widget.dropoffLat;
+    final dLng = widget.dropoffLng;
 
-    return LatLng((pLat + dLat) / 2, (pLng + dLng) / 2);
+    if (pLat != null && pLng != null && dLat != null && dLng != null) {
+      return LatLng((pLat + dLat) / 2, (pLng + dLng) / 2);
+    } else if (pLat != null && pLng != null) {
+      return LatLng(pLat, pLng);
+    } else if (dLat != null && dLng != null) {
+      return LatLng(dLat, dLng);
+    } else if (_liveGps != null) {
+      return _liveGps;
+    } else if (widget.driverLat != null && widget.driverLng != null) {
+      return LatLng(widget.driverLat!, widget.driverLng!);
+    }
+    return null;
   }
 
   double _calculateZoom() {
     if (widget.singleTargetMode) {
-      final targetLat = widget.isTargetDropoff ? widget.dropoffLat : widget.pickupLat;
-      final targetLng = widget.isTargetDropoff ? widget.dropoffLng : widget.pickupLng;
-      final driver = _liveGps ??
-          (widget.driverLat != null && widget.driverLng != null
-              ? LatLng(widget.driverLat!, widget.driverLng!)
-              : null);
-
-      if (driver != null && targetLat != null && targetLng != null) {
-        final latDiff = (driver.latitude - targetLat).abs();
-        final lngDiff = (driver.longitude - targetLng).abs();
-        final maxDiff = max(latDiff, lngDiff);
-
-        if (maxDiff > 0.3) return 10.5;
-        if (maxDiff > 0.15) return 11.5;
-        if (maxDiff > 0.08) return 12.5;
-        if (maxDiff > 0.03) return 13.5;
-        if (maxDiff > 0.01) return 14.5;
-        return 15.2;
-      }
-      return 15.0;
+      return 15.2;
     }
 
     if (widget.mode == TripMapMode.driverLocation) {
@@ -278,6 +269,33 @@ class _TripMapViewState extends State<TripMapView> {
     }
 
     final center = _calculateCenter();
+    if (center == null) {
+      return Container(
+        height: widget.height,
+        decoration: BoxDecoration(
+          color: themeColors.innerBox,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: themeColors.border),
+        ),
+        alignment: Alignment.center,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.location_off_rounded, color: themeColors.textMuted, size: 28),
+            const SizedBox(height: 8),
+            Text(
+              'Location not available',
+              style: TextStyle(
+                color: themeColors.textSecondary,
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
     final zoom = _calculateZoom();
 
     // Prepare Route Polylines

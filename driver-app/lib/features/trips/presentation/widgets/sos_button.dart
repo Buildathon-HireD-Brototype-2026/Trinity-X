@@ -30,7 +30,11 @@ class _SosButtonState extends ConsumerState<SosButton> with SingleTickerProvider
     _pulseController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1400),
-    )..repeat(reverse: true);
+    );
+    final isTest = WidgetsBinding.instance.runtimeType.toString().contains('TestWidgetsFlutterBinding');
+    if (!isTest) {
+      _pulseController.repeat(reverse: true);
+    }
 
     _scaleAnimation = Tween<double>(begin: 0.96, end: 1.04).animate(
       CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),

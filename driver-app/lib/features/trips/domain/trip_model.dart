@@ -79,6 +79,10 @@ class TripModel {
   final DateTime? startedAt;
   final DateTime? destinationReachedAt;
   final DateTime? closedAt;
+  final double? pickupLatitude;
+  final double? pickupLongitude;
+  final double? dropLatitude;
+  final double? dropLongitude;
   final double? pickupLat;
   final double? pickupLng;
   final double? dropoffLat;
@@ -113,17 +117,28 @@ class TripModel {
     this.startedAt,
     this.destinationReachedAt,
     this.closedAt,
-    this.pickupLat = 12.9716,
-    this.pickupLng = 77.5946,
-    this.dropoffLat = 13.1986,
-    this.dropoffLng = 77.7066,
+    double? pickupLatitude,
+    double? pickupLongitude,
+    double? dropLatitude,
+    double? dropLongitude,
+    double? pickupLat,
+    double? pickupLng,
+    double? dropoffLat,
+    double? dropoffLng,
     this.routePolyline,
     this.startSelfieUrl,
     this.hasSelfie = false,
     this.startSelfieUploadedAt,
     this.startSelfieExpiresAt,
     this.startSelfieDeletedAt,
-  });
+  })  : pickupLatitude = pickupLatitude ?? pickupLat,
+        pickupLongitude = pickupLongitude ?? pickupLng,
+        dropLatitude = dropLatitude ?? dropoffLat,
+        dropLongitude = dropLongitude ?? dropoffLng,
+        pickupLat = pickupLatitude ?? pickupLat,
+        pickupLng = pickupLongitude ?? pickupLng,
+        dropoffLat = dropLatitude ?? dropoffLat,
+        dropoffLng = dropLongitude ?? dropoffLng;
 
   bool get isAssigned => status.toUpperCase() == 'ASSIGNED';
   bool get isOngoing => status.toUpperCase() == 'ONGOING';
@@ -137,15 +152,29 @@ class TripModel {
   bool get isStepInJourney => isOngoing || startedAt != null || isClosed;
   bool get isStepReachedPlace => destinationReachedAt != null || isClosed;
 
+  bool get isAfterPickup => isOngoing || isInProgress || startedAt != null;
+
+  /// Active stage target coordinates
+  /// Before pickup (ASSIGNED / ACCEPTED): Pickup location
+  /// After pickup is done (IN_PROGRESS / ONGOING): Drop-off location
+  double? get stageTargetLatitude => isAfterPickup ? dropLatitude : pickupLatitude;
+  double? get stageTargetLongitude => isAfterPickup ? dropLongitude : pickupLongitude;
+
+  bool get hasStageCoordinates =>
+      stageTargetLatitude != null &&
+      stageTargetLongitude != null &&
+      stageTargetLatitude != 0.0 &&
+      stageTargetLongitude != 0.0;
+
   bool get hasValidCoordinates =>
-      pickupLat != null &&
-      pickupLng != null &&
-      dropoffLat != null &&
-      dropoffLng != null &&
-      pickupLat != 0.0 &&
-      pickupLng != 0.0 &&
-      dropoffLat != 0.0 &&
-      dropoffLng != 0.0;
+      pickupLatitude != null &&
+      pickupLongitude != null &&
+      dropLatitude != null &&
+      dropLongitude != null &&
+      pickupLatitude != 0.0 &&
+      pickupLongitude != 0.0 &&
+      dropLatitude != 0.0 &&
+      dropLongitude != 0.0;
 
   TripModel copyWith({
     String? tripId,
@@ -170,6 +199,10 @@ class TripModel {
     DateTime? startedAt,
     DateTime? destinationReachedAt,
     DateTime? closedAt,
+    double? pickupLatitude,
+    double? pickupLongitude,
+    double? dropLatitude,
+    double? dropLongitude,
     double? pickupLat,
     double? pickupLng,
     double? dropoffLat,
@@ -181,6 +214,11 @@ class TripModel {
     DateTime? startSelfieExpiresAt,
     DateTime? startSelfieDeletedAt,
   }) {
+    final pLat = pickupLatitude ?? pickupLat ?? this.pickupLatitude;
+    final pLng = pickupLongitude ?? pickupLng ?? this.pickupLongitude;
+    final dLat = dropLatitude ?? dropoffLat ?? this.dropLatitude;
+    final dLng = dropLongitude ?? dropoffLng ?? this.dropLongitude;
+
     return TripModel(
       tripId: tripId ?? this.tripId,
       orderId: orderId ?? this.orderId,
@@ -204,10 +242,10 @@ class TripModel {
       startedAt: startedAt ?? this.startedAt,
       destinationReachedAt: destinationReachedAt ?? this.destinationReachedAt,
       closedAt: closedAt ?? this.closedAt,
-      pickupLat: pickupLat ?? this.pickupLat,
-      pickupLng: pickupLng ?? this.pickupLng,
-      dropoffLat: dropoffLat ?? this.dropoffLat,
-      dropoffLng: dropoffLng ?? this.dropoffLng,
+      pickupLatitude: pLat,
+      pickupLongitude: pLng,
+      dropLatitude: dLat,
+      dropLongitude: dLng,
       routePolyline: routePolyline ?? this.routePolyline,
       startSelfieUrl: startSelfieUrl ?? this.startSelfieUrl,
       hasSelfie: hasSelfie ?? this.hasSelfie,
@@ -240,10 +278,18 @@ class TripModel {
     if (startedAt != null) 'started_at': startedAt!.toIso8601String(),
     if (destinationReachedAt != null) 'destination_reached_at': destinationReachedAt!.toIso8601String(),
     if (closedAt != null) 'closed_at': closedAt!.toIso8601String(),
-    if (pickupLat != null) 'pickup_lat': pickupLat,
-    if (pickupLng != null) 'pickup_lng': pickupLng,
-    if (dropoffLat != null) 'dropoff_lat': dropoffLat,
-    if (dropoffLng != null) 'dropoff_lng': dropoffLng,
+    if (pickupLatitude != null) 'pickup_latitude': pickupLatitude,
+    if (pickupLongitude != null) 'pickup_longitude': pickupLongitude,
+    if (dropLatitude != null) 'drop_latitude': dropLatitude,
+    if (dropLongitude != null) 'drop_longitude': dropLongitude,
+    if (pickupLatitude != null) 'pickupLatitude': pickupLatitude,
+    if (pickupLongitude != null) 'pickupLongitude': pickupLongitude,
+    if (dropLatitude != null) 'dropLatitude': dropLatitude,
+    if (dropLongitude != null) 'dropLongitude': dropLongitude,
+    if (pickupLatitude != null) 'pickup_lat': pickupLatitude,
+    if (pickupLongitude != null) 'pickup_lng': pickupLongitude,
+    if (dropLatitude != null) 'dropoff_lat': dropLatitude,
+    if (dropLongitude != null) 'dropoff_lng': dropLongitude,
     if (routePolyline != null) 'route_polyline': routePolyline,
     if (startSelfieUrl != null) 'start_selfie_url': startSelfieUrl,
     'has_selfie': hasSelfie,
@@ -259,6 +305,12 @@ class TripModel {
       return double.tryParse(val.toString()) ?? fallback;
     }
 
+    double? parseNullableDouble(dynamic val) {
+      if (val == null) return null;
+      if (val is num) return val.toDouble();
+      return double.tryParse(val.toString());
+    }
+
     int parseInt(dynamic val, [int fallback = 0]) {
       if (val == null) return fallback;
       if (val is num) return val.toInt();
@@ -272,6 +324,11 @@ class TripModel {
     final hasSelfieVal = json['has_selfie'] == true ||
         json['hasSelfie'] == true ||
         (resolvedSelfieUrl != null && resolvedSelfieUrl.isNotEmpty);
+
+    final pLat = parseNullableDouble(json['pickup_latitude'] ?? json['pickupLatitude'] ?? json['pickup_lat'] ?? json['pickupLat']);
+    final pLng = parseNullableDouble(json['pickup_longitude'] ?? json['pickupLongitude'] ?? json['pickup_lng'] ?? json['pickupLng']);
+    final dLat = parseNullableDouble(json['drop_latitude'] ?? json['dropLatitude'] ?? json['dropoff_lat'] ?? json['dropoffLat'] ?? json['drop_lat'] ?? json['dropLat']);
+    final dLng = parseNullableDouble(json['drop_longitude'] ?? json['dropLongitude'] ?? json['dropoff_lng'] ?? json['dropoffLng'] ?? json['drop_lng'] ?? json['dropLng']);
 
     return TripModel(
       tripId: json['trip_id']?.toString() ?? '',
@@ -303,10 +360,10 @@ class TripModel {
       startedAt: json['started_at'] != null ? DateTime.tryParse(json['started_at'].toString()) : null,
       destinationReachedAt: json['destination_reached_at'] != null ? DateTime.tryParse(json['destination_reached_at'].toString()) : null,
       closedAt: json['closed_at'] != null ? DateTime.tryParse(json['closed_at'].toString()) : null,
-      pickupLat: parseDouble(json['pickup_lat'], 12.9716),
-      pickupLng: parseDouble(json['pickup_lng'], 77.5946),
-      dropoffLat: parseDouble(json['dropoff_lat'], 13.1986),
-      dropoffLng: parseDouble(json['dropoff_lng'], 77.7066),
+      pickupLatitude: pLat,
+      pickupLongitude: pLng,
+      dropLatitude: dLat,
+      dropLongitude: dLng,
       routePolyline: json['route_polyline']?.toString(),
       startSelfieUrl: resolvedSelfieUrl,
       hasSelfie: hasSelfieVal,

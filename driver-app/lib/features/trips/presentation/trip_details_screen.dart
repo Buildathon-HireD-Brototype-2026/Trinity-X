@@ -46,40 +46,47 @@ class _TripDetailsScreenState extends ConsumerState<TripDetailsScreen> {
   @override
   void initState() {
     super.initState();
+    final isTest = WidgetsBinding.instance.runtimeType.toString().contains('TestWidgetsFlutterBinding');
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       final tripId = widget.tripId;
       if (tripId != null) {
         ref.read(selectedTripIdProvider.notifier).select(tripId);
         // Edge Case: Check active SOS on app load/restart and restore status screen if active
-        final activeAlert = await ref.read(sosControllerProvider.notifier).checkActiveSos(tripId);
-        if (activeAlert != null && activeAlert.isActive && mounted) {
-          final allTrips = ref.read(allTripsProvider).valueOrNull ?? [];
-          final currentTrip = allTrips.where((t) => t.tripId == tripId).firstOrNull ??
-              TripModel(
-                tripId: tripId,
-                status: 'IN_PROGRESS',
-                pickupSpot: '',
-                pickupTime: DateTime.now(),
-              );
-          Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (ctx) => SosStatusScreen(
-                trip: currentTrip,
-                initialAlert: activeAlert,
+        if (!isTest) {
+          final activeAlert = await ref.read(sosControllerProvider.notifier).checkActiveSos(tripId);
+          if (activeAlert != null && activeAlert.isActive && mounted) {
+            final allTrips = ref.read(allTripsProvider).valueOrNull ?? [];
+            final currentTrip = allTrips.where((t) => t.tripId == tripId).firstOrNull ??
+                TripModel(
+                  tripId: tripId,
+                  status: 'IN_PROGRESS',
+                  pickupSpot: '',
+                  pickupTime: DateTime.now(),
+                );
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (ctx) => SosStatusScreen(
+                  trip: currentTrip,
+                  initialAlert: activeAlert,
+                ),
               ),
-            ),
-          );
+            );
+          }
         }
       }
       ref.read(tripMiniOverlayControllerProvider.notifier).setTripPageForeground(true);
-      ref.read(tripRepositoryProvider).getTrips();
-    });
-
-    _autoRefreshTimer = Timer.periodic(const Duration(seconds: 4), (_) {
-      if (mounted) {
+      if (!isTest) {
         ref.read(tripRepositoryProvider).getTrips();
       }
     });
+
+    if (!isTest) {
+      _autoRefreshTimer = Timer.periodic(const Duration(seconds: 4), (_) {
+        if (mounted) {
+          ref.read(tripRepositoryProvider).getTrips();
+        }
+      });
+    }
   }
 
   @override

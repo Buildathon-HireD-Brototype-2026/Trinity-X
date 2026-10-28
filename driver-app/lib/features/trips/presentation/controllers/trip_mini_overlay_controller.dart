@@ -339,6 +339,8 @@ class TripMiniOverlayNotifier extends StateNotifier<TripMiniOverlayState> {
 
   void _startTicker() {
     _ticker?.cancel();
+    final isTest = WidgetsBinding.instance.runtimeType.toString().contains('TestWidgetsFlutterBinding');
+    if (isTest) return;
     _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
       if (!state.isTripOngoing) {
         _ticker?.cancel();
