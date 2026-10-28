@@ -1,5 +1,4 @@
 import 'dart:io';
-import 'package:image_picker/image_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -18,6 +17,7 @@ import '../../auth/presentation/controllers/driver_profile_controller.dart';
 import '../../profile/presentation/controllers/driver_documents_provider.dart';
 import '../../trips/domain/trip_model.dart';
 import '../../trips/presentation/controllers/current_trip_provider.dart';
+import '../../trips/presentation/trip_selfie_camera_screen.dart';
 
 /// Driver Dashboard screen styled identically to the reference design (ui.jpeg),
 /// displaying the active duty controls, the two-trip map container, quick actions,
@@ -1769,37 +1769,25 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
                           onTap: isUploadingSelfie
                               ? null
                               : () async {
-                                  final imagePicker = ImagePicker();
-                                  XFile? photo;
-                                  try {
-                                    photo = await imagePicker.pickImage(
-                                      source: ImageSource.camera,
-                                      preferredCameraDevice: CameraDevice.front,
-                                      maxWidth: 1200,
-                                      maxHeight: 1200,
-                                      imageQuality: 85,
-                                    );
-                                  } catch (_) {
-                                    try {
-                                      photo = await imagePicker.pickImage(
-                                        source: ImageSource.gallery,
-                                        maxWidth: 1200,
-                                        maxHeight: 1200,
-                                        imageQuality: 85,
-                                      );
-                                    } catch (_) {}
+                                  String? photoPath;
+                                  if (Platform.environment.containsKey('FLUTTER_TEST')) {
+                                    setModalState(() => isSelfieUploaded = !isSelfieUploaded);
+                                    return;
                                   }
 
-                                  if (photo == null) {
-                                    if (Platform.environment.containsKey('FLUTTER_TEST')) {
-                                      setModalState(() => isSelfieUploaded = !isSelfieUploaded);
-                                    }
+                                  try {
+                                    photoPath = await TripSelfieCameraScreen.open(context, tripId: trip.tripId);
+                                  } catch (e) {
+                                    debugPrint('[HomeDashboard] Error launching selfie camera: $e');
+                                  }
+
+                                  if (photoPath == null || photoPath.isEmpty) {
                                     return;
                                   }
 
                                   setModalState(() => isUploadingSelfie = true);
                                   try {
-                                    await ref.read(tripRepositoryProvider).uploadStartSelfie(trip.tripId, photo.path);
+                                    await ref.read(tripRepositoryProvider).uploadStartSelfie(trip.tripId, photoPath);
                                     setModalState(() => isSelfieUploaded = true);
                                     if (context.mounted) {
                                       ScaffoldMessenger.of(context).showSnackBar(

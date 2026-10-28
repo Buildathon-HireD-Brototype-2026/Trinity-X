@@ -606,6 +606,7 @@ class ApiTripRepository implements TripRepository {
   @override
   Future<String?> uploadStartSelfie(String tripId, String selfiePath) async {
     try {
+      debugPrint('[ApiTripRepository] Uploading start selfie for trip $tripId: $selfiePath');
       final formData = FormData.fromMap({
         'selfie': await MultipartFile.fromFile(selfiePath),
       });
@@ -614,6 +615,7 @@ class ApiTripRepository implements TripRepository {
         data: formData,
       );
       final resData = response.data;
+      debugPrint('[ApiTripRepository] uploadStartSelfie response: $resData');
       String? selfieUrl;
       if (resData is Map) {
         selfieUrl = resData['selfieUrl']?.toString() ??
@@ -623,7 +625,11 @@ class ApiTripRepository implements TripRepository {
       await getTrips();
       return selfieUrl;
     } on DioException catch (e) {
+      debugPrint('[ApiTripRepository] uploadStartSelfie DioException: status=${e.response?.statusCode}, body=${e.response?.data}');
       throw ApiException.fromDioError(e);
+    } catch (e, stack) {
+      debugPrint('[ApiTripRepository] uploadStartSelfie unexpected error: $e\n$stack');
+      rethrow;
     }
   }
 

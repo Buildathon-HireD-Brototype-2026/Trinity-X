@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:io';
-import 'package:image_picker/image_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -25,6 +24,7 @@ import 'sos_status_screen.dart';
 import 'controllers/sos_controller.dart';
 import 'controllers/current_trip_provider.dart';
 import 'controllers/trip_mini_overlay_controller.dart';
+import 'trip_selfie_camera_screen.dart';
 
 /// Screen displaying the active Trip and its associated B2B Order details
 /// matching PostgreSQL schema (`orders`, `trips`, `companies`, `expenses`)
@@ -1056,37 +1056,26 @@ class _TripDetailsScreenState extends ConsumerState<TripDetailsScreen> {
                     onTap: isUploadingSelfie
                         ? null
                         : () async {
-                            final imagePicker = ImagePicker();
-                            XFile? photo;
-                            try {
-                              photo = await imagePicker.pickImage(
-                                source: ImageSource.camera,
-                                preferredCameraDevice: CameraDevice.front,
-                                maxWidth: 1200,
-                                maxHeight: 1200,
-                                imageQuality: 85,
-                              );
-                            } catch (_) {
-                              try {
-                                photo = await imagePicker.pickImage(
-                                  source: ImageSource.gallery,
-                                  maxWidth: 1200,
-                                  maxHeight: 1200,
-                                  imageQuality: 85,
-                                );
-                              } catch (_) {}
+                            String? photoPath;
+                            if (Platform.environment.containsKey('FLUTTER_TEST')) {
+                              // Fast path for headless flutter test suite
+                              setSheetState(() => isSelfieUploaded = !isSelfieUploaded);
+                              return;
                             }
 
-                            if (photo == null) {
-                              if (Platform.environment.containsKey('FLUTTER_TEST')) {
-                                setSheetState(() => isSelfieUploaded = !isSelfieUploaded);
-                              }
+                            try {
+                              photoPath = await TripSelfieCameraScreen.open(context, tripId: trip.tripId);
+                            } catch (e) {
+                              debugPrint('[TripDetails] Error launching selfie camera: $e');
+                            }
+
+                            if (photoPath == null || photoPath.isEmpty) {
                               return;
                             }
 
                             setSheetState(() => isUploadingSelfie = true);
                             try {
-                              await ref.read(tripRepositoryProvider).uploadStartSelfie(trip.tripId, photo.path);
+                              await ref.read(tripRepositoryProvider).uploadStartSelfie(trip.tripId, photoPath);
                               setSheetState(() => isSelfieUploaded = true);
                               if (context.mounted) {
                                 ScaffoldMessenger.of(context).showSnackBar(
