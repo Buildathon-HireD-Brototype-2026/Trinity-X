@@ -328,20 +328,7 @@ export default function CompanyDirectoryPage() {
       )}
 
       {/* ── Toolbar: Tabs & Search/Filter Controls ── */}
-      <div
-        className="company-toolbar"
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          gap: '1rem',
-          flexWrap: 'wrap',
-          background: 'var(--surface)',
-          padding: '0.75rem 1rem',
-          borderRadius: 'var(--radius)',
-          border: '1px solid var(--border)'
-        }}
-      >
+      <div className="company-toolbar">
         {/* Navigation Tabs */}
         <div style={{ display: 'flex', gap: '0.5rem' }}>
           <button
@@ -490,8 +477,8 @@ export default function CompanyDirectoryPage() {
               </p>
             </div>
           ) : (
-            <div style={{ overflowX: 'auto' }}>
-              <table className="admin-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <div className="admin-table-scroll">
+            <table className="admin-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead>
                   <tr style={{ background: 'var(--surface-subtle, #f8fafc)', borderBottom: '1px solid var(--border)' }}>
                     <th style={{ textAlign: 'left', padding: '0.75rem 1rem', fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)' }}>COMPANY</th>
@@ -665,8 +652,8 @@ export default function CompanyDirectoryPage() {
               </p>
             </div>
           ) : (
-            <div style={{ overflowX: 'auto' }}>
-              <table className="admin-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <div className="admin-table-scroll">
+            <table className="admin-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead>
                   <tr style={{ background: 'var(--surface-subtle, #f8fafc)', borderBottom: '1px solid var(--border)' }}>
                     <th style={{ textAlign: 'left', padding: '0.75rem 1rem', fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)' }}>REQ ID</th>

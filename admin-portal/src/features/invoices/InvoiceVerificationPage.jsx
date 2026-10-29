@@ -107,7 +107,7 @@ export default function InvoiceVerificationPage() {
   };
 
   return (
-    <div className="invoice-verification-page" style={{ padding: '1.5rem', maxWidth: '1400px', margin: '0 auto' }}>
+    <div className="invoice-verification-page admin-mgmt-page">
       {/* Toast Alert Notification */}
       {toast && (
         <div

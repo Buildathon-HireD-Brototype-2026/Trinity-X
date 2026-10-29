@@ -198,7 +198,7 @@ export default function TripReportsPage() {
   const activeCategoryMeta = REPORT_TYPES.find((r) => r.id === activeReport) || REPORT_TYPES[0];
 
   return (
-    <div style={{ maxWidth: '1440px', margin: '0 auto', paddingBottom: '3.5rem' }}>
+    <div className="trip-reports-page admin-mgmt-page">
       {/* ── Toast Notification ── */}
       {toast && (
         <div

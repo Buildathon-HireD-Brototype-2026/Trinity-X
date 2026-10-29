@@ -11,6 +11,7 @@ import OrdersInboxPage from '../../features/orders-inbox/OrdersInboxPage';
 import TripsAssignmentPage from '../../features/trips-assignment/TripsAssignmentPage';
 import TripReportsPage from '../../features/reports/TripReportsPage';
 import InvoiceVerificationPage from '../../features/invoices/InvoiceVerificationPage';
+import useScreenDimensions from '../../hooks/useScreenDimensions';
 
 const VIEW_TITLES = {
   dashboard: 'Dashboard Overview',
@@ -25,6 +26,7 @@ const VIEW_TITLES = {
 };
 
 export default function AdminShell() {
+  const screen = useScreenDimensions();
   const [currentView, setCurrentView] = useState(() => {
     try {
       const params = new URLSearchParams(window.location.search);
@@ -35,7 +37,10 @@ export default function AdminShell() {
     }
     return 'dashboard';
   });
-  const [isCollapsed, setIsCollapsed] = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(() => {
+    if (typeof window !== 'undefined' && window.innerWidth < 1024) return true;
+    return false;
+  });
 
   useEffect(() => {
     const handlePopState = () => {
@@ -68,8 +73,14 @@ export default function AdminShell() {
   const handleToggleCollapse = () => setIsCollapsed((prev) => !prev);
   const handleOpenProfile = () => handleSelectView('profile');
 
+  const screenSize = screen.isMobile ? 'mobile' : screen.isTablet ? 'tablet' : screen.isWide ? 'wide' : 'desktop';
+
   return (
-    <div className="admin-layout">
+    <div
+      className="admin-layout"
+      data-screen-size={screenSize}
+      data-orientation={screen.orientation}
+    >
       <Sidebar
         currentView={currentView}
         onSelectView={handleSelectView}

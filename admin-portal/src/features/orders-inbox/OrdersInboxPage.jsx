@@ -421,21 +421,7 @@ export default function OrdersInboxPage({ onOpenDetail, onOpenCreate }) {
       )}
 
       {/* ── Filter Toolbar ── */}
-      <div
-        className="orders-toolbar"
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          gap: '1rem',
-          flexWrap: 'wrap',
-          background: 'var(--surface)',
-          padding: '0.75rem 1rem',
-          borderRadius: 'var(--radius)',
-          border: '1px solid var(--border)',
-          marginBottom: '1rem'
-        }}
-      >
+      <div className="orders-toolbar">
         {/* Status Filter Tabs */}
         <div style={{ display: 'flex', gap: '0.35rem' }}>
           {[
@@ -541,7 +527,7 @@ export default function OrdersInboxPage({ onOpenDetail, onOpenCreate }) {
             </p>
           </div>
         ) : (
-          <div style={{ overflowX: 'auto' }}>
+          <div className="admin-table-scroll">
             <table className="admin-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr style={{ background: 'var(--surface-subtle, #f8fafc)', borderBottom: '1px solid var(--border)' }}>

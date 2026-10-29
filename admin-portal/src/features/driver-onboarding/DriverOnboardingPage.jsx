@@ -262,20 +262,7 @@ export default function DriverOnboardingPage() {
       )}
 
       {/* ── Tabs & Search/Filter Controls Toolbar ── */}
-      <div
-        className="driver-toolbar"
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          gap: '1rem',
-          flexWrap: 'wrap',
-          background: 'var(--surface)',
-          padding: '0.75rem 1rem',
-          borderRadius: 'var(--radius)',
-          border: '1px solid var(--border)'
-        }}
-      >
+      <div className="driver-toolbar">
         {/* Navigation Tabs */}
         <div style={{ display: 'flex', gap: '0.5rem' }}>
           <button
@@ -442,7 +429,7 @@ export default function DriverOnboardingPage() {
             </p>
           </div>
         ) : (
-          <div style={{ overflowX: 'auto' }}>
+          <div className="admin-table-scroll">
             <table className="admin-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr style={{ background: 'var(--surface-subtle, #f8fafc)', borderBottom: '1px solid var(--border)' }}>

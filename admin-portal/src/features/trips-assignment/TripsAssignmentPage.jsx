@@ -255,19 +255,9 @@ export default function TripsAssignmentPage() {
   };
 
   return (
-    <div className="trips-assignment-page" style={{ padding: '1.5rem', maxWidth: '1440px', margin: '0 auto' }}>
+    <div className="trips-assignment-page admin-mgmt-page">
       {/* ── Top Header Bar ── */}
-      <div
-        className="admin-mgmt-header"
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'flex-start',
-          marginBottom: '1.5rem',
-          gap: '1rem',
-          flexWrap: 'wrap'
-        }}
-      >
+      <div className="admin-mgmt-header">
         <div className="admin-mgmt-header-left">
           <div className="page-icon-wrap" style={{ background: '#ede9fe', color: '#7c3aed' }}>
             <Navigation size={20} />
@@ -306,15 +296,7 @@ export default function TripsAssignmentPage() {
       </div>
 
       {/* ── KPI Metric Strip (Spacious, 4 Cards) ── */}
-      <div
-        className="trips-kpi-grid"
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-          gap: '1rem',
-          marginBottom: '1.5rem'
-        }}
-      >
+      <div className="trips-kpi-grid">
         {/* Card 1: Needs Driver */}
         <div
           className="stat-card"
@@ -449,17 +431,7 @@ export default function TripsAssignmentPage() {
       )}
 
       {/* ── Filter Toolbar ── */}
-      <div
-        className="trips-toolbar"
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          gap: '1rem',
-          flexWrap: 'wrap',
-          marginBottom: '1rem'
-        }}
-      >
+      <div className="trips-toolbar">
         {/* Status Filter Segmented Pills */}
         <div
           style={{
@@ -597,7 +569,7 @@ export default function TripsAssignmentPage() {
             </p>
           </div>
         ) : (
-          <div style={{ overflowX: 'auto' }}>
+          <div className="admin-table-scroll">
             <table className="admin-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr style={{ background: 'var(--surface-subtle, #f8fafc)', borderBottom: '1px solid var(--border)' }}>
